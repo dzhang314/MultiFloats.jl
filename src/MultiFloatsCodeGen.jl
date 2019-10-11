@@ -3,13 +3,14 @@ baremodule MultiFloatsCodeGen
 ######################################################################## EXPORTS
 
 export one_pass_renorm_func, two_pass_renorm_func,
-    MF64_add_func, MF64_F64_add_func, MF64_mul_func, MF64_F64_mul_func,
-    MF64_div_func, MF64_sqrt_func
+    multifloat_add_func, multifloat_float_add_func,
+    multifloat_mul_func, multifloat_float_mul_func,
+    multifloat_div_func, multifloat_sqrt_func
 
 ######################################################################## IMPORTS
 
 using Base: +, -, *, div, !, (:), ==, !=, <, <=, >, >=, min, max,
-    Vector, length, push!, deleteat!, reverse!, Dict, haskey, @assert
+    Vector, isempty, length, push!, deleteat!, reverse!, Dict, haskey, @assert
 
 ###################################################### METAPROGRAMMING UTILITIES
 
@@ -19,14 +20,13 @@ meta_tuple(x...) = Expr(:tuple, x...)
 
 inline_block() = [Expr(:meta, :inline)] # same as @inline
 
-function_def(name::Symbol, args::Vector{Expr}, body::Vector{Expr}) =
-    Expr(:function, Expr(:call, name, args...), Expr(:block, body...))
+function_def(name, args, body) =
+    Expr(:function,
+        Expr(:where, Expr(:call, name, args...), :(T <: AbstractFloat)),
+        Expr(:block, body...))
 
-function_def_F64(name::Symbol, args::Vector{Symbol}, body::Vector{Expr}) =
-    function_def(name, [Expr(:(::), arg, :Float64) for arg in args], body)
-
-function_def_MF64(name::Symbol, args::Vector{Symbol}, n::Int, body::Vector{Expr}) =
-    function_def(name, [Expr(:(::), arg, _MF64(n)) for arg in args], body)
+function_def_typed(name, arg_type, args, body) =
+    function_def(name, [Expr(:(::), arg, arg_type) for arg in args], body)
 
 meta_two_sum(s::Symbol, e::Symbol, a::SymExpr, b::SymExpr) =
     Expr(:(=), meta_tuple(s, e), Expr(:call, :two_sum, a, b))
@@ -43,36 +43,37 @@ meta_sum(addends::Vector{Symbol}) =
 meta_sum(result::Symbol, addends::Vector{Symbol}) =
     Expr(:(=), result, meta_sum(addends))
 
+meta_multifloat(N::Int) = :(MultiFloat{T,$N})
+
 renorm_name(n::Int) = Symbol("renorm_", n)
 
 mpadd_name(src_len::Int, dst_len::Int) = Symbol("mpadd_", src_len, '_', dst_len)
 
-_MF64(n::Int) = Expr(:curly, :Float64x, n)
-
-################################################################################
+################################################################ RENORMALIZATION
 
 function one_pass_renorm_func(n::Int; sloppy::Bool=false)
     args = [Symbol('a', i) for i = 0 : n - sloppy]
     sums = [Symbol('s', i) for i = 0 : n - 1]
     if (n == 2) && sloppy
-        return function_def_F64(renorm_name(2), args,
+        return function_def_typed(renorm_name(2), :T, args,
             [Expr(:call, :quick_two_sum, args...)])
     end
     code = inline_block()
     push!(code, meta_quick_two_sum(sums[1], sums[2], args[1], args[2]))
     for i = 1 : n-2
-        push!(code, meta_quick_two_sum(sums[i+1], sums[i+2], sums[i+1], args[i+2]))
+        push!(code, meta_quick_two_sum(
+            sums[i+1], sums[i+2], sums[i+1], args[i+2]))
     end
     push!(code, sloppy ? meta_tuple(sums...) :
-        meta_tuple(sums[1:n-1]..., Expr(:call, :+, sums[n], args[n+1])))
-    function_def_F64(renorm_name(n), args, code)
+        meta_tuple(sums[1:n-1]..., meta_sum([sums[n], args[n+1]])))
+    function_def_typed(renorm_name(n), :T, args, code)
 end
 
 function two_pass_renorm_func(n::Int; sloppy::Bool=false)
     args = [Symbol('a', i) for i = 0 : n - sloppy]
     sums = [Symbol('s', i) for i = 0 : n - 1]
     if (n == 2) && sloppy
-        return function_def_F64(renorm_name(2), args,
+        return function_def_typed(renorm_name(2), :T, args,
             [Expr(:call, :quick_two_sum, args...)])
     end
     temp = Symbol('t')
@@ -83,14 +84,15 @@ function two_pass_renorm_func(n::Int; sloppy::Bool=false)
     end
     push!(code, meta_quick_two_sum(sums[1], sums[2], args[1], temp))
     for i = 1 : n-2
-        push!(code, meta_quick_two_sum(sums[i+1], sums[i+2], sums[i+1], args[i+2]))
+        push!(code, meta_quick_two_sum(
+            sums[i+1], sums[i+2], sums[i+1], args[i+2]))
     end
     push!(code, sloppy ? meta_tuple(sums...) :
-        meta_tuple(sums[1:n-1]..., Expr(:call, :+, sums[n], args[n+1])))
-    function_def_F64(renorm_name(n), args, code)
+        meta_tuple(sums[1:n-1]..., meta_sum([sums[n], args[n+1]])))
+    function_def_typed(renorm_name(n), :T, args, code)
 end
 
-################################################################################
+################################################################### ACCUMULATION
 
 function add_var!(vars::Vector{Tuple{Symbol,Int}}, prefix::Char, i::Int)
     var = Symbol(prefix, i)
@@ -130,7 +132,7 @@ function mpadd_func(src_len::Int, dst_len::Int)
     end
     push!(code, meta_sum(sums[dst_len], [v[1] for v in vars]))
     push!(code, meta_tuple(sums...))
-    function_def_F64(mpadd_name(src_len, dst_len), args, code)
+    function_def_typed(mpadd_name(src_len, dst_len), :T, args, code)
 end
 
 const MPADD_CACHE = Dict{Symbol,Expr}()
@@ -164,12 +166,13 @@ function generate_accumulation_code!(code::Vector{Expr},
         push!(code, _mpsum(results, addends))
         deleteat!(vars, [v[2] <= i for v in vars])
     end
-    push!(code, Expr(:call, _MF64(N), Expr(:call, renorm_name(N), sums...)))
+    push!(code, Expr(:call, meta_multifloat(N),
+        Expr(:call, renorm_name(N), sums...)))
 end
 
-################################################################################
+##################################################################### ARITHMETIC
 
-function MF64_add_func(N::Int; sloppy::Bool=false)
+function multifloat_add_func(N::Int; sloppy::Bool=false)
     code = inline_block()
     vars = Tuple{Symbol,Int}[]
     for i = 1 : N - sloppy
@@ -183,10 +186,10 @@ function MF64_add_func(N::Int; sloppy::Bool=false)
     end
     reverse!(vars)
     generate_accumulation_code!(code, vars, N, sloppy=sloppy)
-    function_def_MF64(:+, [:a, :b], N, code)
+    function_def_typed(:(Base.:+), meta_multifloat(N), [:a, :b], code)
 end
 
-function MF64_F64_add_func(N::Int; sloppy::Bool=false)
+function multifloat_float_add_func(N::Int; sloppy::Bool=false)
     code = inline_block()
     vars = Tuple{Symbol,Int}[]
     push!(code, meta_two_sum(add_var!(vars, 't', 0), add_var!(vars, 'e', 1),
@@ -196,10 +199,11 @@ function MF64_F64_add_func(N::Int; sloppy::Bool=false)
     end
     reverse!(vars)
     generate_accumulation_code!(code, vars, N, sloppy=sloppy)
-    function_def(:+, [Expr(:(::), :a, _MF64(N)), Expr(:(::), :b, :Float64)], code)
+    function_def(:(Base.:+),
+        [Expr(:(::), :a, meta_multifloat(N)), Expr(:(::), :b, :T)], code)
 end
 
-function MF64_mul_func(N::Int; sloppy::Bool=false)
+function multifloat_mul_func(N::Int; sloppy::Bool=false)
     code = inline_block()
     for i = 0 : N-1-sloppy, j = 0 : i
         push!(code, meta_two_prod(Symbol('t', j, '_', i),
@@ -210,14 +214,14 @@ function MF64_mul_func(N::Int; sloppy::Bool=false)
             :(a.x[$(i + 2 - sloppy)] * b.x[$(N - i)])))
     end
     vars = Tuple{Symbol,Int}[]
-    for i = 0 : N-1-sloppy, j = 0 : i; add_var!(vars, 't', j, i);        end
-    for i = 0 : N-2+sloppy;            add_var!(vars, 't', i, N-sloppy); end
-    for i = 0 : N-1-sloppy, j = 0 : i; add_var!(vars, 'e', j, i+1);      end
+    for i = 0 : N-1-sloppy, j = 0 : i; add_var!(vars, 't', j, i       ); end
+    for i = 0 : N-2+sloppy           ; add_var!(vars, 't', i, N-sloppy); end
+    for i = 0 : N-1-sloppy, j = 0 : i; add_var!(vars, 'e', j, i+1     ); end
     generate_accumulation_code!(code, vars, N, sloppy=sloppy)
-    function_def_MF64(:*, [:a, :b], N, code)
+    function_def_typed(:(Base.:*), meta_multifloat(N), [:a, :b], code)
 end
 
-function MF64_F64_mul_func(N::Int; sloppy::Bool=false)
+function multifloat_float_mul_func(N::Int; sloppy::Bool=false)
     code = inline_block()
     for i = 0 : N-1-sloppy
         push!(code, meta_two_prod(Symbol('t', i), Symbol('e', i+1),
@@ -228,10 +232,11 @@ function MF64_F64_mul_func(N::Int; sloppy::Bool=false)
     for i = 0 : N-1;      add_var!(vars, 't', i); end
     for i = 1 : N-sloppy; add_var!(vars, 'e', i); end
     generate_accumulation_code!(code, vars, N, sloppy=sloppy)
-    function_def(:*, [Expr(:(::), :a, _MF64(N)), Expr(:(::), :b, :Float64)], code)
+    function_def(:(Base.:*),
+        [Expr(:(::), :a, meta_multifloat(N)), Expr(:(::), :b, :T)], code)
 end
 
-function MF64_div_func(N::Int; sloppy::Bool=false)
+function multifloat_div_func(N::Int; sloppy::Bool=false)
     code = inline_block()
     quots = [Symbol('q', i) for i = 0 : N - sloppy]
     push!(code, :($(quots[1]) = a.x[1] / b.x[1]))
@@ -241,8 +246,9 @@ function MF64_div_func(N::Int; sloppy::Bool=false)
         push!(code, :(r -= b * $(quots[i])))
     end
     push!(code, :($(quots[N+1-sloppy]) = r.x[1] / b.x[1]))
-    push!(code, Expr(:call, _MF64(N), Expr(:call, renorm_name(N), quots...)))
-    function_def_MF64(:/, [:a, :b], N, code)
+    push!(code, Expr(:call, meta_multifloat(N),
+        Expr(:call, renorm_name(N), quots...)))
+    function_def_typed(:(Base.:/), meta_multifloat(N), [:a, :b], code)
 end
 
 num_sqrt_iters(N::Int, sloppy::Bool) =
@@ -250,15 +256,15 @@ num_sqrt_iters(N::Int, sloppy::Bool) =
     (4 <= N <= 5) ? 3 :
     sloppy ? div(N + 1, 2) : div(N + 2, 2)
 
-function MF64_sqrt_func(N::Int; sloppy::Bool=false)
+function multifloat_sqrt_func(N::Int; sloppy::Bool=false)
     code = inline_block()
-    push!(code, :(r = Float64x{$N}(inv(sqrt(x.x[1])))))
-    push!(code, :(h = scale(0.5, x)))
+    push!(code, :(r = MultiFloat{T,$N}(inv(sqrt(x.x[1])))))
+    push!(code, :(h = scale(T(0.5), x)))
     for _ = 1 : num_sqrt_iters(N, sloppy)
-        push!(code, :(r += r * (0.5 - h * (r * r))))
+        push!(code, :(r += r * (T(0.5) - h * (r * r))))
     end
     push!(code, :(r * x))
-    function_def_MF64(:sqrt, [:x], N, code)
+    function_def_typed(:(Base.sqrt), meta_multifloat(N), [:x], code)
 end
 
 end # baremodule MultiFloatsCodeGen
