@@ -1,0 +1,4 @@
+name = "MultiFloats"
+uuid = "bdf0d083-296b-4888-a5b6-7498122e68a5"
+authors = ["David K. Zhang <dzhang314@gmail.com>"]
+version = "0.1.0"
