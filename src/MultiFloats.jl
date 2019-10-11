@@ -2,7 +2,9 @@ module MultiFloats
 
 export MultiFloat, Float16x, Float32x, Float64x,
                   Float64x2, Float64x3, Float64x4,
-       Float64x5, Float64x6, Float64x7, Float64x8
+       Float64x5, Float64x6, Float64x7, Float64x8,
+       use_clean_multifloat_arithmetic, use_sloppy_multifloat_arithmetic,
+       use_very_sloppy_multifloat_arithmetic
 
 include("./MultiFloatsCodeGen.jl")
 using .MultiFloatsCodeGen
@@ -248,16 +250,53 @@ end
 
 ################################################################################
 
-for i = 2 : 8
-    eval(one_pass_renorm_func(     i, sloppy=true))
-    eval(multifloat_add_func(      i, sloppy=true))
-    eval(multifloat_float_add_func(i, sloppy=true))
-    eval(multifloat_mul_func(      i, sloppy=true))
-    eval(multifloat_float_mul_func(i, sloppy=true))
-    eval(multifloat_div_func(      i, sloppy=true))
-    eval(multifloat_sqrt_func(     i, sloppy=true))
+function use_clean_multifloat_arithmetic()
+    for i = 2 : 8
+        eval(two_pass_renorm_func(     i, sloppy=false))
+        eval(multifloat_add_func(      i, sloppy=false))
+        eval(multifloat_float_add_func(i, sloppy=false))
+        eval(multifloat_mul_func(      i, sloppy=false))
+        eval(multifloat_float_mul_func(i, sloppy=false))
+        eval(multifloat_div_func(      i, sloppy=false))
+        eval(multifloat_sqrt_func(     i, sloppy=false))
+    end
+    for (_, v) in MultiFloatsCodeGen.MPADD_CACHE
+        eval(v)
+    end
 end
 
-for (_, v) in MultiFloatsCodeGen.MPADD_CACHE; eval(v); end
+function use_sloppy_multifloat_arithmetic()
+    for i = 2 : 8
+        eval(two_pass_renorm_func(     i, sloppy=true))
+        eval(multifloat_add_func(      i, sloppy=true))
+        eval(multifloat_float_add_func(i, sloppy=true))
+        eval(multifloat_mul_func(      i, sloppy=true))
+        eval(multifloat_float_mul_func(i, sloppy=true))
+        eval(multifloat_div_func(      i, sloppy=true))
+        eval(multifloat_sqrt_func(     i, sloppy=true))
+    end
+    for (_, v) in MultiFloatsCodeGen.MPADD_CACHE
+        eval(v)
+    end
+end
+
+function use_very_sloppy_multifloat_arithmetic()
+    for i = 2 : 8
+        eval(one_pass_renorm_func(     i, sloppy=true))
+        eval(multifloat_add_func(      i, sloppy=true))
+        eval(multifloat_float_add_func(i, sloppy=true))
+        eval(multifloat_mul_func(      i, sloppy=true))
+        eval(multifloat_float_mul_func(i, sloppy=true))
+        eval(multifloat_div_func(      i, sloppy=true))
+        eval(multifloat_sqrt_func(     i, sloppy=true))
+    end
+    for (_, v) in MultiFloatsCodeGen.MPADD_CACHE
+        eval(v)
+    end
+end
+
+################################################################################
+
+use_clean_multifloat_arithmetic()
 
 end # module MultiFloats
