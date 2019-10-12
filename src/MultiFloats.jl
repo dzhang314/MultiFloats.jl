@@ -167,21 +167,35 @@ Base.promote_rule(::Type{Float64x{N}}, ::Type{Float32}) where {N} = Float64x{N}
 
 ####################################################################### PRINTING
 
-function Base.show(io::IO, x::MultiFloat{T,N}) where {T<:AF,N}
-    x_renorm = x + zero(T)
-    while x_renorm.x != x.x
-        x = x_renorm
-        x_renorm += zero(T)
-    end
-    i = N
-    while (i > 0) && iszero(x.x[i])
-        i -= 1
-    end
-    if iszero(i)
-        show(io, zero(T))
+@inline function renormalize(x::MF{T,N}) where {T<:AF,N}
+    total = +(x.x...)
+    if isfinite(total)
+        while true
+            x0::MF{T,N} = x + zero(T)
+            if !(x0.x != x.x); break; end
+            x = x0
+        end
+        x
     else
-        show(io, setprecision(() -> BigFloat(x),
-             precision(T) + exponent(x.x[1]) - exponent(x.x[i])))
+        MultiFloat{T,N}(ntuple(_ -> total, N))
+    end
+end
+
+function Base.show(io::IO, x::MultiFloat{T,N}) where {T<:AF,N}
+    x = renormalize(x)
+    if !isfinite(x.x[1])
+        show(io, x.x[1])
+    else
+        i = N
+        while (i > 0) && iszero(x.x[i])
+            i -= 1
+        end
+        if iszero(i)
+            show(io, zero(T))
+        else
+            show(io, setprecision(() -> BigFloat(x),
+                precision(T) + exponent(x.x[1]) - exponent(x.x[i])))
+        end
     end
 end
 
@@ -195,40 +209,68 @@ end
 @inline Base.:(>=)(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] >= y.x[1])
 
 # TODO: Add accurate comparison operators. Sloppy stop-gap operators for now.
-@inline Base.:(==)(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} =
+@inline _eq(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} =
     (x.x[1] == y.x[1]) & (x.x[2] == y.x[2])
-@inline Base.:(!=)(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} =
+@inline _ne(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} =
     (x.x[1] != y.x[1]) | (x.x[2] != y.x[2])
-@inline Base.:(< )(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} =
+@inline _lt(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} =
     (x.x[1] < y.x[1]) | ((x.x[1] == y.x[1]) & (x.x[2] < y.x[2]))
-@inline Base.:(> )(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} =
+@inline _gt(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} =
     (x.x[1] > y.x[1]) | ((x.x[1] == y.x[1]) & (x.x[2] > y.x[2]))
-@inline Base.:(<=)(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} =
+@inline _le(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} =
     (x.x[1] < y.x[1]) | ((x.x[1] == y.x[1]) & (x.x[2] <= y.x[2]))
-@inline Base.:(>=)(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} =
+@inline _ge(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} =
     (x.x[1] > y.x[1]) | ((x.x[1] == y.x[1]) & (x.x[2] >= y.x[2]))
+
+@inline Base.:(==)(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} = _eq(renormalize(x), renormalize(y))
+@inline Base.:(!=)(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} = _ne(renormalize(x), renormalize(y))
+@inline Base.:(< )(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} = _lt(renormalize(x), renormalize(y))
+@inline Base.:(> )(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} = _gt(renormalize(x), renormalize(y))
+@inline Base.:(<=)(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} = _le(renormalize(x), renormalize(y))
+@inline Base.:(>=)(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} = _ge(renormalize(x), renormalize(y))
 
 @inline scale(a::T, x::MultiFloat{T,N}) where {T<:AF,N} =
     MultiFloat{T,N}(ntuple(i -> a * x.x[i], N))
 
+@inline function Base.ldexp(x::MF{T,N}, n::U) where {T<:AF,N,U<:Integer}
+    x = renormalize(x)
+    MultiFloat{T,N}(ntuple(i -> ldexp(x.x[i], n), N))
+end
+
 ################################################################################
 
-@inline Base.zero(::Type{MF{T,N}}) where {T<:AF,N} = MF{T,N}(zero(T))
-@inline Base.one( ::Type{MF{T,N}}) where {T<:AF,N} = MF{T,N}(one( T))
+@inline Base.zero(::Type{MF{T,N}}) where {T<:AF,N} = MF{T,N}(zero(T)  )
+@inline Base.one( ::Type{MF{T,N}}) where {T<:AF,N} = MF{T,N}(one( T)  )
+@inline Base.eps( ::Type{MF{T,N}}) where {T<:AF,N} = MF{T,N}(eps( T)^N)
 
-@inline _iszero(x::MultiFloat{T,N}) where {T<:AF,N} =
+@inline _iszero(x::MF{T,N}) where {T<:AF,N} =
     (&)(ntuple(i -> iszero(x.x[i]), N)...)
-@inline _isone( x::MultiFloat{T,N}) where {T<:AF,N} =
+@inline _isone( x::MF{T,N}) where {T<:AF,N} =
     isone(x.x[1]) & (&)(ntuple(i -> iszero(x.x[i + 1]), N - 1)...)
 
-@inline Base.iszero(x::MultiFloat{T,N}) where {T<:AF,N} = _iszero(renormalize(x))
-@inline Base.isone( x::MultiFloat{T,N}) where {T<:AF,N} = _isone( renormalize(x))
+@inline Base.iszero(x::MF{T,1}) where {T<:AF  } =  iszero(x.x[1])
+@inline Base.isone( x::MF{T,1}) where {T<:AF  } =  isone( x.x[1])
+@inline Base.iszero(x::MF{T,N}) where {T<:AF,N} = _iszero(renormalize(x))
+@inline Base.isone( x::MF{T,N}) where {T<:AF,N} = _isone( renormalize(x))
 
+################################################################################
+
+@inline Base.precision(::Type{MF{T,N}}) where {T<:AF,N} = N * precision(T)
+@inline Base.floatmin( ::Type{MF{T,N}}) where {T<:AF,N} = MF{T,N}(floatmin(T))
+@inline Base.floatmax( ::Type{MF{T,N}}) where {T<:AF,N} = MF{T,N}(floatmax(T))
+
+@inline Base.exponent(   x::MF{T,N}) where {T<:AF,N} = exponent(   renormalize(x).x[1])
 @inline Base.signbit(    x::MF{T,N}) where {T<:AF,N} = signbit(    renormalize(x).x[1])
 @inline Base.issubnormal(x::MF{T,N}) where {T<:AF,N} = issubnormal(renormalize(x).x[1])
 @inline Base.isfinite(   x::MF{T,N}) where {T<:AF,N} = isfinite(   renormalize(x).x[1])
 @inline Base.isinf(      x::MF{T,N}) where {T<:AF,N} = isinf(      renormalize(x).x[1])
 @inline Base.isnan(      x::MF{T,N}) where {T<:AF,N} = isnan(      renormalize(x).x[1])
+
+import LinearAlgebra: floatmin2
+@inline floatmin2(::Type{MF{T,N}}) where {T<:AF,N} =
+    MF{T,N}(ldexp(one(T), div(exponent(floatmin(T)) - N * exponent(eps(T)), 2)))
+
+################################################################################
 
 @inline Base.inv(x::MF{T,N}) where {T<:AF,N} = one(MF{T,N}) / x
 
@@ -241,6 +283,11 @@ end
     x = renormalize(x)
     renormalize(x * x)
 end
+
+Base.exp(::MF{T,N}) where {T<:AF,N} = error("exp(MultiFloat) not yet implemented")
+Base.log(::MF{T,N}) where {T<:AF,N} = error("log(MultiFloat) not yet implemented")
+Base.sin(::MF{T,N}) where {T<:AF,N} = error("sin(MultiFloat) not yet implemented")
+Base.cos(::MF{T,N}) where {T<:AF,N} = error("cos(MultiFloat) not yet implemented")
 
 ################################################################################
 
@@ -323,17 +370,6 @@ end
 @inline Base.:-(x::MF{T,N}) where {T<:AF,N} = MF{T,N}(ntuple(i -> -x.x[i], N))
 @inline Base.:-(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} = x + (-y)
 @inline Base.:-(x::MF{T,N}, y::T      ) where {T<:AF,N} = x + (-y)
-
-################################################################################
-
-@inline function renormalize(x::MF{T,N}) where {T<:AF,N}
-    while true
-        x0::MF{T,N} = x + zero(T)
-        if x0.x == x.x; break; end
-        x = x0
-    end
-    x
-end
 
 ################################################################################
 
