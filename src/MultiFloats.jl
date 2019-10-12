@@ -1,9 +1,10 @@
 module MultiFloats
 
 export MultiFloat, Float16x, Float32x, Float64x,
-                  Float64x2, Float64x3, Float64x4,
+       Float64x1, Float64x2, Float64x3, Float64x4,
        Float64x5, Float64x6, Float64x7, Float64x8,
-       use_clean_multifloat_arithmetic, use_sloppy_multifloat_arithmetic,
+       use_clean_multifloat_arithmetic,
+       use_sloppy_multifloat_arithmetic,
        use_very_sloppy_multifloat_arithmetic
 
 include("./MultiFloatsCodeGen.jl")
@@ -22,6 +23,7 @@ const Float64x{N} = MultiFloat{Float64,N}
 const AF = Core.AbstractFloat
 const MF = MultiFloat
 
+const Float64x1 = Float64x{1}
 const Float64x2 = Float64x{2}
 const Float64x3 = Float64x{3}
 const Float64x4 = Float64x{4}
@@ -54,21 +56,21 @@ const Float64x8 = Float64x{8}
 # Values of the types Int64, UInt64, Int128, and UInt128 cannot be converted
 # losslessly to a single Float64 and must be split into multiple components.
 
-@inline Float64x{1}(x::Int64  ) = Float64x{1}(Float64(x))
-@inline Float64x{1}(x::UInt64 ) = Float64x{1}(Float64(x))
-@inline Float64x{1}(x::Int128 ) = Float64x{1}(Float64(x))
-@inline Float64x{1}(x::UInt128) = Float64x{1}(Float64(x))
+@inline Float64x1(x::Int64  ) = Float64x1(Float64(x))
+@inline Float64x1(x::UInt64 ) = Float64x1(Float64(x))
+@inline Float64x1(x::Int128 ) = Float64x1(Float64(x))
+@inline Float64x1(x::UInt128) = Float64x1(Float64(x))
 
-@inline function Float64x{2}(x::Int128)
+@inline function Float64x2(x::Int128)
     x0 = Float64(x)
     x1 = Float64(x - Int128(x0))
-    Float64x{2}((x0, x1))
+    Float64x2((x0, x1))
 end
 
-@inline function Float64x{2}(x::UInt128)
+@inline function Float64x2(x::UInt128)
     x0 = Float64(x)
     x1 = Float64(reinterpret(Int128, x - UInt128(x0)))
-    Float64x{2}((x0, x1))
+    Float64x2((x0, x1))
 end
 
 @inline function Float64x{N}(x::Int64) where {N}
@@ -103,6 +105,9 @@ end
 
 @inline Base.Float16(x::Float64x{N}) where {N} = Float16(x.x[1])
 @inline Base.Float32(x::Float64x{N}) where {N} = Float32(x.x[1])
+
+@inline Base.Float16(x::Float16x{N}) where {N} = x.x[1]
+@inline Base.Float32(x::Float32x{N}) where {N} = x.x[1]
 @inline Base.Float64(x::Float64x{N}) where {N} = x.x[1]
 
 ###################################################### CONVERSION FROM BIG TYPES
@@ -153,6 +158,9 @@ Base.promote_rule(::Type{MF{T,N}}, ::Type{UInt32 }) where {T<:AF,N} = MF{T,N}
 Base.promote_rule(::Type{MF{T,N}}, ::Type{UInt64 }) where {T<:AF,N} = MF{T,N}
 Base.promote_rule(::Type{MF{T,N}}, ::Type{UInt128}) where {T<:AF,N} = MF{T,N}
 
+Base.promote_rule(::Type{MF{T,N}}, ::Type{BigFloat}) where {T<:AF,N} = BigFloat
+
+Base.promote_rule(::Type{Float32x{N}}, ::Type{Float16}) where {N} = Float32x{N}
 Base.promote_rule(::Type{Float64x{N}}, ::Type{Float16}) where {N} = Float64x{N}
 Base.promote_rule(::Type{Float64x{N}}, ::Type{Float32}) where {N} = Float64x{N}
 
@@ -189,30 +197,32 @@ end
 ################################################################################
 
 # TODO: Special-case these operations for a single operand.
-@inline Base.inv(x::Float64x{N}) where {N} = one(Float64x{N}) / x
-@inline Base.abs2(x::Float64x{N}) where {N} = x * x
+@inline Base.inv(x::MF{T,N}) where {T<:AF,N} = one(MF{T,N}) / x
+@inline Base.abs2(x::MF{T,N}) where {T<:AF,N} = x * x
+
+@inline Base.:(==)(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] == y.x[1])
+@inline Base.:(!=)(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] != y.x[1])
+@inline Base.:(< )(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] <  y.x[1])
+@inline Base.:(> )(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] >  y.x[1])
+@inline Base.:(<=)(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] <= y.x[1])
+@inline Base.:(>=)(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] >= y.x[1])
 
 # TODO: Add accurate comparison operators. Sloppy stop-gap operators for now.
-import Base: ==, !=, <, >, <=, >=
-@inline ==(x::Float64x{N}, y::Float64x{N}) where {N} =
+@inline Base.:(==)(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} =
     (x.x[1] == y.x[1]) & (x.x[2] == y.x[2])
-@inline !=(x::Float64x{N}, y::Float64x{N}) where {N} =
+@inline Base.:(!=)(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} =
     (x.x[1] != y.x[1]) | (x.x[2] != y.x[2])
-@inline <(x::Float64x{N}, y::Float64x{N}) where {N} =
+@inline Base.:(< )(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} =
     (x.x[1] < y.x[1]) | ((x.x[1] == y.x[1]) & (x.x[2] < y.x[2]))
-@inline >(x::Float64x{N}, y::Float64x{N}) where {N} =
+@inline Base.:(> )(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} =
     (x.x[1] > y.x[1]) | ((x.x[1] == y.x[1]) & (x.x[2] > y.x[2]))
-@inline <=(x::Float64x{N}, y::Float64x{N}) where {N} =
+@inline Base.:(<=)(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} =
     (x.x[1] < y.x[1]) | ((x.x[1] == y.x[1]) & (x.x[2] <= y.x[2]))
-@inline >=(x::Float64x{N}, y::Float64x{N}) where {N} =
+@inline Base.:(>=)(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} =
     (x.x[1] > y.x[1]) | ((x.x[1] == y.x[1]) & (x.x[2] >= y.x[2]))
 
-# import DZMisc: scale
 @inline scale(a::T, x::MultiFloat{T,N}) where {T<:AF,N} =
     MultiFloat{T,N}(ntuple(i -> a * x.x[i], N))
-
-# import DZMisc: dbl
-@inline dbl(x::MultiFloat{T,N}) where {T<:AF,N} = scale(T(2.0), x)
 
 ################################################################################
 
@@ -250,8 +260,15 @@ end
 
 ################################################################################
 
-function use_clean_multifloat_arithmetic()
-    for i = 2 : 8
+@inline Base.:+(a::MF{T,1}, b::MF{T,1}) where {T<:AF} = MF{T,1}(a.x[1] + b.x[1])
+@inline Base.:+(a::MF{T,1}, b::T      ) where {T<:AF} = MF{T,1}(a.x[1] + b     )
+@inline Base.:*(a::MF{T,1}, b::MF{T,1}) where {T<:AF} = MF{T,1}(a.x[1] * b.x[1])
+@inline Base.:*(a::MF{T,1}, b::T      ) where {T<:AF} = MF{T,1}(a.x[1] * b     )
+@inline Base.:/(a::MF{T,1}, b::MF{T,1}) where {T<:AF} = MF{T,1}(a.x[1] / b.x[1])
+@inline Base.sqrt(x::MF{T,1}          ) where {T<:AF} = MF{T,1}(sqrt(x.x[1]))
+
+function use_clean_multifloat_arithmetic(n::Integer=8)
+    for i = 2 : n
         eval(two_pass_renorm_func(     i, sloppy=false))
         eval(multifloat_add_func(      i, sloppy=false))
         eval(multifloat_float_add_func(i, sloppy=false))
@@ -265,8 +282,8 @@ function use_clean_multifloat_arithmetic()
     end
 end
 
-function use_sloppy_multifloat_arithmetic()
-    for i = 2 : 8
+function use_sloppy_multifloat_arithmetic(n::Integer=8)
+    for i = 2 : n
         eval(two_pass_renorm_func(     i, sloppy=true))
         eval(multifloat_add_func(      i, sloppy=true))
         eval(multifloat_float_add_func(i, sloppy=true))
@@ -280,8 +297,8 @@ function use_sloppy_multifloat_arithmetic()
     end
 end
 
-function use_very_sloppy_multifloat_arithmetic()
-    for i = 2 : 8
+function use_very_sloppy_multifloat_arithmetic(n::Integer=8)
+    for i = 2 : n
         eval(one_pass_renorm_func(     i, sloppy=true))
         eval(multifloat_add_func(      i, sloppy=true))
         eval(multifloat_float_add_func(i, sloppy=true))

@@ -76,13 +76,12 @@ function two_pass_renorm_func(n::Int; sloppy::Bool=false)
         return function_def_typed(renorm_name(2), :T, args,
             [Expr(:call, :quick_two_sum, args...)])
     end
-    temp = Symbol('t')
     code = inline_block()
-    push!(code, meta_quick_two_sum(temp, args[end], args[end-1], args[end]))
+    push!(code, meta_quick_two_sum(:t, args[end], args[end-1], args[end]))
     for i = n-2-sloppy : -1 : 1
-        push!(code, meta_quick_two_sum(temp, args[i+2], args[i+1], temp))
+        push!(code, meta_quick_two_sum(:t, args[i+2], args[i+1], :t))
     end
-    push!(code, meta_quick_two_sum(sums[1], sums[2], args[1], temp))
+    push!(code, meta_quick_two_sum(sums[1], sums[2], args[1], :t))
     for i = 1 : n-2
         push!(code, meta_quick_two_sum(
             sums[i+1], sums[i+2], sums[i+1], args[i+2]))
