@@ -5,7 +5,8 @@ export MultiFloat, Float16x, Float32x, Float64x,
        Float64x5, Float64x6, Float64x7, Float64x8,
        use_clean_multifloat_arithmetic,
        use_sloppy_multifloat_arithmetic,
-       use_very_sloppy_multifloat_arithmetic
+       use_very_sloppy_multifloat_arithmetic,
+       renormalize
 
 include("./MultiFloatsCodeGen.jl")
 using .MultiFloatsCodeGen
@@ -186,20 +187,6 @@ end
 
 ################################################################################
 
-@inline Base.:+(x::T, y::MF{T,N}) where {T<:AF,N} = y + x
-@inline Base.:-(x::T, y::MF{T,N}) where {T<:AF,N} = -(y + (-x))
-@inline Base.:*(x::T, y::MF{T,N}) where {T<:AF,N} = y * x
-
-@inline Base.:-(x::MF{T,N}) where {T<:AF,N} = MF{T,N}(ntuple(i -> -x.x[i], N))
-@inline Base.:-(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} = x + (-y)
-@inline Base.:-(x::MF{T,N}, y::T      ) where {T<:AF,N} = x + (-y)
-
-################################################################################
-
-# TODO: Special-case these operations for a single operand.
-@inline Base.inv(x::MF{T,N}) where {T<:AF,N} = one(MF{T,N}) / x
-@inline Base.abs2(x::MF{T,N}) where {T<:AF,N} = x * x
-
 @inline Base.:(==)(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] == y.x[1])
 @inline Base.:(!=)(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] != y.x[1])
 @inline Base.:(< )(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] <  y.x[1])
@@ -229,16 +216,31 @@ end
 @inline Base.zero(::Type{MF{T,N}}) where {T<:AF,N} = MF{T,N}(zero(T))
 @inline Base.one( ::Type{MF{T,N}}) where {T<:AF,N} = MF{T,N}(one( T))
 
-@inline Base.iszero(x::MultiFloat{T,N}) where {T<:AF,N} =
+@inline _iszero(x::MultiFloat{T,N}) where {T<:AF,N} =
     (&)(ntuple(i -> iszero(x.x[i]), N)...)
-@inline Base.isone( x::MultiFloat{T,N}) where {T<:AF,N} =
+@inline _isone( x::MultiFloat{T,N}) where {T<:AF,N} =
     isone(x.x[1]) & (&)(ntuple(i -> iszero(x.x[i + 1]), N - 1)...)
 
-@inline Base.signbit(    x::MF{T,N}) where {T<:AF,N} = signbit(    x.x[1])
-@inline Base.issubnormal(x::MF{T,N}) where {T<:AF,N} = issubnormal(x.x[1])
-@inline Base.isfinite(   x::MF{T,N}) where {T<:AF,N} = isfinite(   x.x[1])
-@inline Base.isinf(      x::MF{T,N}) where {T<:AF,N} = isinf(      x.x[1])
-@inline Base.isnan(      x::MF{T,N}) where {T<:AF,N} = isnan(      x.x[1])
+@inline Base.iszero(x::MultiFloat{T,N}) where {T<:AF,N} = _iszero(renormalize(x))
+@inline Base.isone( x::MultiFloat{T,N}) where {T<:AF,N} = _isone( renormalize(x))
+
+@inline Base.signbit(    x::MF{T,N}) where {T<:AF,N} = signbit(    renormalize(x).x[1])
+@inline Base.issubnormal(x::MF{T,N}) where {T<:AF,N} = issubnormal(renormalize(x).x[1])
+@inline Base.isfinite(   x::MF{T,N}) where {T<:AF,N} = isfinite(   renormalize(x).x[1])
+@inline Base.isinf(      x::MF{T,N}) where {T<:AF,N} = isinf(      renormalize(x).x[1])
+@inline Base.isnan(      x::MF{T,N}) where {T<:AF,N} = isnan(      renormalize(x).x[1])
+
+@inline Base.inv(x::MF{T,N}) where {T<:AF,N} = one(MF{T,N}) / x
+
+@inline function Base.abs(x::MF{T,N}) where {T<:AF,N}
+    x = renormalize(x)
+    ifelse(signbit(x.x[1]), -x, x)
+end
+
+@inline function Base.abs2(x::MF{T,N}) where {T<:AF,N}
+    x = renormalize(x)
+    renormalize(x * x)
+end
 
 ################################################################################
 
@@ -310,6 +312,27 @@ function use_very_sloppy_multifloat_arithmetic(n::Integer=8)
     for (_, v) in MultiFloatsCodeGen.MPADD_CACHE
         eval(v)
     end
+end
+
+################################################################################
+
+@inline Base.:+(x::T, y::MF{T,N}) where {T<:AF,N} = y + x
+@inline Base.:-(x::T, y::MF{T,N}) where {T<:AF,N} = -(y + (-x))
+@inline Base.:*(x::T, y::MF{T,N}) where {T<:AF,N} = y * x
+
+@inline Base.:-(x::MF{T,N}) where {T<:AF,N} = MF{T,N}(ntuple(i -> -x.x[i], N))
+@inline Base.:-(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} = x + (-y)
+@inline Base.:-(x::MF{T,N}, y::T      ) where {T<:AF,N} = x + (-y)
+
+################################################################################
+
+@inline function renormalize(x::MF{T,N}) where {T<:AF,N}
+    while true
+        x0::MF{T,N} = x + zero(T)
+        if x0.x == x.x; break; end
+        x = x0
+    end
+    x
 end
 
 ################################################################################
