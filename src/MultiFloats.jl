@@ -1,12 +1,11 @@
 module MultiFloats
 
-export MultiFloat, Float16x, Float32x, Float64x,
+export MultiFloat, renormalize,
        Float64x1, Float64x2, Float64x3, Float64x4,
        Float64x5, Float64x6, Float64x7, Float64x8,
        use_clean_multifloat_arithmetic,
        use_sloppy_multifloat_arithmetic,
-       use_very_sloppy_multifloat_arithmetic,
-       renormalize
+       use_very_sloppy_multifloat_arithmetic
 
 include("./MultiFloatsCodeGen.jl")
 using .MultiFloatsCodeGen
@@ -373,6 +372,6 @@ end
 
 ################################################################################
 
-use_clean_multifloat_arithmetic()
+use_sloppy_multifloat_arithmetic()
 
 end # module MultiFloats
