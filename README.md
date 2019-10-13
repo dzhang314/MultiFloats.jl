@@ -34,8 +34,8 @@ A comparison with `sqrt(BigFloat(2))` reveals that all displayed digits are corr
 
 Two basic linear algebra tasks are used below to compare the performance of extended-precision floating-point libraries:
 
-* QR factorization of a random 400×400 matrix (`LinearAlgebra.qr`)
-* Computing the pseudoinverse of a random 400×250 matrix (`LinearAlgebra.pinv`)
+* QR factorization of a random 400×400 matrix
+* Computing the pseudoinverse of a random 400×250 matrix (using **[GenericSVD.jl](https://github.com/JuliaLinearAlgebra/GenericSVD.jl)**)
 
 [See benchmark code here.](https://gist.github.com/dzhang314/3e10463843f4ab5f5a4a2206c877771b) The timings reported below are averages of 10 runs performed under identical conditions on an Intel Core i7-8650U (Surface Book 2 13.5").
 
@@ -54,6 +54,6 @@ Two basic linear algebra tasks are used below to compare the performance of exte
 | avoids dynamic memory allocation                       | ✔️          | ❌      | ❌          | ❌       | ✔️    | ⚠️          | ✔️       |
 | basic arithmetic `+`, `-`, `*`, `/`, `sqrt`            | ✔️          | ✔️      | ✔️          | ❌       | ✔️    | ✔️          | ✔️       |
 | transcendental functions `sin`, `cos`, `exp`, `log`    | ❌ (WIP)    | ✔️      | ✔️          | ❌       | ✔️    | ✔️          | ✔️       |
-| compatible with **GenericSVD**                         | ✔️          | ✔️      | ✔️          | ❌       | ❌    | ✔️          | ✔️       |
+| compatible with **[GenericSVD.jl](https://github.com/JuliaLinearAlgebra/GenericSVD.jl)**                         | ✔️          | ✔️      | ✔️          | ❌       | ❌    | ✔️          | ✔️       |
 | floating-point introspection `minfloat`, `eps`         | ✔️          | ✔️      | ✔️          | ❌       | ✔️    | ✔️          | ✔️       |
 
