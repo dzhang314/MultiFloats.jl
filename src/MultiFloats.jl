@@ -283,10 +283,58 @@ end
     renormalize(x * x)
 end
 
-Base.exp(::MF{T,N}) where {T<:AF,N} = error("exp(MultiFloat) not yet implemented")
-Base.log(::MF{T,N}) where {T<:AF,N} = error("log(MultiFloat) not yet implemented")
+################################################################################
+
+# To-do list of transcendental math functions to be implemented
+
+Base.exp(  ::MF{T,N}) where {T<:AF,N} = error(  "exp(MultiFloat) not yet implemented")
+Base.expm1(::MF{T,N}) where {T<:AF,N} = error("expm1(MultiFloat) not yet implemented")
+Base.log(  ::MF{T,N}) where {T<:AF,N} = error(  "log(MultiFloat) not yet implemented")
+Base.log2( ::MF{T,N}) where {T<:AF,N} = error( "log2(MultiFloat) not yet implemented")
+Base.log10(::MF{T,N}) where {T<:AF,N} = error("log10(MultiFloat) not yet implemented")
+Base.log1p(::MF{T,N}) where {T<:AF,N} = error("log1p(MultiFloat) not yet implemented")
+
 Base.sin(::MF{T,N}) where {T<:AF,N} = error("sin(MultiFloat) not yet implemented")
 Base.cos(::MF{T,N}) where {T<:AF,N} = error("cos(MultiFloat) not yet implemented")
+Base.tan(::MF{T,N}) where {T<:AF,N} = error("tan(MultiFloat) not yet implemented")
+Base.sec(::MF{T,N}) where {T<:AF,N} = error("sec(MultiFloat) not yet implemented")
+Base.csc(::MF{T,N}) where {T<:AF,N} = error("csc(MultiFloat) not yet implemented")
+Base.cot(::MF{T,N}) where {T<:AF,N} = error("cot(MultiFloat) not yet implemented")
+
+Base.sinh(::MF{T,N}) where {T<:AF,N} = error("sinh(MultiFloat) not yet implemented")
+Base.cosh(::MF{T,N}) where {T<:AF,N} = error("cosh(MultiFloat) not yet implemented")
+Base.tanh(::MF{T,N}) where {T<:AF,N} = error("tanh(MultiFloat) not yet implemented")
+Base.sech(::MF{T,N}) where {T<:AF,N} = error("sech(MultiFloat) not yet implemented")
+Base.csch(::MF{T,N}) where {T<:AF,N} = error("csch(MultiFloat) not yet implemented")
+Base.coth(::MF{T,N}) where {T<:AF,N} = error("coth(MultiFloat) not yet implemented")
+
+Base.sind(::MF{T,N}) where {T<:AF,N} = error("sind(MultiFloat) not yet implemented")
+Base.cosd(::MF{T,N}) where {T<:AF,N} = error("cosd(MultiFloat) not yet implemented")
+Base.tand(::MF{T,N}) where {T<:AF,N} = error("tand(MultiFloat) not yet implemented")
+Base.secd(::MF{T,N}) where {T<:AF,N} = error("secd(MultiFloat) not yet implemented")
+Base.cscd(::MF{T,N}) where {T<:AF,N} = error("cscd(MultiFloat) not yet implemented")
+Base.cotd(::MF{T,N}) where {T<:AF,N} = error("cotd(MultiFloat) not yet implemented")
+
+Base.asin(::MF{T,N}) where {T<:AF,N} = error("asin(MultiFloat) not yet implemented")
+Base.acos(::MF{T,N}) where {T<:AF,N} = error("acos(MultiFloat) not yet implemented")
+Base.atan(::MF{T,N}) where {T<:AF,N} = error("atan(MultiFloat) not yet implemented")
+Base.asec(::MF{T,N}) where {T<:AF,N} = error("asec(MultiFloat) not yet implemented")
+Base.acsc(::MF{T,N}) where {T<:AF,N} = error("acsc(MultiFloat) not yet implemented")
+Base.acot(::MF{T,N}) where {T<:AF,N} = error("acot(MultiFloat) not yet implemented")
+
+Base.asinh(::MF{T,N}) where {T<:AF,N} = error("asinh(MultiFloat) not yet implemented")
+Base.acosh(::MF{T,N}) where {T<:AF,N} = error("acosh(MultiFloat) not yet implemented")
+Base.atanh(::MF{T,N}) where {T<:AF,N} = error("atanh(MultiFloat) not yet implemented")
+Base.asech(::MF{T,N}) where {T<:AF,N} = error("asech(MultiFloat) not yet implemented")
+Base.acsch(::MF{T,N}) where {T<:AF,N} = error("acsch(MultiFloat) not yet implemented")
+Base.acoth(::MF{T,N}) where {T<:AF,N} = error("acoth(MultiFloat) not yet implemented")
+
+Base.asind(::MF{T,N}) where {T<:AF,N} = error("asind(MultiFloat) not yet implemented")
+Base.acosd(::MF{T,N}) where {T<:AF,N} = error("acosd(MultiFloat) not yet implemented")
+Base.atand(::MF{T,N}) where {T<:AF,N} = error("atand(MultiFloat) not yet implemented")
+Base.asecd(::MF{T,N}) where {T<:AF,N} = error("asecd(MultiFloat) not yet implemented")
+Base.acscd(::MF{T,N}) where {T<:AF,N} = error("acscd(MultiFloat) not yet implemented")
+Base.acotd(::MF{T,N}) where {T<:AF,N} = error("acotd(MultiFloat) not yet implemented")
 
 ################################################################################
 
