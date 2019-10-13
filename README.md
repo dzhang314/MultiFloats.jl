@@ -7,9 +7,9 @@
 
 |                 | MultiFloats `Float64x2` | Base `BigFloat`        | ArbNumerics `ArbFloat`  | Decimals `Decimal` | DecFP `Dec128`        | DoubleFloats `Double64` | Quadmath `Float128`   |
 |-----------------|---------------------------|--------------------------|---------------------------|----------------------|-------------------------|---------------------------|-------------------------|
-| 400×400 `qr`&nbsp;time  | **0.257 sec**                 | 10.303 sec (**40x**&nbsp;slower) | 17.871 sec (**69x**&nbsp;slower)  | ❌ Error              | 9.448 sec (**36x**&nbsp;slower) | 0.535 sec (**2x**&nbsp;slower)    | 2.403 sec (**9x**&nbsp;slower)  |
+| 400×400 `qr`&nbsp;time  | **0.257 sec**                 | 10.303 sec **(40x&nbsp;slower)** | 17.871 sec **(69x&nbsp;slower)**  | ❌ Error              | 9.448 sec **(36x&nbsp;slower)** | 0.535 sec **(2x&nbsp;slower)**    | 2.403 sec **(9x&nbsp;slower)**  |
 | accurate digits | 26.0                      | 25.9                     | 25.9                      | ❌ Error              | 27.6                    | 26.1                      | 28.1                    |
-| 400×250 `pinv`&nbsp;time  | **1.709 sec**                 | 96.655 sec (**56x**&nbsp;slower) | 133.085 sec (**77x**&nbsp;slower) | ❌ Error              | ❌ Error                 | 3.668 sec (**2x**&nbsp;slower)    | 15.576 sec (**9x**&nbsp;slower) |
+| 400×250 `pinv`&nbsp;time  | **1.709 sec**                 | 96.655 sec **(56x&nbsp;slower)** | 133.085 sec **(77x&nbsp;slower)** | ❌ Error              | ❌ Error                 | 3.668 sec **(2x&nbsp;slower)**    | 15.576 sec **(9x&nbsp;slower)** |
 | accurate digits | 25.6                      | 25.8                     | 25.8                      | ❌ Error              | ❌ Error                 | 25.4                      | 27.9                    |
 
 
