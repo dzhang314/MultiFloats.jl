@@ -257,7 +257,7 @@ num_sqrt_iters(N::Int, sloppy::Bool) =
 
 function multifloat_sqrt_func(N::Int; sloppy::Bool=false)
     code = inline_block()
-    push!(code, :(r = MultiFloat{T,$N}(inv(sqrt(x.x[1])))))
+    push!(code, :(r = MultiFloat{T,$N}(inv(unsafe_sqrt(x.x[1])))))
     push!(code, :(h = scale(T(0.5), x)))
     for _ = 1 : num_sqrt_iters(N, sloppy)
         push!(code, :(r += r * (T(0.5) - h * (r * r))))

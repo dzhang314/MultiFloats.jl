@@ -356,12 +356,16 @@ end
 
 ################################################################################
 
+@inline unsafe_sqrt(x::Float32) = Base.sqrt_llvm(x)
+@inline unsafe_sqrt(x::Float64) = Base.sqrt_llvm(x)
+@inline unsafe_sqrt(x::T) where {T <: Real} = sqrt(x)
+
 @inline Base.:+(a::MF{T,1}, b::MF{T,1}) where {T<:AF} = MF{T,1}(a.x[1] + b.x[1])
 @inline Base.:+(a::MF{T,1}, b::T      ) where {T<:AF} = MF{T,1}(a.x[1] + b     )
 @inline Base.:*(a::MF{T,1}, b::MF{T,1}) where {T<:AF} = MF{T,1}(a.x[1] * b.x[1])
 @inline Base.:*(a::MF{T,1}, b::T      ) where {T<:AF} = MF{T,1}(a.x[1] * b     )
 @inline Base.:/(a::MF{T,1}, b::MF{T,1}) where {T<:AF} = MF{T,1}(a.x[1] / b.x[1])
-@inline Base.sqrt(x::MF{T,1}          ) where {T<:AF} = MF{T,1}(sqrt(x.x[1]))
+@inline Base.sqrt(x::MF{T,1}          ) where {T<:AF} = MF{T,1}(unsafe_sqrt(x.x[1]))
 
 function use_clean_multifloat_arithmetic(n::Integer=8)
     for i = 2 : n
