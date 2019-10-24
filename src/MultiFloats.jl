@@ -39,6 +39,11 @@ const Float64x8 = Float64x{8}
 @inline MultiFloat{T,N}(x::T) where {T<:AF,N} =
     MultiFloat{T,N}((x, ntuple(_ -> zero(T), N - 1)...))
 
+@inline MultiFloat{T,N}(x::MultiFloat{T,M}) where {T<:AbstractFloat,M,N} =
+    MultiFloat{T,N}((
+        ntuple(i -> x.x[i], min(M, N))...,
+        ntuple(_ -> zero(T), max(N - M, 0))...))
+
 # Values of the types Bool, Int8, UInt8, Int16, UInt16, Float16, Int32, UInt32,
 # and Float32 can be converted losslessly to a single Float64, which has 53
 # bits of integer precision.
