@@ -207,19 +207,54 @@ end
 @inline Base.:(<=)(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] <= y.x[1])
 @inline Base.:(>=)(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] >= y.x[1])
 
-# TODO: Add accurate comparison operators. Sloppy stop-gap operators for now.
-@inline _eq(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} =
-    (x.x[1] == y.x[1]) & (x.x[2] == y.x[2])
-@inline _ne(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} =
-    (x.x[1] != y.x[1]) | (x.x[2] != y.x[2])
-@inline _lt(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} =
-    (x.x[1] < y.x[1]) | ((x.x[1] == y.x[1]) & (x.x[2] < y.x[2]))
-@inline _gt(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} =
-    (x.x[1] > y.x[1]) | ((x.x[1] == y.x[1]) & (x.x[2] > y.x[2]))
-@inline _le(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} =
-    (x.x[1] < y.x[1]) | ((x.x[1] == y.x[1]) & (x.x[2] <= y.x[2]))
-@inline _ge(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} =
-    (x.x[1] > y.x[1]) | ((x.x[1] == y.x[1]) & (x.x[2] >= y.x[2]))
+@inline _eq(x::MF{T,2}, y::MF{T,2}) where {T<:AF} = (x.x[1] == y.x[1]) & (x.x[2] == y.x[2])
+@inline _ne(x::MF{T,2}, y::MF{T,2}) where {T<:AF} = (x.x[1] != y.x[1]) | (x.x[2] != y.x[2])
+@inline _lt(x::MF{T,2}, y::MF{T,2}) where {T<:AF} = (x.x[1] < y.x[1]) | (x.x[1] == y.x[1]) & (x.x[2] < y.x[2])
+@inline _gt(x::MF{T,2}, y::MF{T,2}) where {T<:AF} = (x.x[1] > y.x[1]) | (x.x[1] == y.x[1]) & (x.x[2] > y.x[2])
+@inline _le(x::MF{T,2}, y::MF{T,2}) where {T<:AF} = (x.x[1] < y.x[1]) | (x.x[1] == y.x[1]) & (x.x[2] <= y.x[2])
+@inline _ge(x::MF{T,2}, y::MF{T,2}) where {T<:AF} = (x.x[1] > y.x[1]) | (x.x[1] == y.x[1]) & (x.x[2] >= y.x[2])
+
+@inline _eq(x::MF{T,3}, y::MF{T,3}) where {T<:AF} = (x.x[1] == y.x[1]) & (x.x[2] == y.x[2]) & (x.x[3] == y.x[3])
+@inline _ne(x::MF{T,3}, y::MF{T,3}) where {T<:AF} = (x.x[1] != y.x[1]) | (x.x[2] != y.x[2]) | (x.x[3] != y.x[3])
+@inline _lt(x::MF{T,3}, y::MF{T,3}) where {T<:AF} = (x.x[1] < y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] < y.x[2]) | (x.x[2] == y.x[2]) & (x.x[3] < y.x[3]))
+@inline _gt(x::MF{T,3}, y::MF{T,3}) where {T<:AF} = (x.x[1] > y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] > y.x[2]) | (x.x[2] == y.x[2]) & (x.x[3] > y.x[3]))
+@inline _le(x::MF{T,3}, y::MF{T,3}) where {T<:AF} = (x.x[1] < y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] < y.x[2]) | (x.x[2] == y.x[2]) & (x.x[3] <= y.x[3]))
+@inline _ge(x::MF{T,3}, y::MF{T,3}) where {T<:AF} = (x.x[1] > y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] > y.x[2]) | (x.x[2] == y.x[2]) & (x.x[3] >= y.x[3]))
+
+@inline _eq(x::MF{T,4}, y::MF{T,4}) where {T<:AF} = (x.x[1] == y.x[1]) & (x.x[2] == y.x[2]) & (x.x[3] == y.x[3]) & (x.x[4] == y.x[4])
+@inline _ne(x::MF{T,4}, y::MF{T,4}) where {T<:AF} = (x.x[1] != y.x[1]) | (x.x[2] != y.x[2]) | (x.x[3] != y.x[3]) | (x.x[4] != y.x[4])
+@inline _lt(x::MF{T,4}, y::MF{T,4}) where {T<:AF} = (x.x[1] < y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] < y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] < y.x[3]) | (x.x[3] == y.x[3]) & (x.x[4] < y.x[4])))
+@inline _gt(x::MF{T,4}, y::MF{T,4}) where {T<:AF} = (x.x[1] > y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] > y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] > y.x[3]) | (x.x[3] == y.x[3]) & (x.x[4] > y.x[4])))
+@inline _le(x::MF{T,4}, y::MF{T,4}) where {T<:AF} = (x.x[1] < y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] < y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] < y.x[3]) | (x.x[3] == y.x[3]) & (x.x[4] <= y.x[4])))
+@inline _ge(x::MF{T,4}, y::MF{T,4}) where {T<:AF} = (x.x[1] > y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] > y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] > y.x[3]) | (x.x[3] == y.x[3]) & (x.x[4] >= y.x[4])))
+
+@inline _eq(x::MF{T,5}, y::MF{T,5}) where {T<:AF} = (x.x[1] == y.x[1]) & (x.x[2] == y.x[2]) & (x.x[3] == y.x[3]) & (x.x[4] == y.x[4]) & (x.x[5] == y.x[5])
+@inline _ne(x::MF{T,5}, y::MF{T,5}) where {T<:AF} = (x.x[1] != y.x[1]) | (x.x[2] != y.x[2]) | (x.x[3] != y.x[3]) | (x.x[4] != y.x[4]) | (x.x[5] != y.x[5])
+@inline _lt(x::MF{T,5}, y::MF{T,5}) where {T<:AF} = (x.x[1] < y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] < y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] < y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] < y.x[4]) | (x.x[4] == y.x[4]) & (x.x[5] < y.x[5]))))
+@inline _gt(x::MF{T,5}, y::MF{T,5}) where {T<:AF} = (x.x[1] > y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] > y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] > y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] > y.x[4]) | (x.x[4] == y.x[4]) & (x.x[5] > y.x[5]))))
+@inline _le(x::MF{T,5}, y::MF{T,5}) where {T<:AF} = (x.x[1] < y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] < y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] < y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] < y.x[4]) | (x.x[4] == y.x[4]) & (x.x[5] <= y.x[5]))))
+@inline _ge(x::MF{T,5}, y::MF{T,5}) where {T<:AF} = (x.x[1] > y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] > y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] > y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] > y.x[4]) | (x.x[4] == y.x[4]) & (x.x[5] >= y.x[5]))))
+
+@inline _eq(x::MF{T,6}, y::MF{T,6}) where {T<:AF} = (x.x[1] == y.x[1]) & (x.x[2] == y.x[2]) & (x.x[3] == y.x[3]) & (x.x[4] == y.x[4]) & (x.x[5] == y.x[5]) & (x.x[6] == y.x[6])
+@inline _ne(x::MF{T,6}, y::MF{T,6}) where {T<:AF} = (x.x[1] != y.x[1]) | (x.x[2] != y.x[2]) | (x.x[3] != y.x[3]) | (x.x[4] != y.x[4]) | (x.x[5] != y.x[5]) | (x.x[6] != y.x[6])
+@inline _lt(x::MF{T,6}, y::MF{T,6}) where {T<:AF} = (x.x[1] < y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] < y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] < y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] < y.x[4]) | (x.x[4] == y.x[4]) & ((x.x[5] < y.x[5]) | (x.x[5] == y.x[5]) & (x.x[6] < y.x[6])))))
+@inline _gt(x::MF{T,6}, y::MF{T,6}) where {T<:AF} = (x.x[1] > y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] > y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] > y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] > y.x[4]) | (x.x[4] == y.x[4]) & ((x.x[5] > y.x[5]) | (x.x[5] == y.x[5]) & (x.x[6] > y.x[6])))))
+@inline _le(x::MF{T,6}, y::MF{T,6}) where {T<:AF} = (x.x[1] < y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] < y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] < y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] < y.x[4]) | (x.x[4] == y.x[4]) & ((x.x[5] < y.x[5]) | (x.x[5] == y.x[5]) & (x.x[6] <= y.x[6])))))
+@inline _ge(x::MF{T,6}, y::MF{T,6}) where {T<:AF} = (x.x[1] > y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] > y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] > y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] > y.x[4]) | (x.x[4] == y.x[4]) & ((x.x[5] > y.x[5]) | (x.x[5] == y.x[5]) & (x.x[6] >= y.x[6])))))
+
+@inline _eq(x::MF{T,7}, y::MF{T,7}) where {T<:AF} = (x.x[1] == y.x[1]) & (x.x[2] == y.x[2]) & (x.x[3] == y.x[3]) & (x.x[4] == y.x[4]) & (x.x[5] == y.x[5]) & (x.x[6] == y.x[6]) & (x.x[7] == y.x[7])
+@inline _ne(x::MF{T,7}, y::MF{T,7}) where {T<:AF} = (x.x[1] != y.x[1]) | (x.x[2] != y.x[2]) | (x.x[3] != y.x[3]) | (x.x[4] != y.x[4]) | (x.x[5] != y.x[5]) | (x.x[6] != y.x[6]) | (x.x[7] != y.x[7])
+@inline _lt(x::MF{T,7}, y::MF{T,7}) where {T<:AF} = (x.x[1] < y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] < y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] < y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] < y.x[4]) | (x.x[4] == y.x[4]) & ((x.x[5] < y.x[5]) | (x.x[5] == y.x[5]) & ((x.x[6] < y.x[6]) | (x.x[6] == y.x[6]) & (x.x[7] < y.x[7]))))))
+@inline _gt(x::MF{T,7}, y::MF{T,7}) where {T<:AF} = (x.x[1] > y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] > y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] > y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] > y.x[4]) | (x.x[4] == y.x[4]) & ((x.x[5] > y.x[5]) | (x.x[5] == y.x[5]) & ((x.x[6] > y.x[6]) | (x.x[6] == y.x[6]) & (x.x[7] > y.x[7]))))))
+@inline _le(x::MF{T,7}, y::MF{T,7}) where {T<:AF} = (x.x[1] < y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] < y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] < y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] < y.x[4]) | (x.x[4] == y.x[4]) & ((x.x[5] < y.x[5]) | (x.x[5] == y.x[5]) & ((x.x[6] < y.x[6]) | (x.x[6] == y.x[6]) & (x.x[7] <= y.x[7]))))))
+@inline _ge(x::MF{T,7}, y::MF{T,7}) where {T<:AF} = (x.x[1] > y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] > y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] > y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] > y.x[4]) | (x.x[4] == y.x[4]) & ((x.x[5] > y.x[5]) | (x.x[5] == y.x[5]) & ((x.x[6] > y.x[6]) | (x.x[6] == y.x[6]) & (x.x[7] >= y.x[7]))))))
+
+@inline _eq(x::MF{T,8}, y::MF{T,8}) where {T<:AF} = (x.x[1] == y.x[1]) & (x.x[2] == y.x[2]) & (x.x[3] == y.x[3]) & (x.x[4] == y.x[4]) & (x.x[5] == y.x[5]) & (x.x[6] == y.x[6]) & (x.x[7] == y.x[7]) & (x.x[8] == y.x[8])
+@inline _ne(x::MF{T,8}, y::MF{T,8}) where {T<:AF} = (x.x[1] != y.x[1]) | (x.x[2] != y.x[2]) | (x.x[3] != y.x[3]) | (x.x[4] != y.x[4]) | (x.x[5] != y.x[5]) | (x.x[6] != y.x[6]) | (x.x[7] != y.x[7]) | (x.x[8] != y.x[8])
+@inline _lt(x::MF{T,8}, y::MF{T,8}) where {T<:AF} = (x.x[1] < y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] < y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] < y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] < y.x[4]) | (x.x[4] == y.x[4]) & ((x.x[5] < y.x[5]) | (x.x[5] == y.x[5]) & ((x.x[6] < y.x[6]) | (x.x[6] == y.x[6]) & ((x.x[7] < y.x[7]) | (x.x[7] == y.x[7]) & (x.x[8] < y.x[8])))))))
+@inline _gt(x::MF{T,8}, y::MF{T,8}) where {T<:AF} = (x.x[1] > y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] > y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] > y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] > y.x[4]) | (x.x[4] == y.x[4]) & ((x.x[5] > y.x[5]) | (x.x[5] == y.x[5]) & ((x.x[6] > y.x[6]) | (x.x[6] == y.x[6]) & ((x.x[7] > y.x[7]) | (x.x[7] == y.x[7]) & (x.x[8] > y.x[8])))))))
+@inline _le(x::MF{T,8}, y::MF{T,8}) where {T<:AF} = (x.x[1] < y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] < y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] < y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] < y.x[4]) | (x.x[4] == y.x[4]) & ((x.x[5] < y.x[5]) | (x.x[5] == y.x[5]) & ((x.x[6] < y.x[6]) | (x.x[6] == y.x[6]) & ((x.x[7] < y.x[7]) | (x.x[7] == y.x[7]) & (x.x[8] <= y.x[8])))))))
+@inline _ge(x::MF{T,8}, y::MF{T,8}) where {T<:AF} = (x.x[1] > y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] > y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] > y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] > y.x[4]) | (x.x[4] == y.x[4]) & ((x.x[5] > y.x[5]) | (x.x[5] == y.x[5]) & ((x.x[6] > y.x[6]) | (x.x[6] == y.x[6]) & ((x.x[7] > y.x[7]) | (x.x[7] == y.x[7]) & (x.x[8] >= y.x[8])))))))
 
 @inline Base.:(==)(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} = _eq(renormalize(x), renormalize(y))
 @inline Base.:(!=)(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} = _ne(renormalize(x), renormalize(y))
