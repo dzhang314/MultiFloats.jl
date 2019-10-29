@@ -234,62 +234,6 @@ end
 
 ################################################################################
 
-@inline Base.:(==)(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] == y.x[1])
-@inline Base.:(!=)(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] != y.x[1])
-@inline Base.:(< )(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] <  y.x[1])
-@inline Base.:(> )(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] >  y.x[1])
-@inline Base.:(<=)(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] <= y.x[1])
-@inline Base.:(>=)(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] >= y.x[1])
-
-@inline _eq(x::MF{T,2}, y::MF{T,2}) where {T<:AF} = (x.x[1] == y.x[1]) & (x.x[2] == y.x[2])
-@inline _ne(x::MF{T,2}, y::MF{T,2}) where {T<:AF} = (x.x[1] != y.x[1]) | (x.x[2] != y.x[2])
-@inline _lt(x::MF{T,2}, y::MF{T,2}) where {T<:AF} = (x.x[1] < y.x[1]) | (x.x[1] == y.x[1]) & (x.x[2] < y.x[2])
-@inline _gt(x::MF{T,2}, y::MF{T,2}) where {T<:AF} = (x.x[1] > y.x[1]) | (x.x[1] == y.x[1]) & (x.x[2] > y.x[2])
-@inline _le(x::MF{T,2}, y::MF{T,2}) where {T<:AF} = (x.x[1] < y.x[1]) | (x.x[1] == y.x[1]) & (x.x[2] <= y.x[2])
-@inline _ge(x::MF{T,2}, y::MF{T,2}) where {T<:AF} = (x.x[1] > y.x[1]) | (x.x[1] == y.x[1]) & (x.x[2] >= y.x[2])
-
-@inline _eq(x::MF{T,3}, y::MF{T,3}) where {T<:AF} = (x.x[1] == y.x[1]) & (x.x[2] == y.x[2]) & (x.x[3] == y.x[3])
-@inline _ne(x::MF{T,3}, y::MF{T,3}) where {T<:AF} = (x.x[1] != y.x[1]) | (x.x[2] != y.x[2]) | (x.x[3] != y.x[3])
-@inline _lt(x::MF{T,3}, y::MF{T,3}) where {T<:AF} = (x.x[1] < y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] < y.x[2]) | (x.x[2] == y.x[2]) & (x.x[3] < y.x[3]))
-@inline _gt(x::MF{T,3}, y::MF{T,3}) where {T<:AF} = (x.x[1] > y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] > y.x[2]) | (x.x[2] == y.x[2]) & (x.x[3] > y.x[3]))
-@inline _le(x::MF{T,3}, y::MF{T,3}) where {T<:AF} = (x.x[1] < y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] < y.x[2]) | (x.x[2] == y.x[2]) & (x.x[3] <= y.x[3]))
-@inline _ge(x::MF{T,3}, y::MF{T,3}) where {T<:AF} = (x.x[1] > y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] > y.x[2]) | (x.x[2] == y.x[2]) & (x.x[3] >= y.x[3]))
-
-@inline _eq(x::MF{T,4}, y::MF{T,4}) where {T<:AF} = (x.x[1] == y.x[1]) & (x.x[2] == y.x[2]) & (x.x[3] == y.x[3]) & (x.x[4] == y.x[4])
-@inline _ne(x::MF{T,4}, y::MF{T,4}) where {T<:AF} = (x.x[1] != y.x[1]) | (x.x[2] != y.x[2]) | (x.x[3] != y.x[3]) | (x.x[4] != y.x[4])
-@inline _lt(x::MF{T,4}, y::MF{T,4}) where {T<:AF} = (x.x[1] < y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] < y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] < y.x[3]) | (x.x[3] == y.x[3]) & (x.x[4] < y.x[4])))
-@inline _gt(x::MF{T,4}, y::MF{T,4}) where {T<:AF} = (x.x[1] > y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] > y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] > y.x[3]) | (x.x[3] == y.x[3]) & (x.x[4] > y.x[4])))
-@inline _le(x::MF{T,4}, y::MF{T,4}) where {T<:AF} = (x.x[1] < y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] < y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] < y.x[3]) | (x.x[3] == y.x[3]) & (x.x[4] <= y.x[4])))
-@inline _ge(x::MF{T,4}, y::MF{T,4}) where {T<:AF} = (x.x[1] > y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] > y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] > y.x[3]) | (x.x[3] == y.x[3]) & (x.x[4] >= y.x[4])))
-
-@inline _eq(x::MF{T,5}, y::MF{T,5}) where {T<:AF} = (x.x[1] == y.x[1]) & (x.x[2] == y.x[2]) & (x.x[3] == y.x[3]) & (x.x[4] == y.x[4]) & (x.x[5] == y.x[5])
-@inline _ne(x::MF{T,5}, y::MF{T,5}) where {T<:AF} = (x.x[1] != y.x[1]) | (x.x[2] != y.x[2]) | (x.x[3] != y.x[3]) | (x.x[4] != y.x[4]) | (x.x[5] != y.x[5])
-@inline _lt(x::MF{T,5}, y::MF{T,5}) where {T<:AF} = (x.x[1] < y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] < y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] < y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] < y.x[4]) | (x.x[4] == y.x[4]) & (x.x[5] < y.x[5]))))
-@inline _gt(x::MF{T,5}, y::MF{T,5}) where {T<:AF} = (x.x[1] > y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] > y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] > y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] > y.x[4]) | (x.x[4] == y.x[4]) & (x.x[5] > y.x[5]))))
-@inline _le(x::MF{T,5}, y::MF{T,5}) where {T<:AF} = (x.x[1] < y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] < y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] < y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] < y.x[4]) | (x.x[4] == y.x[4]) & (x.x[5] <= y.x[5]))))
-@inline _ge(x::MF{T,5}, y::MF{T,5}) where {T<:AF} = (x.x[1] > y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] > y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] > y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] > y.x[4]) | (x.x[4] == y.x[4]) & (x.x[5] >= y.x[5]))))
-
-@inline _eq(x::MF{T,6}, y::MF{T,6}) where {T<:AF} = (x.x[1] == y.x[1]) & (x.x[2] == y.x[2]) & (x.x[3] == y.x[3]) & (x.x[4] == y.x[4]) & (x.x[5] == y.x[5]) & (x.x[6] == y.x[6])
-@inline _ne(x::MF{T,6}, y::MF{T,6}) where {T<:AF} = (x.x[1] != y.x[1]) | (x.x[2] != y.x[2]) | (x.x[3] != y.x[3]) | (x.x[4] != y.x[4]) | (x.x[5] != y.x[5]) | (x.x[6] != y.x[6])
-@inline _lt(x::MF{T,6}, y::MF{T,6}) where {T<:AF} = (x.x[1] < y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] < y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] < y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] < y.x[4]) | (x.x[4] == y.x[4]) & ((x.x[5] < y.x[5]) | (x.x[5] == y.x[5]) & (x.x[6] < y.x[6])))))
-@inline _gt(x::MF{T,6}, y::MF{T,6}) where {T<:AF} = (x.x[1] > y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] > y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] > y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] > y.x[4]) | (x.x[4] == y.x[4]) & ((x.x[5] > y.x[5]) | (x.x[5] == y.x[5]) & (x.x[6] > y.x[6])))))
-@inline _le(x::MF{T,6}, y::MF{T,6}) where {T<:AF} = (x.x[1] < y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] < y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] < y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] < y.x[4]) | (x.x[4] == y.x[4]) & ((x.x[5] < y.x[5]) | (x.x[5] == y.x[5]) & (x.x[6] <= y.x[6])))))
-@inline _ge(x::MF{T,6}, y::MF{T,6}) where {T<:AF} = (x.x[1] > y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] > y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] > y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] > y.x[4]) | (x.x[4] == y.x[4]) & ((x.x[5] > y.x[5]) | (x.x[5] == y.x[5]) & (x.x[6] >= y.x[6])))))
-
-@inline _eq(x::MF{T,7}, y::MF{T,7}) where {T<:AF} = (x.x[1] == y.x[1]) & (x.x[2] == y.x[2]) & (x.x[3] == y.x[3]) & (x.x[4] == y.x[4]) & (x.x[5] == y.x[5]) & (x.x[6] == y.x[6]) & (x.x[7] == y.x[7])
-@inline _ne(x::MF{T,7}, y::MF{T,7}) where {T<:AF} = (x.x[1] != y.x[1]) | (x.x[2] != y.x[2]) | (x.x[3] != y.x[3]) | (x.x[4] != y.x[4]) | (x.x[5] != y.x[5]) | (x.x[6] != y.x[6]) | (x.x[7] != y.x[7])
-@inline _lt(x::MF{T,7}, y::MF{T,7}) where {T<:AF} = (x.x[1] < y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] < y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] < y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] < y.x[4]) | (x.x[4] == y.x[4]) & ((x.x[5] < y.x[5]) | (x.x[5] == y.x[5]) & ((x.x[6] < y.x[6]) | (x.x[6] == y.x[6]) & (x.x[7] < y.x[7]))))))
-@inline _gt(x::MF{T,7}, y::MF{T,7}) where {T<:AF} = (x.x[1] > y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] > y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] > y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] > y.x[4]) | (x.x[4] == y.x[4]) & ((x.x[5] > y.x[5]) | (x.x[5] == y.x[5]) & ((x.x[6] > y.x[6]) | (x.x[6] == y.x[6]) & (x.x[7] > y.x[7]))))))
-@inline _le(x::MF{T,7}, y::MF{T,7}) where {T<:AF} = (x.x[1] < y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] < y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] < y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] < y.x[4]) | (x.x[4] == y.x[4]) & ((x.x[5] < y.x[5]) | (x.x[5] == y.x[5]) & ((x.x[6] < y.x[6]) | (x.x[6] == y.x[6]) & (x.x[7] <= y.x[7]))))))
-@inline _ge(x::MF{T,7}, y::MF{T,7}) where {T<:AF} = (x.x[1] > y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] > y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] > y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] > y.x[4]) | (x.x[4] == y.x[4]) & ((x.x[5] > y.x[5]) | (x.x[5] == y.x[5]) & ((x.x[6] > y.x[6]) | (x.x[6] == y.x[6]) & (x.x[7] >= y.x[7]))))))
-
-@inline _eq(x::MF{T,8}, y::MF{T,8}) where {T<:AF} = (x.x[1] == y.x[1]) & (x.x[2] == y.x[2]) & (x.x[3] == y.x[3]) & (x.x[4] == y.x[4]) & (x.x[5] == y.x[5]) & (x.x[6] == y.x[6]) & (x.x[7] == y.x[7]) & (x.x[8] == y.x[8])
-@inline _ne(x::MF{T,8}, y::MF{T,8}) where {T<:AF} = (x.x[1] != y.x[1]) | (x.x[2] != y.x[2]) | (x.x[3] != y.x[3]) | (x.x[4] != y.x[4]) | (x.x[5] != y.x[5]) | (x.x[6] != y.x[6]) | (x.x[7] != y.x[7]) | (x.x[8] != y.x[8])
-@inline _lt(x::MF{T,8}, y::MF{T,8}) where {T<:AF} = (x.x[1] < y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] < y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] < y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] < y.x[4]) | (x.x[4] == y.x[4]) & ((x.x[5] < y.x[5]) | (x.x[5] == y.x[5]) & ((x.x[6] < y.x[6]) | (x.x[6] == y.x[6]) & ((x.x[7] < y.x[7]) | (x.x[7] == y.x[7]) & (x.x[8] < y.x[8])))))))
-@inline _gt(x::MF{T,8}, y::MF{T,8}) where {T<:AF} = (x.x[1] > y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] > y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] > y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] > y.x[4]) | (x.x[4] == y.x[4]) & ((x.x[5] > y.x[5]) | (x.x[5] == y.x[5]) & ((x.x[6] > y.x[6]) | (x.x[6] == y.x[6]) & ((x.x[7] > y.x[7]) | (x.x[7] == y.x[7]) & (x.x[8] > y.x[8])))))))
-@inline _le(x::MF{T,8}, y::MF{T,8}) where {T<:AF} = (x.x[1] < y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] < y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] < y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] < y.x[4]) | (x.x[4] == y.x[4]) & ((x.x[5] < y.x[5]) | (x.x[5] == y.x[5]) & ((x.x[6] < y.x[6]) | (x.x[6] == y.x[6]) & ((x.x[7] < y.x[7]) | (x.x[7] == y.x[7]) & (x.x[8] <= y.x[8])))))))
-@inline _ge(x::MF{T,8}, y::MF{T,8}) where {T<:AF} = (x.x[1] > y.x[1]) | (x.x[1] == y.x[1]) & ((x.x[2] > y.x[2]) | (x.x[2] == y.x[2]) & ((x.x[3] > y.x[3]) | (x.x[3] == y.x[3]) & ((x.x[4] > y.x[4]) | (x.x[4] == y.x[4]) & ((x.x[5] > y.x[5]) | (x.x[5] == y.x[5]) & ((x.x[6] > y.x[6]) | (x.x[6] == y.x[6]) & ((x.x[7] > y.x[7]) | (x.x[7] == y.x[7]) & (x.x[8] >= y.x[8])))))))
-
 @inline Base.:(==)(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} = _eq(renormalize(x), renormalize(y))
 @inline Base.:(!=)(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} = _ne(renormalize(x), renormalize(y))
 @inline Base.:(< )(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} = _lt(renormalize(x), renormalize(y))
@@ -429,6 +373,13 @@ end
 @inline unsafe_sqrt(x::Float64) = Base.sqrt_llvm(x)
 @inline unsafe_sqrt(x::T) where {T <: Real} = sqrt(x)
 
+@inline Base.:(==)(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] == y.x[1])
+@inline Base.:(!=)(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] != y.x[1])
+@inline Base.:(< )(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] <  y.x[1])
+@inline Base.:(> )(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] >  y.x[1])
+@inline Base.:(<=)(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] <= y.x[1])
+@inline Base.:(>=)(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] >= y.x[1])
+
 @inline Base.:+(a::MF{T,1}, b::MF{T,1}) where {T<:AF} = MF{T,1}(a.x[1] + b.x[1])
 @inline Base.:+(a::MF{T,1}, b::T      ) where {T<:AF} = MF{T,1}(a.x[1] + b     )
 @inline Base.:*(a::MF{T,1}, b::MF{T,1}) where {T<:AF} = MF{T,1}(a.x[1] * b.x[1])
@@ -438,6 +389,12 @@ end
 
 function use_clean_multifloat_arithmetic(n::Integer=8)
     for i = 2 : n
+        eval(multifloat_eq_func(       i              ))
+        eval(multifloat_ne_func(       i              ))
+        eval(multifloat_lt_func(       i              ))
+        eval(multifloat_gt_func(       i              ))
+        eval(multifloat_le_func(       i              ))
+        eval(multifloat_ge_func(       i              ))
         eval(two_pass_renorm_func(     i, sloppy=false))
         eval(multifloat_add_func(      i, sloppy=false))
         eval(multifloat_float_add_func(i, sloppy=false))
@@ -453,6 +410,12 @@ end
 
 function use_sloppy_multifloat_arithmetic(n::Integer=8)
     for i = 2 : n
+        eval(multifloat_eq_func(       i             ))
+        eval(multifloat_ne_func(       i             ))
+        eval(multifloat_lt_func(       i             ))
+        eval(multifloat_gt_func(       i             ))
+        eval(multifloat_le_func(       i             ))
+        eval(multifloat_ge_func(       i             ))
         eval(two_pass_renorm_func(     i, sloppy=true))
         eval(multifloat_add_func(      i, sloppy=true))
         eval(multifloat_float_add_func(i, sloppy=true))
@@ -468,6 +431,12 @@ end
 
 function use_very_sloppy_multifloat_arithmetic(n::Integer=8)
     for i = 2 : n
+        eval(multifloat_eq_func(       i             ))
+        eval(multifloat_ne_func(       i             ))
+        eval(multifloat_lt_func(       i             ))
+        eval(multifloat_gt_func(       i             ))
+        eval(multifloat_le_func(       i             ))
+        eval(multifloat_ge_func(       i             ))
         eval(one_pass_renorm_func(     i, sloppy=true))
         eval(multifloat_add_func(      i, sloppy=true))
         eval(multifloat_float_add_func(i, sloppy=true))

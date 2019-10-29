@@ -5,7 +5,9 @@ baremodule MultiFloatsCodeGen
 export one_pass_renorm_func, two_pass_renorm_func,
     multifloat_add_func, multifloat_float_add_func,
     multifloat_mul_func, multifloat_float_mul_func,
-    multifloat_div_func, multifloat_sqrt_func
+    multifloat_div_func, multifloat_sqrt_func,
+    multifloat_eq_func, multifloat_ne_func, multifloat_lt_func,
+    multifloat_gt_func, multifloat_le_func, multifloat_ge_func
 
 ######################################################################## IMPORTS
 
@@ -265,5 +267,43 @@ function multifloat_sqrt_func(N::Int; sloppy::Bool=false)
     push!(code, :(r * x))
     function_def_typed(:(Base.sqrt), meta_multifloat(N), [:x], code)
 end
+
+################################################################################
+
+eq_expr(n::Int) = (n == 1
+    ? :(x.x[$n] == y.x[$n])
+    : :($(eq_expr(n-1)) & (x.x[$n] == y.x[$n])))
+
+ne_expr(n::Int) = (n == 1
+    ? :(x.x[$n] != y.x[$n])
+    : :($(ne_expr(n-1)) | (x.x[$n] != y.x[$n])))
+
+lt_expr(m::Int, n::Int) = (m == n
+    ? :(x.x[$m] < y.x[$m])
+    : :((x.x[$m] < y.x[$m]) | (x.x[$m] == y.x[$m]) & $(lt_expr(m+1, n))))
+
+gt_expr(m::Int, n::Int) = (m == n
+    ? :(x.x[$m] > y.x[$m])
+    : :((x.x[$m] > y.x[$m]) | (x.x[$m] == y.x[$m]) & $(gt_expr(m+1, n))))
+
+le_expr(m::Int, n::Int) = (m == n
+    ? :(x.x[$m] <= y.x[$m])
+    : :((x.x[$m] < y.x[$m]) | (x.x[$m] == y.x[$m]) & $(le_expr(m+1, n))))
+
+ge_expr(m::Int, n::Int) = (m == n
+    ? :(x.x[$m] >= y.x[$m])
+    : :((x.x[$m] > y.x[$m]) | (x.x[$m] == y.x[$m]) & $(ge_expr(m+1, n))))
+
+################################################################################
+
+cmp_func(name, N, expr) = function_def_typed(name,
+    meta_multifloat(N), [:x, :y], push!(inline_block(), expr))
+
+multifloat_eq_func(N::Int) = cmp_func(:_eq, N, eq_expr(N))
+multifloat_ne_func(N::Int) = cmp_func(:_ne, N, ne_expr(N))
+multifloat_lt_func(N::Int) = cmp_func(:_lt, N, lt_expr(1, N))
+multifloat_gt_func(N::Int) = cmp_func(:_gt, N, gt_expr(1, N))
+multifloat_le_func(N::Int) = cmp_func(:_le, N, le_expr(1, N))
+multifloat_ge_func(N::Int) = cmp_func(:_ge, N, ge_expr(1, N))
 
 end # baremodule MultiFloatsCodeGen
