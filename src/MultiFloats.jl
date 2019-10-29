@@ -185,22 +185,51 @@ Base.promote_rule(::Type{Float64x{N}}, ::Type{Float32}) where {N} = Float64x{N}
     end
 end
 
-function Base.show(io::IO, x::MultiFloat{T,N}) where {T<:AF,N}
+function call_normalized(callback, x::MultiFloat{T,N}) where {T<:AF,N}
     x = renormalize(x)
     if !isfinite(x.x[1])
-        show(io, x.x[1])
+        callback(x.x[1])
     else
         i = N
         while (i > 0) && iszero(x.x[i])
             i -= 1
         end
         if iszero(i)
-            show(io, zero(T))
+            callback(zero(T))
         else
-            show(io, setprecision(() -> BigFloat(x),
-                precision(T) + exponent(x.x[1]) - exponent(x.x[i])))
+            setprecision(() -> callback(BigFloat(x)),
+                precision(T) + exponent(x.x[1]) - exponent(x.x[i]))
         end
     end
+end
+
+function Base.show(io::IO, x::MultiFloat{T,N}) where {T<:AF,N}
+    call_normalized(y -> show(io, y), x)
+end
+
+################################################################################
+
+# Thanks to Greg Plowman (https://github.com/GregPlowman) for suggesting
+# implementations of Printf.fix_dec and Printf.ini_dec for @printf support.
+
+import Printf: fix_dec, ini_dec
+
+if VERSION < v"1.1"
+
+    fix_dec(out, x::MultiFloat{T,N}, flags::String, width::Int, precision::Int, c::Char) where {T<:AF,N} =
+        call_normalized(d -> fix_dec(out, BigFloat(d), flags, width, precision, c), x)
+
+    ini_dec(out, x::MultiFloat{T,N}, ndigits::Int, flags::String, width::Int, precision::Int, c::Char) where {T<:AF,N} =
+        call_normalized(d -> ini_dec(out, BigFloat(d), ndigits, flags, width, precision, c), x)
+
+else
+
+    fix_dec(out, x::MultiFloat{T,N}, flags::String, width::Int, precision::Int, c::Char, digits) where {T<:AF,N} =
+        call_normalized(d -> fix_dec(out, BigFloat(d), flags, width, precision, c, digits), x)
+
+    ini_dec(out, x::MultiFloat{T,N}, ndigits::Int, flags::String, width::Int, precision::Int, c::Char, digits) where {T<:AF,N} =
+        call_normalized(d -> ini_dec(out, BigFloat(d), ndigits, flags, width, precision, c, digits), x)
+
 end
 
 ################################################################################
