@@ -268,8 +268,12 @@ end
 ################################################################################
 
 @inline Base.precision(::Type{MF{T,N}}) where {T<:AF,N} = N * precision(T)
-@inline Base.floatmin( ::Type{MF{T,N}}) where {T<:AF,N} = MF{T,N}(floatmin(T))
-@inline Base.floatmax( ::Type{MF{T,N}}) where {T<:AF,N} = MF{T,N}(floatmax(T))
+
+@inline Base.floatmin(::Type{MF{T,N}}) where {T<:AF,N} = MF{T,N}(floatmin(T))
+@inline Base.floatmax(::Type{MF{T,N}}) where {T<:AF,N} = MF{T,N}(floatmax(T))
+
+@inline Base.typemin(::Type{MF{T,N}}) where {T<:AF,N} = MF{T,N}(ntuple(_ -> typemin(T), N))
+@inline Base.typemax(::Type{MF{T,N}}) where {T<:AF,N} = MF{T,N}(ntuple(_ -> typemax(T), N))
 
 @inline Base.exponent(   x::MF{T,N}) where {T<:AF,N} = exponent(   renormalize(x).x[1])
 @inline Base.signbit(    x::MF{T,N}) where {T<:AF,N} = signbit(    renormalize(x).x[1])
