@@ -265,7 +265,7 @@ function multifloat_sqrt_func(N::Int; sloppy::Bool=false)
         push!(code, :(r += r * (T(0.5) - h * (r * r))))
     end
     push!(code, :(r * x))
-    function_def_typed(:(Base.sqrt), meta_multifloat(N), [:x], code)
+    function_def_typed(:_sqrt, meta_multifloat(N), [:x], code)
 end
 
 ################################################################################

@@ -391,7 +391,16 @@ end
 @inline Base.:*(a::MF{T,1}, b::MF{T,1}) where {T<:AF} = MF{T,1}(a.x[1] * b.x[1])
 @inline Base.:*(a::MF{T,1}, b::T      ) where {T<:AF} = MF{T,1}(a.x[1] * b     )
 @inline Base.:/(a::MF{T,1}, b::MF{T,1}) where {T<:AF} = MF{T,1}(a.x[1] / b.x[1])
-@inline Base.sqrt(x::MF{T,1}          ) where {T<:AF} = MF{T,1}(unsafe_sqrt(x.x[1]))
+@inline _sqrt(  x::MF{T,1}            ) where {T<:AF} = MF{T,1}(unsafe_sqrt(x.x[1]))
+
+@inline function Base.sqrt(x::MF{T,N}) where {T<:AF,N}
+    x = renormalize(x)
+    if iszero(x)
+        return x
+    else
+        return _sqrt(x)
+    end
+end
 
 function use_clean_multifloat_arithmetic(n::Integer=8)
     for i = 2 : n
