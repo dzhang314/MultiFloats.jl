@@ -185,6 +185,8 @@ Base.promote_rule(::Type{Float64x{N}}, ::Type{Float32}) where {N} = Float64x{N}
     end
 end
 
+@inline renormalize(x::T) where {T<:Number} = x
+
 function call_normalized(callback, x::MultiFloat{T,N}) where {T<:AF,N}
     x = renormalize(x)
     if !isfinite(x.x[1])
