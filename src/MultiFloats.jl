@@ -485,6 +485,8 @@ end
 @inline Base.:-(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} = x + (-y)
 @inline Base.:-(x::MF{T,N}, y::T      ) where {T<:AF,N} = x + (-y)
 
+@inline Base.hypot(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} = sqrt(x*x + y*y)
+
 ################################################################################
 
 use_sloppy_multifloat_arithmetic()
