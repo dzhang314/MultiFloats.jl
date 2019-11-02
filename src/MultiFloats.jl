@@ -284,6 +284,16 @@ end
 @inline Base.isinf(      x::MF{T,N}) where {T<:AF,N} = isinf(      renormalize(x).x[1])
 @inline Base.isnan(      x::MF{T,N}) where {T<:AF,N} = isnan(      renormalize(x).x[1])
 
+@inline function Base.nextfloat(x::MF{T,N}) where {T<:AF,N}
+    y = renormalize(x)
+    MF{T,N}((ntuple(i -> y.x[i], N - 1)..., nextfloat(y.x[N])))
+end
+
+@inline function Base.prevfloat(x::MF{T,N}) where {T<:AF,N}
+    y = renormalize(x)
+    MF{T,N}((ntuple(i -> y.x[i], N - 1)..., prevfloat(y.x[N])))
+end
+
 import LinearAlgebra: floatmin2
 @inline floatmin2(::Type{MF{T,N}}) where {T<:AF,N} =
     MF{T,N}(ldexp(one(T), div(exponent(floatmin(T)) - N * exponent(eps(T)), 2)))
