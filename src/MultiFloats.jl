@@ -13,7 +13,7 @@ using .MultiFloatsCodeGen
 ####################################################### DEFINITION OF MULTIFLOAT
 
 struct MultiFloat{T<:AbstractFloat,N} <: AbstractFloat
-    x::NTuple{N,T}
+    _limbs::NTuple{N,T}
 end
 
 const Float16x{N} = MultiFloat{Float16,N}
@@ -41,7 +41,7 @@ const Float64x8 = Float64x{8}
 
 @inline MultiFloat{T,N}(x::MultiFloat{T,M}) where {T<:AbstractFloat,M,N} =
     MultiFloat{T,N}((
-        ntuple(i -> x.x[i], min(M, N))...,
+        ntuple(i -> x._limbs[i], min(M, N))...,
         ntuple(_ -> zero(T), max(N - M, 0))...))
 
 # Values of the types Bool, Int8, UInt8, Int16, UInt16, Float16, Int32, UInt32,
@@ -108,12 +108,12 @@ end
 
 ################################################## CONVERSION TO PRIMITIVE TYPES
 
-@inline Base.Float16(x::Float64x{N}) where {N} = Float16(x.x[1])
-@inline Base.Float32(x::Float64x{N}) where {N} = Float32(x.x[1])
+@inline Base.Float16(x::Float64x{N}) where {N} = Float16(x._limbs[1])
+@inline Base.Float32(x::Float64x{N}) where {N} = Float32(x._limbs[1])
 
-@inline Base.Float16(x::Float16x{N}) where {N} = x.x[1]
-@inline Base.Float32(x::Float32x{N}) where {N} = x.x[1]
-@inline Base.Float64(x::Float64x{N}) where {N} = x.x[1]
+@inline Base.Float16(x::Float16x{N}) where {N} = x._limbs[1]
+@inline Base.Float32(x::Float32x{N}) where {N} = x._limbs[1]
+@inline Base.Float64(x::Float64x{N}) where {N} = x._limbs[1]
 
 ###################################################### CONVERSION FROM BIG TYPES
 
@@ -146,7 +146,7 @@ MultiFloat{T,N}(x::Rational{U}) where {T<:AF,N,U} =
 ######################################################## CONVERSION TO BIG TYPES
 
 Base.BigFloat(x::MultiFloat{T,N}) where {T<:AF,N} =
-    +(ntuple(i -> BigFloat(x.x[N-i+1]), N)...)
+    +(ntuple(i -> BigFloat(x._limbs[N-i+1]), N)...)
 
 ################################################################ PROMOTION RULES
 
@@ -172,11 +172,11 @@ Base.promote_rule(::Type{Float64x{N}}, ::Type{Float32}) where {N} = Float64x{N}
 ####################################################################### PRINTING
 
 @inline function renormalize(x::MF{T,N}) where {T<:AF,N}
-    total = +(x.x...)
+    total = +(x._limbs...)
     if isfinite(total)
         while true
             x0::MF{T,N} = x + zero(T)
-            if !(x0.x != x.x); break; end
+            if !(x0._limbs != x._limbs); break; end
             x = x0
         end
         x
@@ -189,18 +189,18 @@ end
 
 function call_normalized(callback, x::MultiFloat{T,N}) where {T<:AF,N}
     x = renormalize(x)
-    if !isfinite(x.x[1])
-        callback(x.x[1])
+    if !isfinite(x._limbs[1])
+        callback(x._limbs[1])
     else
         i = N
-        while (i > 0) && iszero(x.x[i])
+        while (i > 0) && iszero(x._limbs[i])
             i -= 1
         end
         if iszero(i)
             callback(zero(T))
         else
             setprecision(() -> callback(BigFloat(x)),
-                precision(T) + exponent(x.x[1]) - exponent(x.x[i]))
+                precision(T) + exponent(x._limbs[1]) - exponent(x._limbs[i]))
         end
     end
 end
@@ -244,11 +244,11 @@ end
 @inline Base.:(>=)(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} = _ge(renormalize(x), renormalize(y))
 
 @inline scale(a::T, x::MultiFloat{T,N}) where {T<:AF,N} =
-    MultiFloat{T,N}(ntuple(i -> a * x.x[i], N))
+    MultiFloat{T,N}(ntuple(i -> a * x._limbs[i], N))
 
 @inline function Base.ldexp(x::MF{T,N}, n::U) where {T<:AF,N,U<:Integer}
     x = renormalize(x)
-    MultiFloat{T,N}(ntuple(i -> ldexp(x.x[i], n), N))
+    MultiFloat{T,N}(ntuple(i -> ldexp(x._limbs[i], n), N))
 end
 
 ################################################################################
@@ -258,12 +258,12 @@ end
 @inline Base.eps( ::Type{MF{T,N}}) where {T<:AF,N} = MF{T,N}(eps( T)^N)
 
 @inline _iszero(x::MF{T,N}) where {T<:AF,N} =
-    (&)(ntuple(i -> iszero(x.x[i]), N)...)
+    (&)(ntuple(i -> iszero(x._limbs[i]), N)...)
 @inline _isone( x::MF{T,N}) where {T<:AF,N} =
-    isone(x.x[1]) & (&)(ntuple(i -> iszero(x.x[i + 1]), N - 1)...)
+    isone(x._limbs[1]) & (&)(ntuple(i -> iszero(x._limbs[i + 1]), N - 1)...)
 
-@inline Base.iszero(x::MF{T,1}) where {T<:AF  } =  iszero(x.x[1])
-@inline Base.isone( x::MF{T,1}) where {T<:AF  } =  isone( x.x[1])
+@inline Base.iszero(x::MF{T,1}) where {T<:AF  } =  iszero(x._limbs[1])
+@inline Base.isone( x::MF{T,1}) where {T<:AF  } =  isone( x._limbs[1])
 @inline Base.iszero(x::MF{T,N}) where {T<:AF,N} = _iszero(renormalize(x))
 @inline Base.isone( x::MF{T,N}) where {T<:AF,N} = _isone( renormalize(x))
 
@@ -277,21 +277,21 @@ end
 @inline Base.typemin(::Type{MF{T,N}}) where {T<:AF,N} = MF{T,N}(ntuple(_ -> typemin(T), N))
 @inline Base.typemax(::Type{MF{T,N}}) where {T<:AF,N} = MF{T,N}(ntuple(_ -> typemax(T), N))
 
-@inline Base.exponent(   x::MF{T,N}) where {T<:AF,N} = exponent(   renormalize(x).x[1])
-@inline Base.signbit(    x::MF{T,N}) where {T<:AF,N} = signbit(    renormalize(x).x[1])
-@inline Base.issubnormal(x::MF{T,N}) where {T<:AF,N} = issubnormal(renormalize(x).x[1])
-@inline Base.isfinite(   x::MF{T,N}) where {T<:AF,N} = isfinite(   renormalize(x).x[1])
-@inline Base.isinf(      x::MF{T,N}) where {T<:AF,N} = isinf(      renormalize(x).x[1])
-@inline Base.isnan(      x::MF{T,N}) where {T<:AF,N} = isnan(      renormalize(x).x[1])
+@inline Base.exponent(   x::MF{T,N}) where {T<:AF,N} = exponent(   renormalize(x)._limbs[1])
+@inline Base.signbit(    x::MF{T,N}) where {T<:AF,N} = signbit(    renormalize(x)._limbs[1])
+@inline Base.issubnormal(x::MF{T,N}) where {T<:AF,N} = issubnormal(renormalize(x)._limbs[1])
+@inline Base.isfinite(   x::MF{T,N}) where {T<:AF,N} = isfinite(   renormalize(x)._limbs[1])
+@inline Base.isinf(      x::MF{T,N}) where {T<:AF,N} = isinf(      renormalize(x)._limbs[1])
+@inline Base.isnan(      x::MF{T,N}) where {T<:AF,N} = isnan(      renormalize(x)._limbs[1])
 
 @inline function Base.nextfloat(x::MF{T,N}) where {T<:AF,N}
     y = renormalize(x)
-    MF{T,N}((ntuple(i -> y.x[i], N - 1)..., nextfloat(y.x[N])))
+    MF{T,N}((ntuple(i -> y._limbs[i], N - 1)..., nextfloat(y._limbs[N])))
 end
 
 @inline function Base.prevfloat(x::MF{T,N}) where {T<:AF,N}
     y = renormalize(x)
-    MF{T,N}((ntuple(i -> y.x[i], N - 1)..., prevfloat(y.x[N])))
+    MF{T,N}((ntuple(i -> y._limbs[i], N - 1)..., prevfloat(y._limbs[N])))
 end
 
 import LinearAlgebra: floatmin2
@@ -304,7 +304,7 @@ import LinearAlgebra: floatmin2
 
 @inline function Base.abs(x::MF{T,N}) where {T<:AF,N}
     x = renormalize(x)
-    ifelse(signbit(x.x[1]), -x, x)
+    ifelse(signbit(x._limbs[1]), -x, x)
 end
 
 @inline function Base.abs2(x::MF{T,N}) where {T<:AF,N}
@@ -389,19 +389,19 @@ end
 @inline unsafe_sqrt(x::Float64) = Base.sqrt_llvm(x)
 @inline unsafe_sqrt(x::T) where {T <: Real} = sqrt(x)
 
-@inline Base.:(==)(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] == y.x[1])
-@inline Base.:(!=)(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] != y.x[1])
-@inline Base.:(< )(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] <  y.x[1])
-@inline Base.:(> )(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] >  y.x[1])
-@inline Base.:(<=)(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] <= y.x[1])
-@inline Base.:(>=)(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x.x[1] >= y.x[1])
+@inline Base.:(==)(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x._limbs[1] == y._limbs[1])
+@inline Base.:(!=)(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x._limbs[1] != y._limbs[1])
+@inline Base.:(< )(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x._limbs[1] <  y._limbs[1])
+@inline Base.:(> )(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x._limbs[1] >  y._limbs[1])
+@inline Base.:(<=)(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x._limbs[1] <= y._limbs[1])
+@inline Base.:(>=)(x::MF{T,1}, y::MF{T,1}) where {T<:AF} = (x._limbs[1] >= y._limbs[1])
 
-@inline Base.:+(a::MF{T,1}, b::MF{T,1}) where {T<:AF} = MF{T,1}(a.x[1] + b.x[1])
-@inline Base.:+(a::MF{T,1}, b::T      ) where {T<:AF} = MF{T,1}(a.x[1] + b     )
-@inline Base.:*(a::MF{T,1}, b::MF{T,1}) where {T<:AF} = MF{T,1}(a.x[1] * b.x[1])
-@inline Base.:*(a::MF{T,1}, b::T      ) where {T<:AF} = MF{T,1}(a.x[1] * b     )
-@inline Base.:/(a::MF{T,1}, b::MF{T,1}) where {T<:AF} = MF{T,1}(a.x[1] / b.x[1])
-@inline _sqrt(  x::MF{T,1}            ) where {T<:AF} = MF{T,1}(unsafe_sqrt(x.x[1]))
+@inline Base.:+(a::MF{T,1}, b::MF{T,1}) where {T<:AF} = MF{T,1}(a._limbs[1] + b._limbs[1])
+@inline Base.:+(a::MF{T,1}, b::T      ) where {T<:AF} = MF{T,1}(a._limbs[1] + b          )
+@inline Base.:*(a::MF{T,1}, b::MF{T,1}) where {T<:AF} = MF{T,1}(a._limbs[1] * b._limbs[1])
+@inline Base.:*(a::MF{T,1}, b::T      ) where {T<:AF} = MF{T,1}(a._limbs[1] * b          )
+@inline Base.:/(a::MF{T,1}, b::MF{T,1}) where {T<:AF} = MF{T,1}(a._limbs[1] / b._limbs[1])
+@inline _sqrt(  x::MF{T,1}            ) where {T<:AF} = MF{T,1}(unsafe_sqrt(x._limbs[1]) )
 
 @inline function Base.sqrt(x::MF{T,N}) where {T<:AF,N}
     x = renormalize(x)
@@ -481,7 +481,7 @@ end
 @inline Base.:-(x::T, y::MF{T,N}) where {T<:AF,N} = -(y + (-x))
 @inline Base.:*(x::T, y::MF{T,N}) where {T<:AF,N} = y * x
 
-@inline Base.:-(x::MF{T,N}) where {T<:AF,N} = MF{T,N}(ntuple(i -> -x.x[i], N))
+@inline Base.:-(x::MF{T,N}) where {T<:AF,N} = MF{T,N}(ntuple(i -> -x._limbs[i], N))
 @inline Base.:-(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} = x + (-y)
 @inline Base.:-(x::MF{T,N}, y::T      ) where {T<:AF,N} = x + (-y)
 

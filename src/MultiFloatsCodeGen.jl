@@ -179,11 +179,11 @@ function multifloat_add_func(N::Int; sloppy::Bool=false)
     for i = 1 : N - sloppy
         tmp = add_var!(vars, 't', i-1)
         err = add_var!(vars, 'e', i)
-        push!(code, meta_two_sum(tmp, err, :(a.x[$i]), :(b.x[$i])))
+        push!(code, meta_two_sum(tmp, err, :(a._limbs[$i]), :(b._limbs[$i])))
     end
     if sloppy
         tmp = add_var!(vars, 't', N-1)
-        push!(code, :($tmp = a.x[$N] + b.x[$N]))
+        push!(code, :($tmp = a._limbs[$N] + b._limbs[$N]))
     end
     reverse!(vars)
     generate_accumulation_code!(code, vars, N, sloppy=sloppy)
@@ -194,9 +194,9 @@ function multifloat_float_add_func(N::Int; sloppy::Bool=false)
     code = inline_block()
     vars = Tuple{Symbol,Int}[]
     push!(code, meta_two_sum(add_var!(vars, 't', 0), add_var!(vars, 'e', 1),
-        :(a.x[1]), :b))
+        :(a._limbs[1]), :b))
     for i = 2 : N
-        push!(code, Expr(:(=), add_var!(vars, 't', i-1), :(a.x[$i])))
+        push!(code, Expr(:(=), add_var!(vars, 't', i-1), :(a._limbs[$i])))
     end
     reverse!(vars)
     generate_accumulation_code!(code, vars, N, sloppy=sloppy)
@@ -207,12 +207,13 @@ end
 function multifloat_mul_func(N::Int; sloppy::Bool=false)
     code = inline_block()
     for i = 0 : N-1-sloppy, j = 0 : i
-        push!(code, meta_two_prod(Symbol('t', j, '_', i),
-            Symbol('e', j, '_', i+1), :(a.x[$(j+1)]), :(b.x[$(i-j+1)])))
+        push!(code, meta_two_prod(
+            Symbol('t', j, '_', i), Symbol('e', j, '_', i+1),
+            :(a._limbs[$(j+1)]), :(b._limbs[$(i-j+1)])))
     end
     for i = 0 : N-2+sloppy
         push!(code, Expr(:(=), Symbol('t', i, '_', N - sloppy),
-            :(a.x[$(i + 2 - sloppy)] * b.x[$(N - i)])))
+            :(a._limbs[$(i + 2 - sloppy)] * b._limbs[$(N - i)])))
     end
     vars = Tuple{Symbol,Int}[]
     for i = 0 : N-1-sloppy, j = 0 : i; add_var!(vars, 't', j, i       ); end
@@ -226,9 +227,11 @@ function multifloat_float_mul_func(N::Int; sloppy::Bool=false)
     code = inline_block()
     for i = 0 : N-1-sloppy
         push!(code, meta_two_prod(Symbol('t', i), Symbol('e', i+1),
-            :(a.x[$(i+1)]), :b))
+            :(a._limbs[$(i+1)]), :b))
     end
-    if sloppy; push!(code, Expr(:(=), Symbol('t', N-1), :(a.x[$N] * b))); end
+    if sloppy
+        push!(code, Expr(:(=), Symbol('t', N-1), :(a._limbs[$N] * b)))
+    end
     vars = Tuple{Symbol,Int}[]
     for i = 0 : N-1;      add_var!(vars, 't', i); end
     for i = 1 : N-sloppy; add_var!(vars, 'e', i); end
@@ -240,13 +243,13 @@ end
 function multifloat_div_func(N::Int; sloppy::Bool=false)
     code = inline_block()
     quots = [Symbol('q', i) for i = 0 : N - sloppy]
-    push!(code, :($(quots[1]) = a.x[1] / b.x[1]))
+    push!(code, :($(quots[1]) = a._limbs[1] / b._limbs[1]))
     push!(code, :(r = a - b * $(quots[1])))
     for i = 2 : N-sloppy
-        push!(code, :($(quots[i]) = r.x[1] / b.x[1]))
+        push!(code, :($(quots[i]) = r._limbs[1] / b._limbs[1]))
         push!(code, :(r -= b * $(quots[i])))
     end
-    push!(code, :($(quots[N+1-sloppy]) = r.x[1] / b.x[1]))
+    push!(code, :($(quots[N+1-sloppy]) = r._limbs[1] / b._limbs[1]))
     push!(code, Expr(:call, meta_multifloat(N),
         Expr(:call, renorm_name(N), quots...)))
     function_def_typed(:(Base.:/), meta_multifloat(N), [:a, :b], code)
@@ -259,7 +262,7 @@ num_sqrt_iters(N::Int, sloppy::Bool) =
 
 function multifloat_sqrt_func(N::Int; sloppy::Bool=false)
     code = inline_block()
-    push!(code, :(r = MultiFloat{T,$N}(inv(unsafe_sqrt(x.x[1])))))
+    push!(code, :(r = MultiFloat{T,$N}(inv(unsafe_sqrt(x._limbs[1])))))
     push!(code, :(h = scale(T(0.5), x)))
     for _ = 1 : num_sqrt_iters(N, sloppy)
         push!(code, :(r += r * (T(0.5) - h * (r * r))))
@@ -271,28 +274,32 @@ end
 ################################################################################
 
 eq_expr(n::Int) = (n == 1
-    ? :(x.x[$n] == y.x[$n])
-    : :($(eq_expr(n-1)) & (x.x[$n] == y.x[$n])))
+    ? :(x._limbs[$n] == y._limbs[$n])
+    : :($(eq_expr(n-1)) & (x._limbs[$n] == y._limbs[$n])))
 
 ne_expr(n::Int) = (n == 1
-    ? :(x.x[$n] != y.x[$n])
-    : :($(ne_expr(n-1)) | (x.x[$n] != y.x[$n])))
+    ? :(x._limbs[$n] != y._limbs[$n])
+    : :($(ne_expr(n-1)) | (x._limbs[$n] != y._limbs[$n])))
 
 lt_expr(m::Int, n::Int) = (m == n
-    ? :(x.x[$m] < y.x[$m])
-    : :((x.x[$m] < y.x[$m]) | (x.x[$m] == y.x[$m]) & $(lt_expr(m+1, n))))
+    ? :(x._limbs[$m] < y._limbs[$m])
+    : :((x._limbs[$m] < y._limbs[$m]) |
+        ((x._limbs[$m] == y._limbs[$m]) & $(lt_expr(m+1, n)))))
 
 gt_expr(m::Int, n::Int) = (m == n
-    ? :(x.x[$m] > y.x[$m])
-    : :((x.x[$m] > y.x[$m]) | (x.x[$m] == y.x[$m]) & $(gt_expr(m+1, n))))
+    ? :(x._limbs[$m] > y._limbs[$m])
+    : :((x._limbs[$m] > y._limbs[$m]) |
+        ((x._limbs[$m] == y._limbs[$m]) & $(gt_expr(m+1, n)))))
 
 le_expr(m::Int, n::Int) = (m == n
-    ? :(x.x[$m] <= y.x[$m])
-    : :((x.x[$m] < y.x[$m]) | (x.x[$m] == y.x[$m]) & $(le_expr(m+1, n))))
+    ? :(x._limbs[$m] <= y._limbs[$m])
+    : :((x._limbs[$m] < y._limbs[$m]) |
+        ((x._limbs[$m] == y._limbs[$m]) & $(le_expr(m+1, n)))))
 
 ge_expr(m::Int, n::Int) = (m == n
-    ? :(x.x[$m] >= y.x[$m])
-    : :((x.x[$m] > y.x[$m]) | (x.x[$m] == y.x[$m]) & $(ge_expr(m+1, n))))
+    ? :(x._limbs[$m] >= y._limbs[$m])
+    : :((x._limbs[$m] > y._limbs[$m]) |
+        ((x._limbs[$m] == y._limbs[$m]) & $(ge_expr(m+1, n)))))
 
 ################################################################################
 
