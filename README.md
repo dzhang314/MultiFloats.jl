@@ -57,3 +57,13 @@ Two basic linear algebra tasks are used below to compare the performance of exte
 | compatible with **[GenericSVD.jl](https://github.com/JuliaLinearAlgebra/GenericSVD.jl)**                         | ✔️          | ✔️      | ✔️          | ❌       | ❌    | ✔️          | ✔️       |
 | floating-point introspection `minfloat`, `eps`         | ✔️          | ✔️      | ✔️          | ❌       | ✔️    | ✔️          | ✔️       |
 
+## Complexity of operations
+
+The number of flops per operation scales cubically for `*` and `/` and quadratically for `+` and `-` as a function of `N`. Counting explicit fma's as a single operation, the number of flops for `N` in the range `2:8` is:
+
+| Operation | Number of flops     |
+|-----------|---------------------|
+| `+`       | 3N² + 4N - 9        |
+| `-`       | 3N² + 4N - 9        |
+| `*`       | 2N³ - 4N² + 9N - 9  |
+| `/`       | 6N³ - 2N² - 11N + 5 |
