@@ -283,6 +283,7 @@ end
 @inline Base.isfinite(   x::MF{T,N}) where {T<:AF,N} = isfinite(   renormalize(x)._limbs[1])
 @inline Base.isinf(      x::MF{T,N}) where {T<:AF,N} = isinf(      renormalize(x)._limbs[1])
 @inline Base.isnan(      x::MF{T,N}) where {T<:AF,N} = isnan(      renormalize(x)._limbs[1])
+@inline Base.isinteger(  x::MF{T,N}) where {T<:AF,N} = all(isinteger.(renormalize(x)._limbs))
 
 @inline function Base.nextfloat(x::MF{T,N}) where {T<:AF,N}
     y = renormalize(x)
