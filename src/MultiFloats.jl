@@ -314,7 +314,7 @@ end
 
 ################################################################################
 
-# To-do list of transcendental math functions to be implemented
+# To-do list of transcendental math functions to be implemented: For the moment, we use bigfloats stop-gaps.
 
 Base.exp(  x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.exp(Base.BigFloat(x)))
 Base.expm1(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.expm1(Base.BigFloat(x)))
@@ -486,6 +486,13 @@ end
 @inline Base.:-(x::MF{T,N}, y::T      ) where {T<:AF,N} = x + (-y)
 
 @inline Base.hypot(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} = sqrt(x*x + y*y)
+
+
+# Three more stop-gaps, that are clearly not perfect.
+Base.rand(::Type{MF{T,N}}) where {T<:AF,N} = MF{T,N}(rand(BigFloat))
+Base.:^(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} = MF{T,N}(BigFloat(x)^BigFloat(y))
+Base.round(x::MF{Float64,5}, y) = MF{Float64,5}(round(BigFloat(x),y))
+
 
 ################################################################################
 
