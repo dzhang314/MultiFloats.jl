@@ -4,7 +4,7 @@
 
 **MultiFloats.jl** is a Julia package for extended-precision arithmetic using 100 – 400 bits (≈30 – 120 digits). In this range, it is the fastest extended-precision library that I am aware of. At 100-bit precision, **MultiFloats.jl** is roughly **40x faster than [`BigFloat`](https://docs.julialang.org/en/v1/manual/integers-and-floating-point-numbers/#Arbitrary-Precision-Arithmetic)** and **2x faster than [DoubleFloats.jl](https://github.com/JuliaMath/DoubleFloats.jl)**.
 
-**MultiFloats.jl** achieves this speed by using native, vectorizable **`Float64`** operations and immutable data structures that do not dynamically allocate memory. In many cases, **`MultiFloat`** arithmetic can be performed entirely in CPU registers, eliminating memory access altogether. In contrast, **[`BigFloat`](https://docs.julialang.org/en/v1/manual/integers-and-floating-point-numbers/#Arbitrary-Precision-Arithmetic)** allocates memory with every single arithmetic operation, requiring frequent pauses for garbage collection.
+**MultiFloats.jl** achieves speed by using native, vectorizable `Float64` operations and immutable data structures that do not dynamically allocate memory. In many cases, `MultiFloat` arithmetic can be performed entirely in CPU registers, eliminating memory access altogether. In contrast, [`BigFloat`](https://docs.julialang.org/en/v1/manual/integers-and-floating-point-numbers/#Arbitrary-Precision-Arithmetic) allocates memory with every single arithmetic operation, requiring frequent pauses for garbage collection.
 
 **MultiFloats.jl** currently provides basic arithmetic operations (`+`, `-`, `*`, `/`, `sqrt`), comparison operators (`==`, `!=`, `<`, `>`, `<=`, `>=`), and floating-point introspection methods (`isfinite`, `eps`, `minfloat`, etc.). Work on trigonometric functions, exponentials, and logarithms is currently in progress.
 
@@ -12,7 +12,7 @@
 
 ## Usage
 
-**MultiFloats.jl** provides the types `Float64x2`, `Float64x3`, ..., `Float64x8`, which represent extended-precision numbers with 2x, 3x, ..., 8x the precision of `Float64`. These are all instances of the parametric type **`MultiFloat{T,N}`**, where `T = Float64` and <code>N&nbsp;=&nbsp;2,&nbsp;3,&nbsp;...,&nbsp;8</code>.
+**MultiFloats.jl** provides the types `Float64x2`, `Float64x3`, ..., `Float64x8`, which represent extended-precision numbers with 2x, 3x, ..., 8x the precision of `Float64`. These are all instances of the parametric type `MultiFloat{T,N}`, where `T = Float64` and <code>N&nbsp;=&nbsp;2,&nbsp;3,&nbsp;...,&nbsp;8</code>.
 
 Instances of `Float64x2`, `Float64x3`, ..., `Float64x8` are convertible to and from `Float64` and `BigFloat`, as shown in the following example.
 
