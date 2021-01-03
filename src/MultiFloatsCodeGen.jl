@@ -271,7 +271,7 @@ function multifloat_sqrt_func(N::Int; sloppy::Bool=false)
     function_def_typed(:_sqrt, meta_multifloat(N), [:x], code)
 end
 
-################################################################################
+########################################################### RECURSIVE COMPARISON
 
 eq_expr(n::Int) = (n == 1
     ? :(x._limbs[$n] == y._limbs[$n])
@@ -301,7 +301,7 @@ ge_expr(m::Int, n::Int) = (m == n
     : :((x._limbs[$m] > y._limbs[$m]) |
         ((x._limbs[$m] == y._limbs[$m]) & $(ge_expr(m+1, n)))))
 
-################################################################################
+########################################################### COMPARISON FUNCTIONS
 
 cmp_func(name, N, expr) = function_def_typed(name,
     meta_multifloat(N), [:x, :y], push!(inline_block(), expr))

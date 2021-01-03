@@ -4,8 +4,8 @@ export MultiFloat, renormalize,
        Float64x1, Float64x2, Float64x3, Float64x4,
        Float64x5, Float64x6, Float64x7, Float64x8,
        use_clean_multifloat_arithmetic,
-       use_sloppy_multifloat_arithmetic,
-       use_very_sloppy_multifloat_arithmetic
+       use_standard_multifloat_arithmetic,
+       use_sloppy_multifloat_arithmetic
 
 include("./MultiFloatsCodeGen.jl")
 using .MultiFloatsCodeGen
@@ -434,28 +434,29 @@ function use_clean_multifloat_arithmetic(n::Integer=8)
     end
 end
 
-function use_sloppy_multifloat_arithmetic(n::Integer=8)
+function use_standard_multifloat_arithmetic(n::Integer=8)
     for i = 2 : n
-        eval(multifloat_eq_func(       i             ))
-        eval(multifloat_ne_func(       i             ))
-        eval(multifloat_lt_func(       i             ))
-        eval(multifloat_gt_func(       i             ))
-        eval(multifloat_le_func(       i             ))
-        eval(multifloat_ge_func(       i             ))
-        eval(two_pass_renorm_func(     i, sloppy=true))
-        eval(multifloat_add_func(      i, sloppy=true))
-        eval(multifloat_float_add_func(i, sloppy=true))
-        eval(multifloat_mul_func(      i, sloppy=true))
-        eval(multifloat_float_mul_func(i, sloppy=true))
-        eval(multifloat_div_func(      i, sloppy=true))
-        eval(multifloat_sqrt_func(     i, sloppy=true))
+        eval(multifloat_eq_func(       i              ))
+        eval(multifloat_ne_func(       i              ))
+        eval(multifloat_lt_func(       i              ))
+        eval(multifloat_gt_func(       i              ))
+        eval(multifloat_le_func(       i              ))
+        eval(multifloat_ge_func(       i              ))
+        eval(two_pass_renorm_func(     i, sloppy=true ))
+        eval(two_pass_renorm_func(     i, sloppy=false))
+        eval(multifloat_add_func(      i, sloppy=false))
+        eval(multifloat_float_add_func(i, sloppy=false))
+        eval(multifloat_mul_func(      i, sloppy=true ))
+        eval(multifloat_float_mul_func(i, sloppy=true ))
+        eval(multifloat_div_func(      i, sloppy=true ))
+        eval(multifloat_sqrt_func(     i, sloppy=true ))
     end
     for (_, v) in MultiFloatsCodeGen.MPADD_CACHE
         eval(v)
     end
 end
 
-function use_very_sloppy_multifloat_arithmetic(n::Integer=8)
+function use_sloppy_multifloat_arithmetic(n::Integer=8)
     for i = 2 : n
         eval(multifloat_eq_func(       i             ))
         eval(multifloat_ne_func(       i             ))
@@ -490,6 +491,6 @@ end
 
 ################################################################################
 
-use_sloppy_multifloat_arithmetic()
+use_standard_multifloat_arithmetic()
 
 end # module MultiFloats
