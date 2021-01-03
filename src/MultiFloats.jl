@@ -218,19 +218,27 @@ import Printf: fix_dec, ini_dec
 
 if VERSION < v"1.1"
 
-    fix_dec(out, x::MultiFloat{T,N}, flags::String, width::Int, precision::Int, c::Char) where {T,N} =
-        call_normalized(d -> fix_dec(out, BigFloat(d), flags, width, precision, c), x)
+    fix_dec(out, x::MultiFloat{T,N}, flags::String, width::Int,
+            precision::Int, c::Char) where {T,N} =
+        call_normalized(d -> fix_dec(out, BigFloat(d), flags,
+                                     width, precision, c), x)
 
-    ini_dec(out, x::MultiFloat{T,N}, ndigits::Int, flags::String, width::Int, precision::Int, c::Char) where {T,N} =
-        call_normalized(d -> ini_dec(out, BigFloat(d), ndigits, flags, width, precision, c), x)
+    ini_dec(out, x::MultiFloat{T,N}, ndigits::Int, flags::String,
+            width::Int, precision::Int, c::Char) where {T,N} =
+        call_normalized(d -> ini_dec(out, BigFloat(d), ndigits,
+                                     flags, width, precision, c), x)
 
 else
 
-    fix_dec(out, x::MultiFloat{T,N}, flags::String, width::Int, precision::Int, c::Char, digits) where {T,N} =
-        call_normalized(d -> fix_dec(out, BigFloat(d), flags, width, precision, c, digits), x)
+    fix_dec(out, x::MultiFloat{T,N}, flags::String, width::Int,
+            precision::Int, c::Char, digits) where {T,N} =
+        call_normalized(d -> fix_dec(out, BigFloat(d), flags,
+                                     width, precision, c, digits), x)
 
-    ini_dec(out, x::MultiFloat{T,N}, ndigits::Int, flags::String, width::Int, precision::Int, c::Char, digits) where {T,N} =
-        call_normalized(d -> ini_dec(out, BigFloat(d), ndigits, flags, width, precision, c, digits), x)
+    ini_dec(out, x::MultiFloat{T,N}, ndigits::Int, flags::String,
+            width::Int, precision::Int, c::Char, digits) where {T,N} =
+        call_normalized(d -> ini_dec(out, BigFloat(d), ndigits,
+                                     flags, width, precision, c, digits), x)
 
 end
 
@@ -307,56 +315,35 @@ end
 
 ################################################################################
 
-# To-do list of transcendental math functions to be implemented: For the moment, we use bigfloats stop-gaps.
+BASE_TRANSCENDENTAL_FUNCTIONS = [
+    :exp, :exp2, :exp10, :expm1, :log, :log2, :log10, :log1p,
+    :sin, :cos, :tan, :sec, :csc, :cot,
+    :sinh, :cosh, :tanh, :sech, :csch, :coth,
+    :sind, :cosd, :tand, :secd, :cscd, :cotd,
+    :asin, :acos, :atan, :asec, :acsc, :acot,
+    :asinh, :acosh, :atanh, :asech, :acsch, :acoth,
+    :asind, :acosd, :atand, :asecd, :acscd, :acotd
+]
 
-Base.exp(  x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.exp(Base.BigFloat(x)))
-Base.expm1(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.expm1(Base.BigFloat(x)))
-Base.log(  x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.log(Base.BigFloat(x)))
-Base.log2( x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.log2(Base.BigFloat(x)))
-Base.log10(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.log10(Base.BigFloat(x)))
-Base.log1p(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.log1p(Base.BigFloat(x)))
+for name in BASE_TRANSCENDENTAL_FUNCTIONS
+    eval(:(Base.$name(x::MF{T,N}) where {T,N} = error($(
+        "$name(MultiFloat) is not yet implemented. For a temporary workaround,\n" *
+        "call MultiFloats.use_bigfloat_transcendentals() immediately after\n" *
+        "importing MultiFloats. This will use the BigFloat implementation of\n" *
+        "$name, which will not be as fast as a pure-MultiFloat implementation.\n"
+    ))))
+end
 
-Base.sin(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.sin(Base.BigFloat(x)))
-Base.cos(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.cos(Base.BigFloat(x)))
-Base.tan(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.tan(Base.BigFloat(x)))
-Base.sec(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.sec(Base.BigFloat(x)))
-Base.csc(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.csc(Base.BigFloat(x)))
-Base.cot(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.cot(Base.BigFloat(x)))
+eval_bigfloat(f::Function, x::MultiFloat{T,N}, k::Int) where {T,N} =
+    setprecision(() -> MultiFloat{T,N}(f(BigFloat(x))),
+                 BigFloat, N * precision(T) + (N - 1) + k)
 
-Base.sinh(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.sinh(Base.BigFloat(x)))
-Base.cosh(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.cosh(Base.BigFloat(x)))
-Base.tanh(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.tanh(Base.BigFloat(x)))
-Base.sech(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.sech(Base.BigFloat(x)))
-Base.csch(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.csch(Base.BigFloat(x)))
-Base.coth(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.coth(Base.BigFloat(x)))
-
-Base.sind(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.sind(Base.BigFloat(x)))
-Base.cosd(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.cosd(Base.BigFloat(x)))
-Base.tand(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.tand(Base.BigFloat(x)))
-Base.secd(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.secd(Base.BigFloat(x)))
-Base.cscd(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.cscd(Base.BigFloat(x)))
-Base.cotd(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.cotd(Base.BigFloat(x)))
-
-Base.asin(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.asin(Base.BigFloat(x)))
-Base.acos(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.acos(Base.BigFloat(x)))
-Base.atan(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.atan(Base.BigFloat(x)))
-Base.asec(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.asec(Base.BigFloat(x)))
-Base.acsc(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.acsc(Base.BigFloat(x)))
-Base.acot(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.acot(Base.BigFloat(x)))
-
-Base.asinh(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.asinh(Base.BigFloat(x)))
-Base.acosh(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.acosh(Base.BigFloat(x)))
-Base.atanh(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.atanh(Base.BigFloat(x)))
-Base.asech(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.asech(Base.BigFloat(x)))
-Base.acsch(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.acsch(Base.BigFloat(x)))
-Base.acoth(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.acoth(Base.BigFloat(x)))
-
-Base.asind(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.asind(Base.BigFloat(x)))
-Base.acosd(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.acosd(Base.BigFloat(x)))
-Base.atand(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.atand(Base.BigFloat(x)))
-Base.asecd(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.asecd(Base.BigFloat(x)))
-Base.acscd(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.acscd(Base.BigFloat(x)))
-Base.acotd(x::MF{T,N}) where {T,N} = MultiFloat{T,N}(Base.acotd(Base.BigFloat(x)))
+function use_bigfloat_transcendentals(k::Int=20)
+    for name in BASE_TRANSCENDENTAL_FUNCTIONS
+        eval(:(Base.$name(x::MF{T,N}) where {T,N} =
+                eval_bigfloat($name, x, $k)))
+    end
+end
 
 ################################################################################
 
@@ -501,9 +488,8 @@ end
 
 @inline Base.hypot(x::MF{T,N}, y::MF{T,N}) where {T,N} = sqrt(x*x + y*y)
 
-# Three more stop-gaps, that are clearly not perfect.
+# Two more stop-gaps, that are clearly not perfect.
 Base.rand(::Type{MF{T,N}}) where {T,N} = MF{T,N}(rand(BigFloat))
-Base.:^(x::MF{T,N}, y::MF{T,N}) where {T,N} = MF{T,N}(BigFloat(x)^BigFloat(y))
 Base.round(x::MF{Float64,5}, y) = MF{Float64,5}(round(BigFloat(x),y))
 
 ################################################################################
