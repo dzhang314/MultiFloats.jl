@@ -260,7 +260,7 @@ end
 
 ################################################### FLOATING-POINT INTROSPECTION
 
-@inline Base.precision(::Type{MF{T,N}}) where {T,N} = N * precision(T)
+@inline Base.precision(::Type{MF{T,N}}) where {T,N} = N * precision(T) + (N - 1)
 
 @inline _iszero(x::MF{T,N}) where {T,N} = (&)(ntuple(i -> iszero(x._limbs[i]), N)...)
 @inline _isone( x::MF{T,N}) where {T,N} = isone(x._limbs[1]) & (&)(ntuple(i -> iszero(x._limbs[i + 1]), N - 1)...)
@@ -326,7 +326,7 @@ BASE_TRANSCENDENTAL_FUNCTIONS = [
 ]
 
 for name in BASE_TRANSCENDENTAL_FUNCTIONS
-    eval(:(Base.$name(x::MF{T,N}) where {T,N} = error($(
+    eval(:(Base.$name(x::MultiFloat{T,N}) where {T,N} = error($(
         "$name(MultiFloat) is not yet implemented. For a temporary workaround,\n" *
         "call MultiFloats.use_bigfloat_transcendentals() immediately after\n" *
         "importing MultiFloats. This will use the BigFloat implementation of\n" *
@@ -336,11 +336,11 @@ end
 
 eval_bigfloat(f::Function, x::MultiFloat{T,N}, k::Int) where {T,N} =
     setprecision(() -> MultiFloat{T,N}(f(BigFloat(x))),
-                 BigFloat, N * precision(T) + (N - 1) + k)
+                 BigFloat, precision(MultiFloat{T,N}) + k)
 
 function use_bigfloat_transcendentals(k::Int=20)
     for name in BASE_TRANSCENDENTAL_FUNCTIONS
-        eval(:(Base.$name(x::MF{T,N}) where {T,N} =
+        eval(:(Base.$name(x::MultiFloat{T,N}) where {T,N} =
                 eval_bigfloat($name, x, $k)))
     end
 end
