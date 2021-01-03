@@ -148,6 +148,9 @@ MultiFloat{T,N}(x::Rational{U}) where {T,N,U} =
 Base.BigFloat(x::MultiFloat{T,N}) where {T,N} =
     +(ntuple(i -> BigFloat(x._limbs[N-i+1]), N)...)
 
+Base.Rational{BigInt}(x::MultiFloat{T,N}) where {T,N} =
+    sum(Rational{BigInt}.(x._limbs))
+
 ################################################################ PROMOTION RULES
 
 Base.promote_rule(::Type{MF{T,N}}, ::Type{T      }) where {T,N} = MF{T,N}
@@ -371,6 +374,44 @@ end
 
 ################################################################################
 
+import Random
+using Random: AbstractRNG, SamplerTrivial, CloseOpen01
+
+@inline function _rand_f64(rng::AbstractRNG, k::Int)
+    exponent = reinterpret(UInt64, 1023 + k) << 52
+    mantissa = rand(rng, Random.UInt52())
+    return reinterpret(Float64, exponent | mantissa)
+end
+
+@inline function _rand_sf64(rng::AbstractRNG, k::Int)
+    exponent = reinterpret(UInt64, 1023 + k) << 52
+    mantissa = rand(rng, UInt64) & 0x800FFFFFFFFFFFFF
+    return reinterpret(Float64, exponent | mantissa)
+end
+
+@inline function _rand_mf64(rng::AbstractRNG, offset::Int,
+                            padding::NTuple{N,Int}) where {N}
+    exponents = cumsum(padding) .+ 54 .* ntuple(identity, N)
+    return Float64x{N+1}((_rand_f64(rng, offset),
+                          _rand_sf64.(rng, offset .- exponents)...))
+end
+
+function multifloat_rand_func(n::Int)
+    :(
+        Random.rand(rng::AbstractRNG,
+                    ::SamplerTrivial{CloseOpen01{Float64x{$n}}}) =
+        _rand_mf64(
+            rng,
+            -leading_zeros(rand(rng, UInt64)) - 1,
+            $(Expr(:tuple,
+                   ntuple(_ -> :(leading_zeros(rand(rng, UInt64))), n - 1)...
+            ))
+        )
+    )
+end
+
+################################################################################
+
 @inline multifloat_add(a::MF{T,1}, b::MF{T,1}) where {T} = MF{T,1}(a._limbs[1] + b._limbs[1])
 @inline multifloat_mul(a::MF{T,1}, b::MF{T,1}) where {T} = MF{T,1}(a._limbs[1] * b._limbs[1])
 @inline multifloat_div(a::MF{T,1}, b::MF{T,1}) where {T} = MF{T,1}(a._limbs[1] / b._limbs[1])
@@ -386,6 +427,7 @@ function use_clean_multifloat_arithmetic(n::Integer=8)
         eval(multifloat_gt_func(i))
         eval(multifloat_le_func(i))
         eval(multifloat_ge_func(i))
+        eval(multifloat_rand_func(i))
     end
     for i = 2 : n
         eval(two_pass_renorm_func(     i, sloppy=false))
@@ -409,6 +451,7 @@ function use_standard_multifloat_arithmetic(n::Integer=8)
         eval(multifloat_gt_func(i))
         eval(multifloat_le_func(i))
         eval(multifloat_ge_func(i))
+        eval(multifloat_rand_func(i))
     end
     for i = 2 : n
         eval(two_pass_renorm_func(     i, sloppy=true ))
@@ -433,6 +476,7 @@ function use_sloppy_multifloat_arithmetic(n::Integer=8)
         eval(multifloat_gt_func(i))
         eval(multifloat_le_func(i))
         eval(multifloat_ge_func(i))
+        eval(multifloat_rand_func(i))
     end
     for i = 2 : n
         eval(one_pass_renorm_func(     i, sloppy=true))
@@ -488,9 +532,9 @@ end
 
 @inline Base.hypot(x::MF{T,N}, y::MF{T,N}) where {T,N} = sqrt(x*x + y*y)
 
-# Two more stop-gaps, that are clearly not perfect.
-Base.rand(::Type{MF{T,N}}) where {T,N} = MF{T,N}(rand(BigFloat))
-Base.round(x::MF{Float64,5}, y) = MF{Float64,5}(round(BigFloat(x),y))
+################################################################################
+
+
 
 ################################################################################
 
