@@ -315,56 +315,56 @@ end
 
 ################################################################################
 
-# To-do list of transcendental math functions to be implemented
+# To-do list of transcendental math functions to be implemented: For the moment, we use bigfloats stop-gaps.
 
-Base.exp(  ::MF{T,N}) where {T<:AF,N} = error(  "exp(MultiFloat) not yet implemented")
-Base.expm1(::MF{T,N}) where {T<:AF,N} = error("expm1(MultiFloat) not yet implemented")
-Base.log(  ::MF{T,N}) where {T<:AF,N} = error(  "log(MultiFloat) not yet implemented")
-Base.log2( ::MF{T,N}) where {T<:AF,N} = error( "log2(MultiFloat) not yet implemented")
-Base.log10(::MF{T,N}) where {T<:AF,N} = error("log10(MultiFloat) not yet implemented")
-Base.log1p(::MF{T,N}) where {T<:AF,N} = error("log1p(MultiFloat) not yet implemented")
+Base.exp(  x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.exp(Base.BigFloat(x)))
+Base.expm1(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.expm1(Base.BigFloat(x)))
+Base.log(  x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.log(Base.BigFloat(x)))
+Base.log2( x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.log2(Base.BigFloat(x)))
+Base.log10(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.log10(Base.BigFloat(x)))
+Base.log1p(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.log1p(Base.BigFloat(x)))
 
-Base.sin(::MF{T,N}) where {T<:AF,N} = error("sin(MultiFloat) not yet implemented")
-Base.cos(::MF{T,N}) where {T<:AF,N} = error("cos(MultiFloat) not yet implemented")
-Base.tan(::MF{T,N}) where {T<:AF,N} = error("tan(MultiFloat) not yet implemented")
-Base.sec(::MF{T,N}) where {T<:AF,N} = error("sec(MultiFloat) not yet implemented")
-Base.csc(::MF{T,N}) where {T<:AF,N} = error("csc(MultiFloat) not yet implemented")
-Base.cot(::MF{T,N}) where {T<:AF,N} = error("cot(MultiFloat) not yet implemented")
+Base.sin(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.sin(Base.BigFloat(x)))
+Base.cos(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.cos(Base.BigFloat(x)))
+Base.tan(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.tan(Base.BigFloat(x)))
+Base.sec(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.sec(Base.BigFloat(x)))
+Base.csc(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.csc(Base.BigFloat(x)))
+Base.cot(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.cot(Base.BigFloat(x)))
 
-Base.sinh(::MF{T,N}) where {T<:AF,N} = error("sinh(MultiFloat) not yet implemented")
-Base.cosh(::MF{T,N}) where {T<:AF,N} = error("cosh(MultiFloat) not yet implemented")
-Base.tanh(::MF{T,N}) where {T<:AF,N} = error("tanh(MultiFloat) not yet implemented")
-Base.sech(::MF{T,N}) where {T<:AF,N} = error("sech(MultiFloat) not yet implemented")
-Base.csch(::MF{T,N}) where {T<:AF,N} = error("csch(MultiFloat) not yet implemented")
-Base.coth(::MF{T,N}) where {T<:AF,N} = error("coth(MultiFloat) not yet implemented")
+Base.sinh(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.sinh(Base.BigFloat(x)))
+Base.cosh(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.cosh(Base.BigFloat(x)))
+Base.tanh(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.tanh(Base.BigFloat(x)))
+Base.sech(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.sech(Base.BigFloat(x)))
+Base.csch(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.csch(Base.BigFloat(x)))
+Base.coth(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.coth(Base.BigFloat(x)))
 
-Base.sind(::MF{T,N}) where {T<:AF,N} = error("sind(MultiFloat) not yet implemented")
-Base.cosd(::MF{T,N}) where {T<:AF,N} = error("cosd(MultiFloat) not yet implemented")
-Base.tand(::MF{T,N}) where {T<:AF,N} = error("tand(MultiFloat) not yet implemented")
-Base.secd(::MF{T,N}) where {T<:AF,N} = error("secd(MultiFloat) not yet implemented")
-Base.cscd(::MF{T,N}) where {T<:AF,N} = error("cscd(MultiFloat) not yet implemented")
-Base.cotd(::MF{T,N}) where {T<:AF,N} = error("cotd(MultiFloat) not yet implemented")
+Base.sind(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.sind(Base.BigFloat(x)))
+Base.cosd(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.cosd(Base.BigFloat(x)))
+Base.tand(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.tand(Base.BigFloat(x)))
+Base.secd(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.secd(Base.BigFloat(x)))
+Base.cscd(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.cscd(Base.BigFloat(x)))
+Base.cotd(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.cotd(Base.BigFloat(x)))
 
-Base.asin(::MF{T,N}) where {T<:AF,N} = error("asin(MultiFloat) not yet implemented")
-Base.acos(::MF{T,N}) where {T<:AF,N} = error("acos(MultiFloat) not yet implemented")
-Base.atan(::MF{T,N}) where {T<:AF,N} = error("atan(MultiFloat) not yet implemented")
-Base.asec(::MF{T,N}) where {T<:AF,N} = error("asec(MultiFloat) not yet implemented")
-Base.acsc(::MF{T,N}) where {T<:AF,N} = error("acsc(MultiFloat) not yet implemented")
-Base.acot(::MF{T,N}) where {T<:AF,N} = error("acot(MultiFloat) not yet implemented")
+Base.asin(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.asin(Base.BigFloat(x)))
+Base.acos(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.acos(Base.BigFloat(x)))
+Base.atan(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.atan(Base.BigFloat(x)))
+Base.asec(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.asec(Base.BigFloat(x)))
+Base.acsc(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.acsc(Base.BigFloat(x)))
+Base.acot(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.acot(Base.BigFloat(x)))
 
-Base.asinh(::MF{T,N}) where {T<:AF,N} = error("asinh(MultiFloat) not yet implemented")
-Base.acosh(::MF{T,N}) where {T<:AF,N} = error("acosh(MultiFloat) not yet implemented")
-Base.atanh(::MF{T,N}) where {T<:AF,N} = error("atanh(MultiFloat) not yet implemented")
-Base.asech(::MF{T,N}) where {T<:AF,N} = error("asech(MultiFloat) not yet implemented")
-Base.acsch(::MF{T,N}) where {T<:AF,N} = error("acsch(MultiFloat) not yet implemented")
-Base.acoth(::MF{T,N}) where {T<:AF,N} = error("acoth(MultiFloat) not yet implemented")
+Base.asinh(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.asinh(Base.BigFloat(x)))
+Base.acosh(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.acosh(Base.BigFloat(x)))
+Base.atanh(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.atanh(Base.BigFloat(x)))
+Base.asech(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.asech(Base.BigFloat(x)))
+Base.acsch(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.acsch(Base.BigFloat(x)))
+Base.acoth(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.acoth(Base.BigFloat(x)))
 
-Base.asind(::MF{T,N}) where {T<:AF,N} = error("asind(MultiFloat) not yet implemented")
-Base.acosd(::MF{T,N}) where {T<:AF,N} = error("acosd(MultiFloat) not yet implemented")
-Base.atand(::MF{T,N}) where {T<:AF,N} = error("atand(MultiFloat) not yet implemented")
-Base.asecd(::MF{T,N}) where {T<:AF,N} = error("asecd(MultiFloat) not yet implemented")
-Base.acscd(::MF{T,N}) where {T<:AF,N} = error("acscd(MultiFloat) not yet implemented")
-Base.acotd(::MF{T,N}) where {T<:AF,N} = error("acotd(MultiFloat) not yet implemented")
+Base.asind(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.asind(Base.BigFloat(x)))
+Base.acosd(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.acosd(Base.BigFloat(x)))
+Base.atand(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.atand(Base.BigFloat(x)))
+Base.asecd(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.asecd(Base.BigFloat(x)))
+Base.acscd(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.acscd(Base.BigFloat(x)))
+Base.acotd(x::MF{T,N}) where {T<:AF,N} = MultiFloat{T,N}(Base.acotd(Base.BigFloat(x)))
 
 ################################################################################
 
@@ -488,6 +488,13 @@ end
 @inline Base.:-(x::MF{T,N}, y::T      ) where {T<:AF,N} = x + (-y)
 
 @inline Base.hypot(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} = sqrt(x*x + y*y)
+
+
+# Three more stop-gaps, that are clearly not perfect.
+Base.rand(::Type{MF{T,N}}) where {T<:AF,N} = MF{T,N}(rand(BigFloat))
+Base.:^(x::MF{T,N}, y::MF{T,N}) where {T<:AF,N} = MF{T,N}(BigFloat(x)^BigFloat(y))
+Base.round(x::MF{Float64,5}, y) = MF{Float64,5}(round(BigFloat(x),y))
+
 
 ################################################################################
 
