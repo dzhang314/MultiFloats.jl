@@ -2,7 +2,7 @@
 
 #### Copyright © 2019-2021 by David K. Zhang. Released under the [MIT License](https://github.com/dzhang314/MultiFloats.jl/blob/master/LICENSE).
 
-**MultiFloats.jl** is a Julia package for extended-precision arithmetic using 100–400 bits (≈30–120 digits). In this range, it is the **fastest** extended-precision library that I am aware of. At 100-bit precision, **MultiFloats.jl** is roughly **40x faster than [`BigFloat`](https://docs.julialang.org/en/v1/manual/integers-and-floating-point-numbers/#Arbitrary-Precision-Arithmetic)** and **2x faster than [DoubleFloats.jl](https://github.com/JuliaMath/DoubleFloats.jl)**.
+**MultiFloats.jl** is a Julia package for extended-precision arithmetic using 100 – 400 bits (≈30 – 120 digits). In this range, it is the fastest extended-precision library that I am aware of. At 100-bit precision, **MultiFloats.jl** is roughly **40x faster than [`BigFloat`](https://docs.julialang.org/en/v1/manual/integers-and-floating-point-numbers/#Arbitrary-Precision-Arithmetic)** and **2x faster than [DoubleFloats.jl](https://github.com/JuliaMath/DoubleFloats.jl)**.
 
 **MultiFloats.jl** achieves this speed by using native, vectorizable **`Float64`** operations and immutable data structures that do not dynamically allocate memory. In many cases, **`MultiFloat`** arithmetic can be performed entirely in CPU registers, eliminating memory access altogether. In contrast, **[`BigFloat`](https://docs.julialang.org/en/v1/manual/integers-and-floating-point-numbers/#Arbitrary-Precision-Arithmetic)** allocates memory with every single arithmetic operation, requiring frequent pauses for garbage collection.
 
@@ -12,9 +12,9 @@
 
 ## Usage
 
-**MultiFloats.jl** provides the types **`Float64x2`**, **`Float64x3`**, ..., **`Float64x8`** representing extended-precision numbers with 2x, 3x, ..., 8x the precision of **`Float64`**. These are all instances of the parametric type **`MultiFloat{T,N}`**, where **`T = Float64`** and <b><code>N&nbsp;=&nbsp;2,&nbsp;3,&nbsp;...,&nbsp;8</code></b>.
+**MultiFloats.jl** provides the types `Float64x2`, `Float64x3`, ..., `Float64x8`, which represent extended-precision numbers with 2x, 3x, ..., 8x the precision of `Float64`. These are all instances of the parametric type **`MultiFloat{T,N}`**, where `T = Float64` and <code>N&nbsp;=&nbsp;2,&nbsp;3,&nbsp;...,&nbsp;8</code>.
 
-Instances of **`Float64x2`**, **`Float64x3`**, ..., **`Float64x8`** are convertible to and from **`Float64`** and **`BigFloat`**, as shown in the following example.
+Instances of `Float64x2`, `Float64x3`, ..., `Float64x8` are convertible to and from `Float64` and `BigFloat`, as shown in the following example.
 
 ```julia
 julia> using MultiFloats
@@ -43,9 +43,9 @@ Two basic linear algebra tasks are used below to compare the performance of exte
 
 |                 | MultiFloats `Float64x2` | Julia Base `BigFloat`        | ArbNumerics `ArbFloat`  | Decimals `Decimal` | DecFP `Dec128`        | DoubleFloats `Double64` | Quadmath `Float128`   |
 |-----------------|---------------------------|--------------------------|---------------------------|----------------------|-------------------------|---------------------------|-------------------------|
-| 400×400 `qr`&nbsp;time  | **0.257 sec**                 | 10.303 sec **(40x&nbsp;slower)** | 17.871 sec **(69x&nbsp;slower)**  | ❌ Error              | 9.448 sec **(36x&nbsp;slower)** | 0.535 sec **(2x&nbsp;slower)**    | 2.403 sec **(9x&nbsp;slower)**  |
+| 400×400 `qr`&nbsp;time  | 0.257 sec                 | 10.303 sec (40x&nbsp;slower) | 17.871 sec (69x&nbsp;slower)  | ❌ Error              | 9.448 sec (36x&nbsp;slower) | 0.535 sec (2x&nbsp;slower)    | 2.403 sec (9x&nbsp;slower)  |
 | accurate digits | 26.0                      | 25.9                     | 25.9                      | ❌ Error              | 27.6                    | 26.1                      | 28.1                    |
-| 400×250 `pinv`&nbsp;time  | **1.709 sec**                 | 96.655 sec **(56x&nbsp;slower)** | 133.085 sec **(77x&nbsp;slower)** | ❌ Error              | ❌ Error                 | 3.668 sec **(2x&nbsp;slower)**    | 15.576 sec **(9x&nbsp;slower)** |
+| 400×250 `pinv`&nbsp;time  | 1.709 sec                 | 96.655 sec (56x&nbsp;slower) | 133.085 sec (77x&nbsp;slower) | ❌ Error              | ❌ Error                 | 3.668 sec (2x&nbsp;slower)    | 15.576 sec (9x&nbsp;slower) |
 | accurate digits | 25.6                      | 25.8                     | 25.8                      | ❌ Error              | ❌ Error                 | 25.4                      | 27.9                    |
 
 ## Feature Comparison
