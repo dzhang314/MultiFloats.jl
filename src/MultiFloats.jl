@@ -378,20 +378,23 @@ import Random
 using Random: AbstractRNG, SamplerTrivial, CloseOpen01
 
 @inline function _rand_f64(rng::AbstractRNG, k::Int)
-    exponent = reinterpret(UInt64, 1023 + k) << 52
-    mantissa = rand(rng, Random.UInt52())
-    return reinterpret(Float64, exponent | mantissa)
+    expnt = reinterpret(UInt64,
+        exponent(floatmax(Float64)) + k) << (precision(Float64) - 1)
+    mntsa = rand(rng, Random.UInt52())
+    return reinterpret(Float64, expnt | mntsa)
 end
 
 @inline function _rand_sf64(rng::AbstractRNG, k::Int)
-    exponent = reinterpret(UInt64, 1023 + k) << 52
-    mantissa = rand(rng, UInt64) & 0x800FFFFFFFFFFFFF
-    return reinterpret(Float64, exponent | mantissa)
+    expnt = reinterpret(UInt64,
+        exponent(floatmax(Float64)) + k) << (precision(Float64) - 1)
+    mntsa = rand(rng, UInt64) & 0x800FFFFFFFFFFFFF
+    return reinterpret(Float64, expnt | mntsa)
 end
 
 @inline function _rand_mf64(rng::AbstractRNG, offset::Int,
                             padding::NTuple{N,Int}) where {N}
-    exponents = cumsum(padding) .+ 54 .* ntuple(identity, N)
+    exponents = (cumsum(padding) .+
+        (precision(Float64) + 1) .* ntuple(identity, N))
     return Float64x{N+1}((_rand_f64(rng, offset),
                           _rand_sf64.(rng, offset .- exponents)...))
 end
@@ -531,10 +534,6 @@ end
 @inline Base.:-(x::MF{T,N}, y::T      ) where {T<:Number,N} = x + (-y)
 
 @inline Base.hypot(x::MF{T,N}, y::MF{T,N}) where {T,N} = sqrt(x*x + y*y)
-
-################################################################################
-
-
 
 ################################################################################
 
