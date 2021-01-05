@@ -1,6 +1,3 @@
-push!(LOAD_PATH, "C:\\Users\\Zhang\\Documents\\GitHub")
-set_zero_subnormals(true)
-
 using DZLinearAlgebra: find_saturation_threshold
 using MultiFloats
 using Printf
