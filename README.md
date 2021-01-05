@@ -196,6 +196,12 @@ In this table, **`+`** refers to addition of numbers with the same sign, while *
 | **`*`**    | 2N³ + 2N² + 7N - 8  | 2N³ - 4N² + 9N - 9  | 2N³ - 4N² + 6N - 3 |
 | **`/`**    | 6N³ + 16N² - 5N - 4 | 6N³ + 4N² - 14N + 2 | 6N³ - 8N² + 4N - 1 |
 
+## Caveats
+
+**MultiFloats.jl** requires an underlying implementation of `Float64` with IEEE round-to-nearest semantics. It works out-of-the-box on x86 and ARM, but may fail on more exotic architectures.
+
+**MultiFloats.jl** does not attempt to propagate IEEE `Inf` and `NaN` values through arithmetic operations, as this [could cause significant performance losses](https://github.com/dzhang314/MultiFloats.jl/issues/12#issuecomment-751151737). You can pass these values through the `Float64x{N}` container types, and introspection functions (`isinf`, `isnan`, etc.) will work, but arithmetic operations will typically produce `NaN` on all non-finite inputs.
+
 ## Benchmarks
 
 Two basic linear algebra tasks are used below to compare the performance of extended-precision floating-point libraries:
