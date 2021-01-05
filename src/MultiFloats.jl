@@ -17,11 +17,12 @@ struct MultiFloat{T,N} <: AbstractFloat
     _limbs::NTuple{N,T}
 end
 
+# Short alias for brevity of type declarations
+const MF = MultiFloat
+
 const Float16x{N} = MultiFloat{Float16,N}
 const Float32x{N} = MultiFloat{Float32,N}
 const Float64x{N} = MultiFloat{Float64,N}
-
-const MF = MultiFloat
 
 const Float64x1 = Float64x{1}
 const Float64x2 = Float64x{2}
@@ -32,7 +33,7 @@ const Float64x6 = Float64x{6}
 const Float64x7 = Float64x{7}
 const Float64x8 = Float64x{8}
 
-################################################ CONVERSION FROM PRIMITIVE TYPES
+############################################## CONSTRUCTION FROM PRIMITIVE TYPES
 
 @inline MultiFloat{T,N}(x::MultiFloat{T,N}) where {T,N} = x
 
@@ -115,7 +116,7 @@ end
 @inline Base.Float32(x::Float32x{N}) where {N} = x._limbs[1]
 @inline Base.Float64(x::Float64x{N}) where {N} = x._limbs[1]
 
-###################################################### CONVERSION FROM BIG TYPES
+#################################################### CONSTRUCTION FROM BIG TYPES
 
 function MultiFloat{T,N}(x::BigFloat) where {T,N}
     setprecision(Int(precision(x))) do
@@ -172,7 +173,7 @@ Base.promote_rule(::Type{Float32x{N}}, ::Type{Float16}) where {N} = Float32x{N}
 Base.promote_rule(::Type{Float64x{N}}, ::Type{Float16}) where {N} = Float64x{N}
 Base.promote_rule(::Type{Float64x{N}}, ::Type{Float32}) where {N} = Float64x{N}
 
-####################################################################### PRINTING
+################################################################ RENORMALIZATION
 
 @inline function renormalize(x::MF{T,N}) where {T,N}
     total = +(x._limbs...)
@@ -182,9 +183,9 @@ Base.promote_rule(::Type{Float64x{N}}, ::Type{Float32}) where {N} = Float64x{N}
             if !(x0._limbs != x._limbs); break; end
             x = x0
         end
-        x
+        return x
     else
-        MultiFloat{T,N}(ntuple(_ -> total, N))
+        return MultiFloat{T,N}(ntuple(_ -> total, N))
     end
 end
 
@@ -193,26 +194,26 @@ end
 function call_normalized(callback, x::MultiFloat{T,N}) where {T,N}
     x = renormalize(x)
     if !isfinite(x._limbs[1])
-        callback(x._limbs[1])
+        return callback(x._limbs[1])
     else
         i = N
         while (i > 0) && iszero(x._limbs[i])
             i -= 1
         end
         if iszero(i)
-            callback(zero(T))
+            return callback(zero(T))
         else
-            setprecision(() -> callback(BigFloat(x)),
+            return setprecision(() -> callback(BigFloat(x)),
                 precision(T) + exponent(x._limbs[1]) - exponent(x._limbs[i]))
         end
     end
 end
 
-function Base.show(io::IO, x::MultiFloat{T,N}) where {T,N}
-    call_normalized(y -> show(io, y), x)
-end
+####################################################################### PRINTING
 
-################################################################# PRINTF SUPPORT
+function Base.show(io::IO, x::MultiFloat{T,N}) where {T,N}
+    return call_normalized(y -> show(io, y), x)
+end
 
 # Thanks to Greg Plowman (https://github.com/GregPlowman) for suggesting
 # implementations of Printf.fix_dec and Printf.ini_dec for @printf support.
@@ -245,6 +246,163 @@ else
 
 end
 
+####################################################### FLOATING-POINT CONSTANTS
+
+@inline Base.precision(::Type{MF{T,N}}) where {T,N} =
+    N * precision(T) + (N - 1) # implicit bits of precision between limbs
+
+@inline Base.zero(::Type{MF{T,N}}) where {T,N} = MF{T,N}(zero(T)  )
+@inline Base.one( ::Type{MF{T,N}}) where {T,N} = MF{T,N}(one( T)  )
+@inline Base.eps( ::Type{MF{T,N}}) where {T,N} = MF{T,N}(eps( T)^N)
+
+# TODO: This is technically not the maximum/minimum representable MultiFloat.
+@inline Base.floatmin(::Type{MF{T,N}}) where {T,N} = MF{T,N}(floatmin(T))
+@inline Base.floatmax(::Type{MF{T,N}}) where {T,N} = MF{T,N}(floatmax(T))
+
+@inline Base.typemin(::Type{MF{T,N}}) where {T,N} =
+    MF{T,N}(ntuple(_ -> typemin(T), N))
+@inline Base.typemax(::Type{MF{T,N}}) where {T,N} =
+    MF{T,N}(ntuple(_ -> typemax(T), N))
+
+################################################### FLOATING-POINT INTROSPECTION
+
+@inline _iszero(x::MF{T,N}) where {T,N} =
+    (&)(ntuple(i -> iszero(x._limbs[i]), N)...)
+@inline _isone( x::MF{T,N}) where {T,N} =
+    isone(x._limbs[1]) & (&)(ntuple(i -> iszero(x._limbs[i + 1]), N - 1)...)
+
+@inline Base.iszero(x::MF{T,1}) where {T  } =  iszero(x._limbs[1])
+@inline Base.isone( x::MF{T,1}) where {T  } =  isone( x._limbs[1])
+@inline Base.iszero(x::MF{T,N}) where {T,N} = _iszero(renormalize(x))
+@inline Base.isone( x::MF{T,N}) where {T,N} = _isone( renormalize(x))
+
+@inline _head(x::MF{T,N}) where {T,N} = renormalize(x)._limbs[1]
+@inline Base.exponent(   x::MF{T,N}) where {T,N} = exponent(   _head(x))
+@inline Base.signbit(    x::MF{T,N}) where {T,N} = signbit(    _head(x))
+@inline Base.issubnormal(x::MF{T,N}) where {T,N} = issubnormal(_head(x))
+@inline Base.isfinite(   x::MF{T,N}) where {T,N} = isfinite(   _head(x))
+@inline Base.isinf(      x::MF{T,N}) where {T,N} = isinf(      _head(x))
+@inline Base.isnan(      x::MF{T,N}) where {T,N} = isnan(      _head(x))
+@inline Base.isinteger(  x::MF{T,N}) where {T,N} =
+    all(isinteger.(renormalize(x)._limbs))
+
+@inline function Base.nextfloat(x::MF{T,N}) where {T,N}
+    y = renormalize(x)
+    return renormalize(MF{T,N}((
+        ntuple(i -> y._limbs[i], N - 1)...,
+        nextfloat(y._limbs[N]))))
+end
+
+@inline function Base.prevfloat(x::MF{T,N}) where {T,N}
+    y = renormalize(x)
+    return renormalize(MF{T,N}((
+        ntuple(i -> y._limbs[i], N - 1)...,
+        prevfloat(y._limbs[N]))))
+end
+
+import LinearAlgebra: floatmin2
+@inline floatmin2(::Type{MF{T,N}}) where {T,N} = MF{T,N}(ldexp(one(T),
+    div(exponent(floatmin(T)) - N * exponent(eps(T)), 2)))
+
+##################################################### ERROR-FREE TRANSFORMATIONS
+
+@inline function two_sum(a::T, b::T) where {T}
+    s = a + b
+    v = s - a
+    s, (a - (s - v)) + (b - v)
+end
+
+@inline function quick_two_sum(a::T, b::T) where {T}
+    s = a + b
+    s, b - (s - a)
+end
+
+@inline function two_prod(a::T, b::T) where {T}
+    p = a * b
+    p, fma(a, b, -p)
+end
+
+##################################################################### COMPARISON
+
+@inline Base.:(==)(x::MF{T,N}, y::MF{T,N}) where {T,N} =
+    multifloat_eq(renormalize(x), renormalize(y))
+@inline Base.:(!=)(x::MF{T,N}, y::MF{T,N}) where {T,N} =
+    multifloat_ne(renormalize(x), renormalize(y))
+@inline Base.:(< )(x::MF{T,N}, y::MF{T,N}) where {T,N} =
+    multifloat_lt(renormalize(x), renormalize(y))
+@inline Base.:(> )(x::MF{T,N}, y::MF{T,N}) where {T,N} =
+    multifloat_gt(renormalize(x), renormalize(y))
+@inline Base.:(<=)(x::MF{T,N}, y::MF{T,N}) where {T,N} =
+    multifloat_le(renormalize(x), renormalize(y))
+@inline Base.:(>=)(x::MF{T,N}, y::MF{T,N}) where {T,N} =
+    multifloat_ge(renormalize(x), renormalize(y))
+
+##################################################################### ARITHMETIC
+
+@inline multifloat_add(a::MF{T,1}, b::MF{T,1}) where {T} =
+    MF{T,1}(a._limbs[1] + b._limbs[1])
+@inline multifloat_mul(a::MF{T,1}, b::MF{T,1}) where {T} =
+    MF{T,1}(a._limbs[1] * b._limbs[1])
+@inline multifloat_div(a::MF{T,1}, b::MF{T,1}) where {T} =
+    MF{T,1}(a._limbs[1] / b._limbs[1])
+@inline multifloat_float_add(a::MF{T,1}, b::T) where {T} =
+    MF{T,1}(a._limbs[1] + b)
+@inline multifloat_float_mul(a::MF{T,1}, b::T) where {T} =
+    MF{T,1}(a._limbs[1] * b)
+@inline multifloat_sqrt(x::MF{T,1}) where {T} = 
+    MF{T,1}(unsafe_sqrt(x._limbs[1]))
+
+@inline Base.:+(x::MF{T,N}, y::MF{T,N}) where {T,N} = multifloat_add(x, y)
+@inline Base.:*(x::MF{T,N}, y::MF{T,N}) where {T,N} = multifloat_mul(x, y)
+@inline Base.:/(x::MF{T,N}, y::MF{T,N}) where {T,N} = multifloat_div(x, y)
+@inline Base.:+(x::MF{T,N}, y::T) where {T        ,N} =
+    multifloat_float_add(x, y)
+@inline Base.:+(x::MF{T,N}, y::T) where {T<:Number,N} =
+    multifloat_float_add(x, y)
+@inline Base.:*(x::MF{T,N}, y::T) where {T        ,N} =
+    multifloat_float_mul(x, y)
+@inline Base.:*(x::MF{T,N}, y::T) where {T<:Number,N} =
+    multifloat_float_mul(x, y)
+
+@inline Base.:-(x::MF{T,N}) where {T,N} = MF{T,N}(ntuple(i -> -x._limbs[i], N))
+@inline Base.:-(x::MF{T,N}, y::MF{T,N}) where {T        ,N} = x + (-y)
+@inline Base.:-(x::MF{T,N}, y::T      ) where {T        ,N} = x + (-y)
+@inline Base.:-(x::MF{T,N}, y::T      ) where {T<:Number,N} = x + (-y)
+
+@inline Base.:+(x::T, y::MF{T,N}) where {T        ,N} = y + x
+@inline Base.:+(x::T, y::MF{T,N}) where {T<:Number,N} = y + x
+@inline Base.:-(x::T, y::MF{T,N}) where {T        ,N} = -(y + (-x))
+@inline Base.:-(x::T, y::MF{T,N}) where {T<:Number,N} = -(y + (-x))
+@inline Base.:*(x::T, y::MF{T,N}) where {T        ,N} = y * x
+@inline Base.:*(x::T, y::MF{T,N}) where {T<:Number,N} = y * x
+
+@inline Base.inv(x::MF{T,N}) where {T,N} = one(MF{T,N}) / x
+
+@inline function Base.abs(x::MF{T,N}) where {T,N}
+    x = renormalize(x)
+    ifelse(signbit(x._limbs[1]), -x, x)
+end
+
+@inline function Base.abs2(x::MF{T,N}) where {T,N}
+    x = renormalize(x)
+    renormalize(x * x)
+end
+
+@inline unsafe_sqrt(x::Float32) = Base.sqrt_llvm(x)
+@inline unsafe_sqrt(x::Float64) = Base.sqrt_llvm(x)
+@inline unsafe_sqrt(x::T) where {T <: Real} = sqrt(x)
+
+@inline function Base.sqrt(x::MF{T,N}) where {T,N}
+    x = renormalize(x)
+    if iszero(x)
+        return x
+    else
+        return multifloat_sqrt(x)
+    end
+end
+
+@inline Base.hypot(x::MF{T,N}, y::MF{T,N}) where {T,N} = sqrt(x*x + y*y)
+
 ######################################################## EXPONENTIATION (BASE 2)
 
 @inline scale(a::T, x::MultiFloat{T,N}) where {T,N} =
@@ -252,7 +410,7 @@ end
 
 @inline function Base.ldexp(x::MF{T,N}, n::U) where {T,N,U<:Integer}
     x = renormalize(x)
-    MultiFloat{T,N}(ntuple(i -> ldexp(x._limbs[i], n), N))
+    return MultiFloat{T,N}(ntuple(i -> ldexp(x._limbs[i], n), N))
 end
 
 ######################################################## EXPONENTIATION (BASE E)
@@ -303,6 +461,8 @@ function multifloat_exp_func(n::Int, num_terms::Int,
                 UInt64(1023 + exponent_i) << 52), exp_y))))
 end
 
+@inline multifloat_exp(x::MF{T,1}) where {T} = MF{T,1}(exp(x._limbs[1]))
+
 function Base.exp(x::MultiFloat{T,N}) where {T,N}
     x = renormalize(x)
     if x._limbs[1] >= log(floatmax(Float64))
@@ -316,78 +476,13 @@ end
 
 function Base.log(x::MultiFloat{T,N}) where {T,N}
     y = MultiFloat{T,N}(log(x._limbs[1]))
-    error = x * exp(-y) - one(T)
     for _ = 1 : ceil(Int, log2(N)) + 1
-        y += error
-        new_error = x * exp(-y) - one(T)
-        if !(abs(new_error) < abs(error)); break; end
-        error = new_error
+        y += x * exp(-y) - one(T)
     end
     return y
 end
 
-################################################################################
-
-@inline Base.zero(::Type{MF{T,N}}) where {T,N} = MF{T,N}(zero(T)  )
-@inline Base.one( ::Type{MF{T,N}}) where {T,N} = MF{T,N}(one( T)  )
-@inline Base.eps( ::Type{MF{T,N}}) where {T,N} = MF{T,N}(eps( T)^N)
-
-################################################### FLOATING-POINT INTROSPECTION
-
-@inline Base.precision(::Type{MF{T,N}}) where {T,N} = N * precision(T) + (N - 1)
-
-@inline _iszero(x::MF{T,N}) where {T,N} = (&)(ntuple(i -> iszero(x._limbs[i]), N)...)
-@inline _isone( x::MF{T,N}) where {T,N} = isone(x._limbs[1]) & (&)(ntuple(i -> iszero(x._limbs[i + 1]), N - 1)...)
-
-@inline Base.iszero(x::MF{T,1}) where {T  } =  iszero(x._limbs[1])
-@inline Base.isone( x::MF{T,1}) where {T  } =  isone( x._limbs[1])
-@inline Base.iszero(x::MF{T,N}) where {T,N} = _iszero(renormalize(x))
-@inline Base.isone( x::MF{T,N}) where {T,N} = _isone( renormalize(x))
-
-# TODO: This is technically not the maximum/minimum representable MultiFloat.
-@inline Base.floatmin(::Type{MF{T,N}}) where {T,N} = MF{T,N}(floatmin(T))
-@inline Base.floatmax(::Type{MF{T,N}}) where {T,N} = MF{T,N}(floatmax(T))
-
-@inline Base.typemin(::Type{MF{T,N}}) where {T,N} = MF{T,N}(ntuple(_ -> typemin(T), N))
-@inline Base.typemax(::Type{MF{T,N}}) where {T,N} = MF{T,N}(ntuple(_ -> typemax(T), N))
-
-@inline Base.exponent(   x::MF{T,N}) where {T,N} = exponent(   renormalize(x)._limbs[1])
-@inline Base.signbit(    x::MF{T,N}) where {T,N} = signbit(    renormalize(x)._limbs[1])
-@inline Base.issubnormal(x::MF{T,N}) where {T,N} = issubnormal(renormalize(x)._limbs[1])
-@inline Base.isfinite(   x::MF{T,N}) where {T,N} = isfinite(   renormalize(x)._limbs[1])
-@inline Base.isinf(      x::MF{T,N}) where {T,N} = isinf(      renormalize(x)._limbs[1])
-@inline Base.isnan(      x::MF{T,N}) where {T,N} = isnan(      renormalize(x)._limbs[1])
-@inline Base.isinteger(  x::MF{T,N}) where {T,N} = all(isinteger.(renormalize(x)._limbs))
-
-@inline function Base.nextfloat(x::MF{T,N}) where {T,N}
-    y = renormalize(x)
-    MF{T,N}((ntuple(i -> y._limbs[i], N - 1)..., nextfloat(y._limbs[N])))
-end
-
-@inline function Base.prevfloat(x::MF{T,N}) where {T,N}
-    y = renormalize(x)
-    MF{T,N}((ntuple(i -> y._limbs[i], N - 1)..., prevfloat(y._limbs[N])))
-end
-
-import LinearAlgebra: floatmin2
-@inline floatmin2(::Type{MF{T,N}}) where {T,N} =
-    MF{T,N}(ldexp(one(T), div(exponent(floatmin(T)) - N * exponent(eps(T)), 2)))
-
-################################################################################
-
-@inline Base.inv(x::MF{T,N}) where {T,N} = one(MF{T,N}) / x
-
-@inline function Base.abs(x::MF{T,N}) where {T,N}
-    x = renormalize(x)
-    ifelse(signbit(x._limbs[1]), -x, x)
-end
-
-@inline function Base.abs2(x::MF{T,N}) where {T,N}
-    x = renormalize(x)
-    renormalize(x * x)
-end
-
-################################################################################
+############################################## BIGFLOAT TRANSCENDENTAL STOP-GAPS
 
 BASE_TRANSCENDENTAL_FUNCTIONS = [
     :exp2, :exp10, :expm1, :log2, :log10, :log1p,
@@ -419,31 +514,7 @@ function use_bigfloat_transcendentals(k::Int=20)
     end
 end
 
-################################################################################
-
-@inline function two_sum(a::T, b::T) where {T}
-    s = a + b
-    v = s - a
-    s, (a - (s - v)) + (b - v)
-end
-
-@inline function quick_two_sum(a::T, b::T) where {T}
-    s = a + b
-    s, b - (s - a)
-end
-
-@inline function two_prod(a::T, b::T) where {T}
-    p = a * b
-    p, fma(a, b, -p)
-end
-
-################################################################################
-
-@inline unsafe_sqrt(x::Float32) = Base.sqrt_llvm(x)
-@inline unsafe_sqrt(x::Float64) = Base.sqrt_llvm(x)
-@inline unsafe_sqrt(x::T) where {T <: Real} = sqrt(x)
-
-################################################################################
+####################################################### RANDOM NUMBER GENERATION
 
 import Random
 using Random: AbstractRNG, SamplerTrivial, CloseOpen01
@@ -484,15 +555,7 @@ function multifloat_rand_func(n::Int)
     )
 end
 
-################################################################################
-
-@inline multifloat_add(a::MF{T,1}, b::MF{T,1}) where {T} = MF{T,1}(a._limbs[1] + b._limbs[1])
-@inline multifloat_mul(a::MF{T,1}, b::MF{T,1}) where {T} = MF{T,1}(a._limbs[1] * b._limbs[1])
-@inline multifloat_div(a::MF{T,1}, b::MF{T,1}) where {T} = MF{T,1}(a._limbs[1] / b._limbs[1])
-@inline multifloat_float_add(a::MF{T,1}, b::T) where {T} = MF{T,1}(a._limbs[1] + b)
-@inline multifloat_float_mul(a::MF{T,1}, b::T) where {T} = MF{T,1}(a._limbs[1] * b)
-@inline multifloat_sqrt(x::MF{T,1}) where {T} = MF{T,1}(unsafe_sqrt(x._limbs[1]))
-@inline multifloat_exp(x::MF{T,1}) where {T} = MF{T,1}(exp(x._limbs[1]))
+################################################################ PRECISION MODES
 
 function use_clean_multifloat_arithmetic(n::Integer=8)
     for i = 1 : n
@@ -587,48 +650,6 @@ function use_sloppy_multifloat_arithmetic(n::Integer=8)
         eval(v)
     end
 end
-
-################################################################################
-
-@inline Base.:(==)(x::MF{T,N}, y::MF{T,N}) where {T,N} = multifloat_eq(renormalize(x), renormalize(y))
-@inline Base.:(!=)(x::MF{T,N}, y::MF{T,N}) where {T,N} = multifloat_ne(renormalize(x), renormalize(y))
-@inline Base.:(< )(x::MF{T,N}, y::MF{T,N}) where {T,N} = multifloat_lt(renormalize(x), renormalize(y))
-@inline Base.:(> )(x::MF{T,N}, y::MF{T,N}) where {T,N} = multifloat_gt(renormalize(x), renormalize(y))
-@inline Base.:(<=)(x::MF{T,N}, y::MF{T,N}) where {T,N} = multifloat_le(renormalize(x), renormalize(y))
-@inline Base.:(>=)(x::MF{T,N}, y::MF{T,N}) where {T,N} = multifloat_ge(renormalize(x), renormalize(y))
-
-@inline Base.:+(x::MF{T,N}, y::MF{T,N}) where {T,N} = multifloat_add(x, y)
-@inline Base.:*(x::MF{T,N}, y::MF{T,N}) where {T,N} = multifloat_mul(x, y)
-@inline Base.:/(x::MF{T,N}, y::MF{T,N}) where {T,N} = multifloat_div(x, y)
-@inline Base.:+(x::MF{T,N}, y::T) where {T        ,N} = multifloat_float_add(x, y)
-@inline Base.:+(x::MF{T,N}, y::T) where {T<:Number,N} = multifloat_float_add(x, y)
-@inline Base.:*(x::MF{T,N}, y::T) where {T        ,N} = multifloat_float_mul(x, y)
-@inline Base.:*(x::MF{T,N}, y::T) where {T<:Number,N} = multifloat_float_mul(x, y)
-
-@inline function Base.sqrt(x::MF{T,N}) where {T,N}
-    x = renormalize(x)
-    if iszero(x)
-        return x
-    else
-        return multifloat_sqrt(x)
-    end
-end
-
-@inline Base.:+(x::T, y::MF{T,N}) where {T        ,N} = y + x
-@inline Base.:+(x::T, y::MF{T,N}) where {T<:Number,N} = y + x
-@inline Base.:-(x::T, y::MF{T,N}) where {T        ,N} = -(y + (-x))
-@inline Base.:-(x::T, y::MF{T,N}) where {T<:Number,N} = -(y + (-x))
-@inline Base.:*(x::T, y::MF{T,N}) where {T        ,N} = y * x
-@inline Base.:*(x::T, y::MF{T,N}) where {T<:Number,N} = y * x
-
-@inline Base.:-(x::MF{T,N}) where {T,N} = MF{T,N}(ntuple(i -> -x._limbs[i], N))
-@inline Base.:-(x::MF{T,N}, y::MF{T,N}) where {T        ,N} = x + (-y)
-@inline Base.:-(x::MF{T,N}, y::T      ) where {T        ,N} = x + (-y)
-@inline Base.:-(x::MF{T,N}, y::T      ) where {T<:Number,N} = x + (-y)
-
-@inline Base.hypot(x::MF{T,N}, y::MF{T,N}) where {T,N} = sqrt(x*x + y*y)
-
-################################################################################
 
 use_standard_multifloat_arithmetic()
 
