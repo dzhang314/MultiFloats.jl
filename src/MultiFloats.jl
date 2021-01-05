@@ -245,7 +245,7 @@ else
 
 end
 
-################################################################################
+######################################################## EXPONENTIATION (BASE 2)
 
 @inline scale(a::T, x::MultiFloat{T,N}) where {T,N} =
     MultiFloat{T,N}(ntuple(i -> a * x._limbs[i], N))
@@ -253,6 +253,54 @@ end
 @inline function Base.ldexp(x::MF{T,N}, n::U) where {T,N,U<:Integer}
     x = renormalize(x)
     MultiFloat{T,N}(ntuple(i -> ldexp(x._limbs[i], n), N))
+end
+
+######################################################## EXPONENTIATION (BASE E)
+
+const INVERSE_FACTORIALS_F64 = setprecision(() ->
+    [MultiFloat{Float64,20}(inv(BigFloat(factorial(BigInt(i)))))
+        for i = 1 : 170],
+    BigFloat, 1200)
+
+const LOG2_F64 = setprecision(() ->
+    MultiFloat{Float64,20}(log(BigFloat(2))),
+    BigFloat, 1200)
+
+log2_f64_literal(n::Int) = :(
+    MultiFloat{Float64,$n}($(LOG2_F64._limbs[1:n])))
+
+inverse_factorial_f64_literal(n::Int, i::Int) = :(
+    MultiFloat{Float64,$n}($(INVERSE_FACTORIALS_F64[i]._limbs[1:n])))
+
+meta_y(n::Int) = Symbol("y_", n)
+
+meta_y_definition(n::Int) = Expr(:(=), meta_y(n),
+    Expr(:call, :*, meta_y(div(n, 2)), meta_y(div(n+1, 2))))
+
+meta_exp_term(n::Int, i::Int) = :(
+    $(Symbol("y_", i)) * $(inverse_factorial_f64_literal(n, i)))
+
+function multifloat_exp_func(n::Int, num_terms::Int,
+                             reduction_power::Int; sloppy::Bool=false)
+    return Expr(:function,
+        :(multifloat_exp(x::MultiFloat{Float64,$n})),
+        Expr(:block,
+            :(exponent_f = Base.rint_llvm(
+                x._limbs[1] / $(LOG2_F64._limbs[1]))),
+            :(exponent_i = Base.fptosi(Int, exponent_f)),
+            :(y_1 = scale($(ldexp(1.0, -reduction_power)),
+                MultiFloat{Float64,$n}(MultiFloat{Float64,$(n + !sloppy)}(x) -
+                    exponent_f * $(log2_f64_literal(n + !sloppy))))),
+            [meta_y_definition(i) for i = 2 : num_terms]...,
+            :(exp_y = $(meta_exp_term(n, num_terms))),
+            [:(exp_y += $(meta_exp_term(n, i)))
+                for i = num_terms-1 : -1 : 3]...,
+            :(exp_y += scale(0.5, y_2)),
+            :(exp_y += y_1),
+            :(exp_y += 1.0),
+            [:(exp_y *= exp_y) for _ = 1 : reduction_power]...,
+            :(return scale(reinterpret(Float64,
+                UInt64(1023 + exponent_i) << 52), exp_y))))
 end
 
 ################################################################################
@@ -319,7 +367,7 @@ end
 ################################################################################
 
 BASE_TRANSCENDENTAL_FUNCTIONS = [
-    :exp, :exp2, :exp10, :expm1, :log, :log2, :log10, :log1p,
+    :exp2, :exp10, :expm1, :log, :log2, :log10, :log1p,
     :sin, :cos, :tan, :sec, :csc, :cot,
     :sinh, :cosh, :tanh, :sech, :csch, :coth,
     :sind, :cosd, :tand, :secd, :cscd, :cotd,
@@ -413,6 +461,17 @@ function multifloat_rand_func(n::Int)
     )
 end
 
+function Base.exp(x::MultiFloat{T,N}) where {T,N}
+    x = renormalize(x)
+    if x._limbs[1] >= log(floatmax(Float64))
+        return typemax(MultiFloat{T,N})
+    elseif x._limbs[1] <= log(floatmin(Float64))
+        return zero(MultiFloat{T,N})
+    else
+        return multifloat_exp(x)
+    end
+end
+
 ################################################################################
 
 @inline multifloat_add(a::MF{T,1}, b::MF{T,1}) where {T} = MF{T,1}(a._limbs[1] + b._limbs[1])
@@ -421,6 +480,7 @@ end
 @inline multifloat_float_add(a::MF{T,1}, b::T) where {T} = MF{T,1}(a._limbs[1] + b)
 @inline multifloat_float_mul(a::MF{T,1}, b::T) where {T} = MF{T,1}(a._limbs[1] * b)
 @inline multifloat_sqrt(x::MF{T,1}) where {T} = MF{T,1}(unsafe_sqrt(x._limbs[1]))
+@inline multifloat_exp(x::MF{T,1}) where {T} = MF{T,1}(exp(x._limbs[1]))
 
 function use_clean_multifloat_arithmetic(n::Integer=8)
     for i = 1 : n
@@ -432,7 +492,7 @@ function use_clean_multifloat_arithmetic(n::Integer=8)
         eval(multifloat_ge_func(i))
         eval(multifloat_rand_func(i))
     end
-    for i = 2 : n
+    for i = 2 : n+1
         eval(two_pass_renorm_func(     i, sloppy=false))
         eval(multifloat_add_func(      i, sloppy=false))
         eval(multifloat_mul_func(      i, sloppy=false))
@@ -441,6 +501,13 @@ function use_clean_multifloat_arithmetic(n::Integer=8)
         eval(multifloat_float_mul_func(i, sloppy=false))
         eval(multifloat_sqrt_func(     i, sloppy=false))
     end
+    eval(MultiFloats.multifloat_exp_func(2, 20, 1, sloppy=false))
+    eval(MultiFloats.multifloat_exp_func(3, 28, 1, sloppy=false))
+    eval(MultiFloats.multifloat_exp_func(4, 35, 1, sloppy=false))
+    eval(MultiFloats.multifloat_exp_func(5, 42, 1, sloppy=false))
+    eval(MultiFloats.multifloat_exp_func(6, 49, 1, sloppy=false))
+    eval(MultiFloats.multifloat_exp_func(7, 56, 1, sloppy=false))
+    eval(MultiFloats.multifloat_exp_func(8, 63, 1, sloppy=false))
     for (_, v) in MultiFloatsCodeGen.MPADD_CACHE
         eval(v)
     end
@@ -466,6 +533,13 @@ function use_standard_multifloat_arithmetic(n::Integer=8)
         eval(multifloat_float_mul_func(i, sloppy=true ))
         eval(multifloat_sqrt_func(     i, sloppy=true ))
     end
+    eval(MultiFloats.multifloat_exp_func(2, 17, 2, sloppy=false))
+    eval(MultiFloats.multifloat_exp_func(3, 19, 4, sloppy=true))
+    eval(MultiFloats.multifloat_exp_func(4, 20, 6, sloppy=true))
+    eval(MultiFloats.multifloat_exp_func(5, 23, 7, sloppy=true))
+    eval(MultiFloats.multifloat_exp_func(6, 23, 9, sloppy=true))
+    eval(MultiFloats.multifloat_exp_func(7, 22, 12, sloppy=true))
+    eval(MultiFloats.multifloat_exp_func(8, 24, 13, sloppy=true))
     for (_, v) in MultiFloatsCodeGen.MPADD_CACHE
         eval(v)
     end
@@ -490,6 +564,13 @@ function use_sloppy_multifloat_arithmetic(n::Integer=8)
         eval(multifloat_float_mul_func(i, sloppy=true))
         eval(multifloat_sqrt_func(     i, sloppy=true))
     end
+    eval(MultiFloats.multifloat_exp_func(2, 17, 2, sloppy=false))
+    eval(MultiFloats.multifloat_exp_func(3, 19, 4, sloppy=true))
+    eval(MultiFloats.multifloat_exp_func(4, 20, 6, sloppy=true))
+    eval(MultiFloats.multifloat_exp_func(5, 23, 7, sloppy=true))
+    eval(MultiFloats.multifloat_exp_func(6, 23, 9, sloppy=true))
+    eval(MultiFloats.multifloat_exp_func(7, 22, 12, sloppy=true))
+    eval(MultiFloats.multifloat_exp_func(8, 24, 13, sloppy=true))
     for (_, v) in MultiFloatsCodeGen.MPADD_CACHE
         eval(v)
     end
