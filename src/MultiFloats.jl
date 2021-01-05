@@ -116,19 +116,46 @@ end
 @inline Base.Float32(x::Float32x{N}) where {N} = x._limbs[1]
 @inline Base.Float64(x::Float64x{N}) where {N} = x._limbs[1]
 
+####################################################### FLOATING-POINT CONSTANTS
+
+@inline Base.precision(::Type{MF{T,N}}) where {T,N} =
+    N * precision(T) + (N - 1) # implicit bits of precision between limbs
+
+@inline Base.zero(::Type{MF{T,N}}) where {T,N} = MF{T,N}(zero(T)  )
+@inline Base.one( ::Type{MF{T,N}}) where {T,N} = MF{T,N}(one( T)  )
+@inline Base.eps( ::Type{MF{T,N}}) where {T,N} = MF{T,N}(eps( T)^N)
+
+# TODO: This is technically not the maximum/minimum representable MultiFloat.
+@inline Base.floatmin(::Type{MF{T,N}}) where {T,N} = MF{T,N}(floatmin(T))
+@inline Base.floatmax(::Type{MF{T,N}}) where {T,N} = MF{T,N}(floatmax(T))
+
+@inline Base.typemin(::Type{MF{T,N}}) where {T,N} =
+    MF{T,N}(ntuple(_ -> typemin(T), N))
+@inline Base.typemax(::Type{MF{T,N}}) where {T,N} =
+    MF{T,N}(ntuple(_ -> typemax(T), N))
+
 #################################################### CONSTRUCTION FROM BIG TYPES
 
 function MultiFloat{T,N}(x::BigFloat) where {T,N}
-    setprecision(Int(precision(x))) do
-        r = Vector{BigFloat}(undef, N)
-        y = Vector{T}(undef, N)
-        r[1] = x
-        y[1] = T(r[1])
-        for i = 2 : N
-            r[i] = r[i-1] - y[i-1]
-            y[i] = T(r[i])
+    if x > floatmax(T)
+        return typemax(MultiFloat{T,N})
+    elseif x < -floatmax(T)
+        return typemin(MultiFloat{T,N})
+    elseif -floatmin(T) < x < floatmin(T)
+        return zero(MultiFloat{T,N})
+    elseif isnan(x)
+        return MF{T,N}(ntuple(_ -> T(NaN), N))
+    end
+    setrounding(BigFloat, RoundNearest) do
+        setprecision(BigFloat, Int(precision(x))) do
+            y = Vector{T}(undef, N)
+            y[1] = T(x)
+            for i = 2 : N
+                x -= y[i-1]
+                y[i] = T(x)
+            end
+            return MultiFloat{T,N}((y...,))
         end
-        MultiFloat{T,N}((y...,))
     end
 end
 
@@ -138,11 +165,15 @@ function MultiFloat{T,N}(x::BigInt) where {T,N}
         y[i] = T(x)
         x -= BigInt(y[i])
     end
-    MultiFloat{T,N}((y...,))
+    return MultiFloat{T,N}((y...,))
 end
 
 MultiFloat{T,N}(x::Rational{U}) where {T,N,U} =
-    MF{T,N}(numerator(x)) / MF{T,N}(denominator(x))
+    MultiFloat{T,N}(numerator(x)) / MultiFloat{T,N}(denominator(x))
+
+MultiFloat{T,N}(x::AbstractString) where {T,N} =
+    MultiFloat{T,N}(BigFloat(x, precision = precision(T)
+        + exponent(floatmax(T)) - exponent(floatmin(T))))
 
 ######################################################## CONVERSION TO BIG TYPES
 
@@ -245,24 +276,6 @@ else
                                      flags, width, precision, c, digits), x)
 
 end
-
-####################################################### FLOATING-POINT CONSTANTS
-
-@inline Base.precision(::Type{MF{T,N}}) where {T,N} =
-    N * precision(T) + (N - 1) # implicit bits of precision between limbs
-
-@inline Base.zero(::Type{MF{T,N}}) where {T,N} = MF{T,N}(zero(T)  )
-@inline Base.one( ::Type{MF{T,N}}) where {T,N} = MF{T,N}(one( T)  )
-@inline Base.eps( ::Type{MF{T,N}}) where {T,N} = MF{T,N}(eps( T)^N)
-
-# TODO: This is technically not the maximum/minimum representable MultiFloat.
-@inline Base.floatmin(::Type{MF{T,N}}) where {T,N} = MF{T,N}(floatmin(T))
-@inline Base.floatmax(::Type{MF{T,N}}) where {T,N} = MF{T,N}(floatmax(T))
-
-@inline Base.typemin(::Type{MF{T,N}}) where {T,N} =
-    MF{T,N}(ntuple(_ -> typemin(T), N))
-@inline Base.typemax(::Type{MF{T,N}}) where {T,N} =
-    MF{T,N}(ntuple(_ -> typemax(T), N))
 
 ################################################### FLOATING-POINT INTROSPECTION
 
