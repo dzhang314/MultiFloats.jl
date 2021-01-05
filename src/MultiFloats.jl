@@ -8,8 +8,8 @@ export MultiFloat, renormalize,
        use_standard_multifloat_arithmetic,
        use_sloppy_multifloat_arithmetic
 
-include("./MultiFloatsCodeGen.jl")
-using .MultiFloatsCodeGen
+include("./Arithmetic.jl")
+using .Arithmetic
 
 ####################################################### DEFINITION OF MULTIFLOAT
 
@@ -596,7 +596,7 @@ function use_clean_multifloat_arithmetic(n::Integer=8)
     eval(MultiFloats.multifloat_exp_func(6, 49, 1, sloppy=false))
     eval(MultiFloats.multifloat_exp_func(7, 56, 1, sloppy=false))
     eval(MultiFloats.multifloat_exp_func(8, 63, 1, sloppy=false))
-    for (_, v) in MultiFloatsCodeGen.MPADD_CACHE
+    for (_, v) in Arithmetic.MPADD_CACHE
         eval(v)
     end
 end
@@ -628,7 +628,7 @@ function use_standard_multifloat_arithmetic(n::Integer=8)
     eval(MultiFloats.multifloat_exp_func(6, 23, 9, sloppy=true))
     eval(MultiFloats.multifloat_exp_func(7, 22, 12, sloppy=true))
     eval(MultiFloats.multifloat_exp_func(8, 24, 13, sloppy=true))
-    for (_, v) in MultiFloatsCodeGen.MPADD_CACHE
+    for (_, v) in Arithmetic.MPADD_CACHE
         eval(v)
     end
 end
@@ -659,7 +659,7 @@ function use_sloppy_multifloat_arithmetic(n::Integer=8)
     eval(MultiFloats.multifloat_exp_func(6, 23, 9, sloppy=true))
     eval(MultiFloats.multifloat_exp_func(7, 22, 12, sloppy=true))
     eval(MultiFloats.multifloat_exp_func(8, 24, 13, sloppy=true))
-    for (_, v) in MultiFloatsCodeGen.MPADD_CACHE
+    for (_, v) in Arithmetic.MPADD_CACHE
         eval(v)
     end
 end

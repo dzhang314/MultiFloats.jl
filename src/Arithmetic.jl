@@ -1,6 +1,4 @@
-baremodule MultiFloatsCodeGen
-
-######################################################################## EXPORTS
+baremodule Arithmetic
 
 export one_pass_renorm_func, two_pass_renorm_func,
     multifloat_add_func, multifloat_float_add_func,
@@ -8,8 +6,6 @@ export one_pass_renorm_func, two_pass_renorm_func,
     multifloat_div_func, multifloat_sqrt_func,
     multifloat_eq_func, multifloat_ne_func, multifloat_lt_func,
     multifloat_gt_func, multifloat_le_func, multifloat_ge_func
-
-######################################################################## IMPORTS
 
 using Base: +, -, *, div, !, (:), ==, !=, <, <=, >, >=, min, max,
     Vector, isempty, length, push!, deleteat!, reverse!, Dict, haskey, @assert
@@ -313,4 +309,4 @@ multifloat_gt_func(N::Int) = cmp_func(:multifloat_gt, N, gt_expr(1, N))
 multifloat_le_func(N::Int) = cmp_func(:multifloat_le, N, le_expr(1, N))
 multifloat_ge_func(N::Int) = cmp_func(:multifloat_ge, N, ge_expr(1, N))
 
-end # baremodule MultiFloatsCodeGen
+end # baremodule Arithmetic
