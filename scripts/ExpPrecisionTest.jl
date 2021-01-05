@@ -36,7 +36,7 @@ function test_multifloat_exp(x::Float64x{N}, num_terms::Int=170,
 end
 
 
-function test_exp_accuracy(x::Float64x{N}, args...) where {N}
+function test_exp_precision(x::Float64x{N}, args...) where {N}
     setprecision(3000) do
         exp_x = test_multifloat_exp(x, args...)
         exp_exact = exp(BigFloat(x))
@@ -48,7 +48,7 @@ end
 function run_test(num_trials::Int, max_reduction_power::Int, ::Val{B}) where {B}
     for N = 1 : 8
         for reduction_power = 0 : max_reduction_power
-            data = [(Float64(num_terms), minimum(test_exp_accuracy(
+            data = [(Float64(num_terms), minimum(test_exp_precision(
                     100 * rand(Float64x{N}) - 50,
                     num_terms, reduction_power, Val{B}())
                 for _ = 1 : num_trials)) for num_terms = 1 : 170]

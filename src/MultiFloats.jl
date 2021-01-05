@@ -303,6 +303,17 @@ function multifloat_exp_func(n::Int, num_terms::Int,
                 UInt64(1023 + exponent_i) << 52), exp_y))))
 end
 
+function Base.exp(x::MultiFloat{T,N}) where {T,N}
+    x = renormalize(x)
+    if x._limbs[1] >= log(floatmax(Float64))
+        return typemax(MultiFloat{T,N})
+    elseif x._limbs[1] <= log(floatmin(Float64))
+        return zero(MultiFloat{T,N})
+    else
+        return multifloat_exp(x)
+    end
+end
+
 ################################################################################
 
 @inline Base.zero(::Type{MF{T,N}}) where {T,N} = MF{T,N}(zero(T)  )
@@ -459,17 +470,6 @@ function multifloat_rand_func(n::Int)
             ))
         )
     )
-end
-
-function Base.exp(x::MultiFloat{T,N}) where {T,N}
-    x = renormalize(x)
-    if x._limbs[1] >= log(floatmax(Float64))
-        return typemax(MultiFloat{T,N})
-    elseif x._limbs[1] <= log(floatmin(Float64))
-        return zero(MultiFloat{T,N})
-    else
-        return multifloat_exp(x)
-    end
 end
 
 ################################################################################
