@@ -184,6 +184,8 @@ The following two tables compare the precision (in bits) and performance (in FLO
   </tbody>
 </table>
 
+<sup>Worst-case precision observed in ten million random trials using random numbers with uniformly distributed exponents in the range `1.0e-100` to `1.0e+100`. The number of accurate bits was computed by comparison to exact rational arithmetic.</sup>
+
 In this table, **`+`** refers to addition of numbers with the same sign, while **`-`** refers to addition of numbers with opposite signs. Destructive cancellation in sloppy mode can cause only the leading component of a difference to be meaningful. However, this only occurs when subtracting two numbers that are _very_ close to each other (i.e., relative differences on the order of `1.0e-16`).
 
 
