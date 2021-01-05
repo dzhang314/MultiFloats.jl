@@ -10,6 +10,14 @@
 
 **MultiFloats.jl** stores extended-precision numbers in a generalized form of [double-double representation](https://en.wikipedia.org/wiki/Quadruple-precision_floating-point_format#Double-double_arithmetic) which supports arbitrary number of components. This idea takes inspiration from Jonathan Shewchuk's work on [adaptive-precision floating-point arithmetic](http://dx.doi.org/10.1007/pl00009321) and Yozo Hida, Xiaoye Li, and David Bailey's [algorithms for quad-double arithmetic](https://doi.org/10.1109/ARITH.2001.930115), combined in a novel fashion with Julia's unique JIT architecture and metaprogramming capabilities.
 
+## Installation
+
+**MultiFloats.jl** is a registered Julia package, so all you need to do is run the following line in your Julia REPL:
+
+```
+]add MultiFloats
+```
+
 ## Usage
 
 **MultiFloats.jl** provides the types `Float64x2`, `Float64x3`, ..., `Float64x8`, which represent extended-precision numbers with 2x, 3x, ..., 8x the precision of `Float64`. These are all subtypes of the parametric type `MultiFloat{T,N}`, where `T = Float64` and <code>N&nbsp;=&nbsp;2,&nbsp;3,&nbsp;...,&nbsp;8</code>.
