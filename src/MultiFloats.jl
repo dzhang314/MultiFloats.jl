@@ -314,6 +314,18 @@ function Base.exp(x::MultiFloat{T,N}) where {T,N}
     end
 end
 
+function Base.log(x::MultiFloat{T,N}) where {T,N}
+    y = MultiFloat{T,N}(log(x._limbs[1]))
+    error = x * exp(-y) - one(T)
+    for _ = 1 : ceil(Int, log2(N)) + 1
+        y += error
+        new_error = x * exp(-y) - one(T)
+        if !(abs(new_error) < abs(error)); break; end
+        error = new_error
+    end
+    return y
+end
+
 ################################################################################
 
 @inline Base.zero(::Type{MF{T,N}}) where {T,N} = MF{T,N}(zero(T)  )
@@ -378,7 +390,7 @@ end
 ################################################################################
 
 BASE_TRANSCENDENTAL_FUNCTIONS = [
-    :exp2, :exp10, :expm1, :log, :log2, :log10, :log1p,
+    :exp2, :exp10, :expm1, :log2, :log10, :log1p,
     :sin, :cos, :tan, :sec, :csc, :cot,
     :sinh, :cosh, :tanh, :sech, :csch, :coth,
     :sind, :cosd, :tand, :secd, :cscd, :cotd,
