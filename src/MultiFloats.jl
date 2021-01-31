@@ -362,7 +362,7 @@ end
     MF{T,1}(a._limbs[1] + b)
 @inline multifloat_float_mul(a::MF{T,1}, b::T) where {T} =
     MF{T,1}(a._limbs[1] * b)
-@inline multifloat_sqrt(x::MF{T,1}) where {T} = 
+@inline multifloat_sqrt(x::MF{T,1}) where {T} =
     MF{T,1}(unsafe_sqrt(x._limbs[1]))
 
 @inline Base.:+(x::MF{T,N}, y::MF{T,N}) where {T,N} = multifloat_add(x, y)
@@ -500,6 +500,7 @@ end
 BASE_TRANSCENDENTAL_FUNCTIONS = [
     :exp2, :exp10, :expm1, :log2, :log10, :log1p,
     :sin, :cos, :tan, :sec, :csc, :cot,
+    :sinpi, :cospi,
     :sinh, :cosh, :tanh, :sech, :csch, :coth,
     :sind, :cosd, :tand, :secd, :cscd, :cotd,
     :asin, :acos, :atan, :asec, :acsc, :acot,
