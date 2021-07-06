@@ -496,12 +496,12 @@ function Base.log(x::MultiFloat{T,N}) where {T,N}
 end
 
 function Base.log1p(x::MultiFloat{T,N}) where {T,N}
-    y = x+1
-    return Base.log(y)
+    return 2*atanh(x/(2+x))
 end
 
 function Base.expm1(x::MultiFloat{T,N}) where {T,N}
-    return Base.exp(x)-1
+    t = tanh(x/2)
+    return 2*t/(1-t)
 end
 
 ############################################## BIGFLOAT TRANSCENDENTAL STOP-GAPS
