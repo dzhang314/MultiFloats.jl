@@ -119,7 +119,7 @@ end
 ####################################################### FLOATING-POINT CONSTANTS
 
 # overload Base._precision to support the base keyword in Julia 1.8
-let precision = isdefined(Base, :_precision) : :_precision : :precision
+let precision = isdefined(Base, :_precision) ? (:_precision) : (:precision)
     @eval @inline Base.$precision(::Type{MF{T,N}}) where {T,N} =
         N * precision(T) + (N - 1) # implicit bits of precision between limbs
 end
