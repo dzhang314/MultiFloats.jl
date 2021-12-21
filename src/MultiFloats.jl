@@ -252,9 +252,9 @@ end
 # Thanks to Greg Plowman (https://github.com/GregPlowman) for suggesting
 # implementations of Printf.fix_dec and Printf.ini_dec for @printf support.
 
-import Printf: fix_dec, ini_dec
+@static if VERSION < v"1.1"
 
-if VERSION < v"1.1"
+    import Printf: fix_dec, ini_dec
 
     fix_dec(out, x::MultiFloat{T,N}, flags::String, width::Int,
             precision::Int, c::Char) where {T,N} =
@@ -266,7 +266,9 @@ if VERSION < v"1.1"
         call_normalized(d -> ini_dec(out, BigFloat(d), ndigits,
                                      flags, width, precision, c), x)
 
-else
+elseif VERSION < v"1.6"
+
+    import Printf: fix_dec, ini_dec
 
     fix_dec(out, x::MultiFloat{T,N}, flags::String, width::Int,
             precision::Int, c::Char, digits) where {T,N} =
@@ -277,6 +279,12 @@ else
             width::Int, precision::Int, c::Char, digits) where {T,N} =
         call_normalized(d -> ini_dec(out, BigFloat(d), ndigits,
                                      flags, width, precision, c, digits), x)
+
+else
+
+    import Printf: tofloat
+
+    tofloat(x::MultiFloat{T,N}) where {T,N} = call_normalized(BigFloat, x)
 
 end
 
