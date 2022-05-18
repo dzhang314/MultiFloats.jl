@@ -425,8 +425,6 @@ end
     end
 end
 
-@inline Base.hypot(x::MF{T,N}, y::MF{T,N}) where {T,N} = sqrt(x*x + y*y)
-
 ######################################################## EXPONENTIATION (BASE 2)
 
 @inline scale(a::T, x::MultiFloat{T,N}) where {T,N} =
