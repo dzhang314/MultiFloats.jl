@@ -139,6 +139,13 @@ end
 
 #################################################### CONSTRUCTION FROM BIG TYPES
 
+tuple_from_collection(collection, ::Val{n}) where {n} =
+    ntuple(
+        let c = collection
+            i -> c[begin - 1 + i]
+        end,
+        Val{n}())
+
 function MultiFloat{T,N}(x::BigFloat) where {T,N}
     if x > floatmax(T)
         return typemax(MultiFloat{T,N})
@@ -168,7 +175,7 @@ function MultiFloat{T,N}(x::BigInt) where {T,N}
         y[i] = T(x)
         x -= BigInt(y[i])
     end
-    return MultiFloat{T,N}((y...,))
+    return MultiFloat{T,N}(tuple_from_collection(y, Val{N}()))
 end
 
 MultiFloat{T,N}(x::Rational{U}) where {T,N,U} =
