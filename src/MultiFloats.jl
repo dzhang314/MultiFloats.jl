@@ -146,6 +146,17 @@ tuple_from_collection(collection, ::Val{n}) where {n} =
         end,
         Val{n}())
 
+function constructed_from_big(::Type{T}, ::Val{N}, x::Src) where
+{T <: Real, N, Src <: Union{BigInt, BigFloat}}
+    y = Vector{T}(undef, N)
+    y[1] = T(x)
+    for i = 2 : N
+        x -= y[i-1]
+        y[i] = T(x)
+    end
+    MultiFloat{T,N}(tuple_from_collection(y, Val{N}()))
+end
+
 function MultiFloat{T,N}(x::BigFloat) where {T,N}
     if x > floatmax(T)
         return typemax(MultiFloat{T,N})
@@ -156,17 +167,17 @@ function MultiFloat{T,N}(x::BigFloat) where {T,N}
     elseif isnan(x)
         return MF{T,N}(ntuple(_ -> T(NaN), N))
     end
-    setrounding(BigFloat, RoundNearest) do
-        setprecision(BigFloat, Int(precision(x))) do
-            y = Vector{T}(undef, N)
-            y[1] = T(x)
-            for i = 2 : N
-                x -= y[i-1]
-                y[i] = T(x)
-            end
-            return MultiFloat{T,N}((y...,))
-        end
-    end
+    setrounding(
+      let x = x
+        () -> setprecision(
+          let x = x
+            () -> constructed_from_big(T, Val{N}(), x)
+          end,
+          BigFloat,
+          precision(x))
+      end,
+      BigFloat,
+      RoundNearest)
 end
 
 function MultiFloat{T,N}(x::BigInt) where {T,N}
