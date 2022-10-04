@@ -180,14 +180,8 @@ function MultiFloat{T,N}(x::BigFloat) where {T,N}
       RoundNearest)
 end
 
-function MultiFloat{T,N}(x::BigInt) where {T,N}
-    y = Vector{T}(undef, N)
-    for i = 1 : N
-        y[i] = T(x)
-        x -= BigInt(y[i])
-    end
-    return MultiFloat{T,N}(tuple_from_collection(y, Val{N}()))
-end
+MultiFloat{T,N}(x::BigInt) where {T,N} =
+  constructed_from_big(T, Val{N}(), x)
 
 MultiFloat{T,N}(x::Rational{U}) where {T,N,U} =
     MultiFloat{T,N}(numerator(x)) / MultiFloat{T,N}(denominator(x))
