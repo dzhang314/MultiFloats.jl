@@ -38,12 +38,12 @@ const Float64x8 = Float64x{8}
 @inline MultiFloat{T,N}(x::MultiFloat{T,N}) where {T,N} = x
 
 @inline MultiFloat{T,N}(x::T) where {T,N} =
-    MultiFloat{T,N}((x, ntuple(_ -> zero(T), N - 1)...))
+    MultiFloat{T,N}((x, ntuple(_ -> zero(T), Val{N - 1}())...))
 
 @inline MultiFloat{T,N}(x::MultiFloat{T,M}) where {T,M,N} =
     MultiFloat{T,N}((
-        ntuple(i -> x._limbs[i], min(M, N))...,
-        ntuple(_ -> zero(T), max(N - M, 0))...))
+        ntuple(i -> x._limbs[i], Val{min(M, N)}())...,
+        ntuple(_ -> zero(T), Val{max(N - M, 0)}())...))
 
 # Values of the types Bool, Int8, UInt8, Int16, UInt16, Float16, Int32, UInt32,
 # and Float32 can be converted losslessly to a single Float64, which has 53
@@ -82,13 +82,13 @@ end
 @inline function Float64x{N}(x::Int64) where {N}
     x0 = Float64(x)
     x1 = Float64(x - Int64(x0))
-    Float64x{N}((x0, x1, ntuple(_ -> 0.0, N - 2)...))
+    Float64x{N}((x0, x1, ntuple(_ -> 0.0, Val{N - 2}())...))
 end
 
 @inline function Float64x{N}(x::UInt64) where {N}
     x0 = Float64(x)
     x1 = Float64(reinterpret(Int64, x - UInt64(x0)))
-    Float64x{N}((x0, x1, ntuple(_ -> 0.0, N - 2)...))
+    Float64x{N}((x0, x1, ntuple(_ -> 0.0, Val{N - 2}())...))
 end
 
 @inline function Float64x{N}(x::Int128) where {N}
@@ -96,7 +96,7 @@ end
     r1 = x - Int128(x0)
     x1 = Float64(r1)
     x2 = Float64(r1 - Int128(x1))
-    Float64x{N}((x0, x1, x2, ntuple(_ -> 0.0, N - 3)...))
+    Float64x{N}((x0, x1, x2, ntuple(_ -> 0.0, Val{N - 3}())...))
 end
 
 @inline function Float64x{N}(x::UInt128) where {N}
@@ -104,7 +104,7 @@ end
     r1 = reinterpret(Int128, x - UInt128(x0))
     x1 = Float64(r1)
     x2 = Float64(r1 - Int128(x1))
-    Float64x{N}((x0, x1, x2, ntuple(_ -> 0.0, N - 3)...))
+    Float64x{N}((x0, x1, x2, ntuple(_ -> 0.0, Val{N - 3}())...))
 end
 
 ################################################## CONVERSION TO PRIMITIVE TYPES
@@ -133,9 +133,9 @@ end
 @inline Base.floatmax(::Type{MF{T,N}}) where {T,N} = MF{T,N}(floatmax(T))
 
 @inline Base.typemin(::Type{MF{T,N}}) where {T,N} =
-    MF{T,N}(ntuple(_ -> typemin(T), N))
+    MF{T,N}(ntuple(_ -> typemin(T), Val{N}()))
 @inline Base.typemax(::Type{MF{T,N}}) where {T,N} =
-    MF{T,N}(ntuple(_ -> typemax(T), N))
+    MF{T,N}(ntuple(_ -> typemax(T), Val{N}()))
 
 #################################################### CONSTRUCTION FROM BIG TYPES
 
@@ -147,7 +147,7 @@ function MultiFloat{T,N}(x::BigFloat) where {T,N}
     elseif -floatmin(T) < x < floatmin(T)
         return zero(MultiFloat{T,N})
     elseif isnan(x)
-        return MF{T,N}(ntuple(_ -> T(NaN), N))
+        return MF{T,N}(ntuple(_ -> T(NaN), Val{N}()))
     end
     setrounding(BigFloat, RoundNearest) do
         setprecision(BigFloat, Int(precision(x))) do
@@ -181,7 +181,7 @@ MultiFloat{T,N}(x::AbstractString) where {T,N} =
 ######################################################## CONVERSION TO BIG TYPES
 
 Base.BigFloat(x::MultiFloat{T,N}) where {T,N} =
-    +(ntuple(i -> BigFloat(x._limbs[N-i+1]), N)...)
+    +(ntuple(i -> BigFloat(x._limbs[N-i+1]), Val{N}())...)
 
 Base.Rational{BigInt}(x::MultiFloat{T,N}) where {T,N} =
     sum(Rational{BigInt}.(x._limbs))
@@ -219,7 +219,7 @@ Base.promote_rule(::Type{Float64x{N}}, ::Type{Float32}) where {N} = Float64x{N}
         end
         return x
     else
-        return MultiFloat{T,N}(ntuple(_ -> total, N))
+        return MultiFloat{T,N}(ntuple(_ -> total, Val{N}()))
     end
 end
 
@@ -291,9 +291,9 @@ end
 ################################################### FLOATING-POINT INTROSPECTION
 
 @inline _iszero(x::MF{T,N}) where {T,N} =
-    (&)(ntuple(i -> iszero(x._limbs[i]), N)...)
+    (&)(ntuple(i -> iszero(x._limbs[i]), Val{N}())...)
 @inline _isone( x::MF{T,N}) where {T,N} =
-    isone(x._limbs[1]) & (&)(ntuple(i -> iszero(x._limbs[i + 1]), N - 1)...)
+    isone(x._limbs[1]) & (&)(ntuple(i -> iszero(x._limbs[i + 1]), Val{N - 1}())...)
 
 @inline Base.iszero(x::MF{T,1}) where {T  } =  iszero(x._limbs[1])
 @inline Base.isone( x::MF{T,1}) where {T  } =  isone( x._limbs[1])
@@ -313,14 +313,14 @@ end
 @inline function Base.nextfloat(x::MF{T,N}) where {T,N}
     y = renormalize(x)
     return renormalize(MF{T,N}((
-        ntuple(i -> y._limbs[i], N - 1)...,
+        ntuple(i -> y._limbs[i], Val{N - 1}())...,
         nextfloat(y._limbs[N]))))
 end
 
 @inline function Base.prevfloat(x::MF{T,N}) where {T,N}
     y = renormalize(x)
     return renormalize(MF{T,N}((
-        ntuple(i -> y._limbs[i], N - 1)...,
+        ntuple(i -> y._limbs[i], Val{N - 1}())...,
         prevfloat(y._limbs[N]))))
 end
 
@@ -388,7 +388,7 @@ end
 @inline Base.:*(x::MF{T,N}, y::T) where {T<:Number,N} =
     multifloat_float_mul(x, y)
 
-@inline Base.:-(x::MF{T,N}) where {T,N} = MF{T,N}(ntuple(i -> -x._limbs[i], N))
+@inline Base.:-(x::MF{T,N}) where {T,N} = MF{T,N}(ntuple(i -> -x._limbs[i], Val{N}()))
 @inline Base.:-(x::MF{T,N}, y::MF{T,N}) where {T        ,N} = x + (-y)
 @inline Base.:-(x::MF{T,N}, y::T      ) where {T        ,N} = x + (-y)
 @inline Base.:-(x::MF{T,N}, y::T      ) where {T<:Number,N} = x + (-y)
@@ -430,11 +430,11 @@ end
 ######################################################## EXPONENTIATION (BASE 2)
 
 @inline scale(a::T, x::MultiFloat{T,N}) where {T,N} =
-    MultiFloat{T,N}(ntuple(i -> a * x._limbs[i], N))
+    MultiFloat{T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
 
 @inline function Base.ldexp(x::MF{T,N}, n::U) where {T,N,U<:Integer}
     x = renormalize(x)
-    return MultiFloat{T,N}(ntuple(i -> ldexp(x._limbs[i], n), N))
+    return MultiFloat{T,N}(ntuple(i -> ldexp(x._limbs[i], n), Val{N}()))
 end
 
 ######################################################## EXPONENTIATION (BASE E)
@@ -561,7 +561,7 @@ end
 @inline function _rand_mf64(rng::AbstractRNG, offset::Int,
                             padding::NTuple{N,Int}) where {N}
     exponents = (cumsum(padding) .+
-        (precision(Float64) + 1) .* ntuple(identity, N))
+        (precision(Float64) + 1) .* ntuple(identity, Val{N}()))
     return Float64x{N+1}((_rand_f64(rng, offset),
                           _rand_sf64.(rng, offset .- exponents)...))
 end
@@ -574,7 +574,7 @@ function multifloat_rand_func(n::Int)
             rng,
             -leading_zeros(rand(rng, UInt64)) - 1,
             $(Expr(:tuple,
-                   ntuple(_ -> :(leading_zeros(rand(rng, UInt64))), n - 1)...
+                   ntuple(_ -> :(leading_zeros(rand(rng, UInt64))), Val{n - 1}())...
             ))
         )
     )
