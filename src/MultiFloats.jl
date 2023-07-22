@@ -1,12 +1,12 @@
 module MultiFloats
 
 export MultiFloat, renormalize,
-       Float16x, Float32x, Float64x,
-       Float64x1, Float64x2, Float64x3, Float64x4,
-       Float64x5, Float64x6, Float64x7, Float64x8,
-       use_clean_multifloat_arithmetic,
-       use_standard_multifloat_arithmetic,
-       use_sloppy_multifloat_arithmetic
+    Float16x, Float32x, Float64x,
+    Float64x1, Float64x2, Float64x3, Float64x4,
+    Float64x5, Float64x6, Float64x7, Float64x8,
+    use_clean_multifloat_arithmetic,
+    use_standard_multifloat_arithmetic,
+    use_sloppy_multifloat_arithmetic
 
 include("./Arithmetic.jl")
 using .Arithmetic
@@ -49,22 +49,22 @@ const Float64x8 = Float64x{8}
 # and Float32 can be converted losslessly to a single Float64, which has 53
 # bits of integer precision.
 
-@inline Float64x{N}(x::Bool   ) where {N} = Float64x{N}(Float64(x))
-@inline Float64x{N}(x::Int8   ) where {N} = Float64x{N}(Float64(x))
-@inline Float64x{N}(x::UInt8  ) where {N} = Float64x{N}(Float64(x))
-@inline Float64x{N}(x::Int16  ) where {N} = Float64x{N}(Float64(x))
-@inline Float64x{N}(x::UInt16 ) where {N} = Float64x{N}(Float64(x))
+@inline Float64x{N}(x::Bool) where {N} = Float64x{N}(Float64(x))
+@inline Float64x{N}(x::Int8) where {N} = Float64x{N}(Float64(x))
+@inline Float64x{N}(x::UInt8) where {N} = Float64x{N}(Float64(x))
+@inline Float64x{N}(x::Int16) where {N} = Float64x{N}(Float64(x))
+@inline Float64x{N}(x::UInt16) where {N} = Float64x{N}(Float64(x))
 @inline Float64x{N}(x::Float16) where {N} = Float64x{N}(Float64(x))
-@inline Float64x{N}(x::Int32  ) where {N} = Float64x{N}(Float64(x))
-@inline Float64x{N}(x::UInt32 ) where {N} = Float64x{N}(Float64(x))
+@inline Float64x{N}(x::Int32) where {N} = Float64x{N}(Float64(x))
+@inline Float64x{N}(x::UInt32) where {N} = Float64x{N}(Float64(x))
 @inline Float64x{N}(x::Float32) where {N} = Float64x{N}(Float64(x))
 
 # Values of the types Int64, UInt64, Int128, and UInt128 cannot be converted
 # losslessly to a single Float64 and must be split into multiple components.
 
-@inline Float64x1(x::Int64  ) = Float64x1(Float64(x))
-@inline Float64x1(x::UInt64 ) = Float64x1(Float64(x))
-@inline Float64x1(x::Int128 ) = Float64x1(Float64(x))
+@inline Float64x1(x::Int64) = Float64x1(Float64(x))
+@inline Float64x1(x::UInt64) = Float64x1(Float64(x))
+@inline Float64x1(x::Int128) = Float64x1(Float64(x))
 @inline Float64x1(x::UInt128) = Float64x1(Float64(x))
 
 @inline function Float64x2(x::Int128)
@@ -124,9 +124,9 @@ let precision = isdefined(Base, :_precision) ? (:_precision) : (:precision)
         N * precision(T) + (N - 1) # implicit bits of precision between limbs
 end
 
-@inline Base.zero(::Type{MF{T,N}}) where {T,N} = MF{T,N}(zero(T)  )
-@inline Base.one( ::Type{MF{T,N}}) where {T,N} = MF{T,N}(one( T)  )
-@inline Base.eps( ::Type{MF{T,N}}) where {T,N} = MF{T,N}(eps( T)^N)
+@inline Base.zero(::Type{MF{T,N}}) where {T,N} = MF{T,N}(zero(T))
+@inline Base.one(::Type{MF{T,N}}) where {T,N} = MF{T,N}(one(T))
+@inline Base.eps(::Type{MF{T,N}}) where {T,N} = MF{T,N}(eps(T)^N)
 
 # TODO: This is technically not the maximum/minimum representable MultiFloat.
 @inline Base.floatmin(::Type{MF{T,N}}) where {T,N} = MF{T,N}(floatmin(T))
@@ -142,15 +142,15 @@ end
 tuple_from_collection(collection, ::Val{n}) where {n} =
     ntuple(
         let c = collection
-            i -> c[begin - 1 + i]
+            i -> c[begin-1+i]
         end,
         Val{n}())
 
 function constructed_from_big(::Type{T}, ::Val{N}, x::Src) where
-{T <: Real, N, Src <: Union{BigInt, BigFloat}}
+{T<:Real,N,Src<:Union{BigInt,BigFloat}}
     y = Vector{T}(undef, N)
     y[1] = T(x)
-    for i = 2 : N
+    for i = 2:N
         x -= y[i-1]
         y[i] = T(x)
     end
@@ -168,20 +168,20 @@ function MultiFloat{T,N}(x::BigFloat) where {T,N}
         return MF{T,N}(ntuple(_ -> T(NaN), Val{N}()))
     end
     setrounding(
-      let x = x
-        () -> setprecision(
-          let x = x
-            () -> constructed_from_big(T, Val{N}(), x)
-          end,
-          BigFloat,
-          precision(x))
-      end,
-      BigFloat,
-      RoundNearest)
+        let x = x
+            () -> setprecision(
+                let x = x
+                    () -> constructed_from_big(T, Val{N}(), x)
+                end,
+                BigFloat,
+                precision(x))
+        end,
+        BigFloat,
+        RoundNearest)
 end
 
 MultiFloat{T,N}(x::BigInt) where {T,N} =
-  constructed_from_big(T, Val{N}(), x)
+    constructed_from_big(T, Val{N}(), x)
 
 MultiFloat{T,N}(x::Rational{U}) where {T,N,U} =
     MultiFloat{T,N}(numerator(x)) / MultiFloat{T,N}(denominator(x))
@@ -200,17 +200,17 @@ Base.Rational{BigInt}(x::MultiFloat{T,N}) where {T,N} =
 
 ################################################################ PROMOTION RULES
 
-Base.promote_rule(::Type{MF{T,N}}, ::Type{T      }) where {T,N} = MF{T,N}
-Base.promote_rule(::Type{MF{T,N}}, ::Type{Int8   }) where {T,N} = MF{T,N}
-Base.promote_rule(::Type{MF{T,N}}, ::Type{Int16  }) where {T,N} = MF{T,N}
-Base.promote_rule(::Type{MF{T,N}}, ::Type{Int32  }) where {T,N} = MF{T,N}
-Base.promote_rule(::Type{MF{T,N}}, ::Type{Int64  }) where {T,N} = MF{T,N}
-Base.promote_rule(::Type{MF{T,N}}, ::Type{Int128 }) where {T,N} = MF{T,N}
-Base.promote_rule(::Type{MF{T,N}}, ::Type{Bool   }) where {T,N} = MF{T,N}
-Base.promote_rule(::Type{MF{T,N}}, ::Type{UInt8  }) where {T,N} = MF{T,N}
-Base.promote_rule(::Type{MF{T,N}}, ::Type{UInt16 }) where {T,N} = MF{T,N}
-Base.promote_rule(::Type{MF{T,N}}, ::Type{UInt32 }) where {T,N} = MF{T,N}
-Base.promote_rule(::Type{MF{T,N}}, ::Type{UInt64 }) where {T,N} = MF{T,N}
+Base.promote_rule(::Type{MF{T,N}}, ::Type{T}) where {T,N} = MF{T,N}
+Base.promote_rule(::Type{MF{T,N}}, ::Type{Int8}) where {T,N} = MF{T,N}
+Base.promote_rule(::Type{MF{T,N}}, ::Type{Int16}) where {T,N} = MF{T,N}
+Base.promote_rule(::Type{MF{T,N}}, ::Type{Int32}) where {T,N} = MF{T,N}
+Base.promote_rule(::Type{MF{T,N}}, ::Type{Int64}) where {T,N} = MF{T,N}
+Base.promote_rule(::Type{MF{T,N}}, ::Type{Int128}) where {T,N} = MF{T,N}
+Base.promote_rule(::Type{MF{T,N}}, ::Type{Bool}) where {T,N} = MF{T,N}
+Base.promote_rule(::Type{MF{T,N}}, ::Type{UInt8}) where {T,N} = MF{T,N}
+Base.promote_rule(::Type{MF{T,N}}, ::Type{UInt16}) where {T,N} = MF{T,N}
+Base.promote_rule(::Type{MF{T,N}}, ::Type{UInt32}) where {T,N} = MF{T,N}
+Base.promote_rule(::Type{MF{T,N}}, ::Type{UInt64}) where {T,N} = MF{T,N}
 Base.promote_rule(::Type{MF{T,N}}, ::Type{UInt128}) where {T,N} = MF{T,N}
 
 Base.promote_rule(::Type{MF{T,N}}, ::Type{BigFloat}) where {T,N} = BigFloat
@@ -226,7 +226,9 @@ Base.promote_rule(::Type{Float64x{N}}, ::Type{Float32}) where {N} = Float64x{N}
     if isfinite(total)
         while true
             x0::MF{T,N} = x + zero(T)
-            if !(x0._limbs != x._limbs); break; end
+            if !(x0._limbs != x._limbs)
+                break
+            end
             x = x0
         end
         return x
@@ -269,28 +271,28 @@ end
     import Printf: fix_dec, ini_dec
 
     fix_dec(out, x::MultiFloat{T,N}, flags::String, width::Int,
-            precision::Int, c::Char) where {T,N} =
+        precision::Int, c::Char) where {T,N} =
         call_normalized(d -> fix_dec(out, BigFloat(d), flags,
-                                     width, precision, c), x)
+                width, precision, c), x)
 
     ini_dec(out, x::MultiFloat{T,N}, ndigits::Int, flags::String,
-            width::Int, precision::Int, c::Char) where {T,N} =
+        width::Int, precision::Int, c::Char) where {T,N} =
         call_normalized(d -> ini_dec(out, BigFloat(d), ndigits,
-                                     flags, width, precision, c), x)
+                flags, width, precision, c), x)
 
 elseif VERSION < v"1.6"
 
     import Printf: fix_dec, ini_dec
 
     fix_dec(out, x::MultiFloat{T,N}, flags::String, width::Int,
-            precision::Int, c::Char, digits) where {T,N} =
+        precision::Int, c::Char, digits) where {T,N} =
         call_normalized(d -> fix_dec(out, BigFloat(d), flags,
-                                     width, precision, c, digits), x)
+                width, precision, c, digits), x)
 
     ini_dec(out, x::MultiFloat{T,N}, ndigits::Int, flags::String,
-            width::Int, precision::Int, c::Char, digits) where {T,N} =
+        width::Int, precision::Int, c::Char, digits) where {T,N} =
         call_normalized(d -> ini_dec(out, BigFloat(d), ndigits,
-                                     flags, width, precision, c, digits), x)
+                flags, width, precision, c, digits), x)
 
 else
 
@@ -304,22 +306,22 @@ end
 
 @inline _iszero(x::MF{T,N}) where {T,N} =
     (&)(ntuple(i -> iszero(x._limbs[i]), Val{N}())...)
-@inline _isone( x::MF{T,N}) where {T,N} =
-    isone(x._limbs[1]) & (&)(ntuple(i -> iszero(x._limbs[i + 1]), Val{N - 1}())...)
+@inline _isone(x::MF{T,N}) where {T,N} =
+    isone(x._limbs[1]) & (&)(ntuple(i -> iszero(x._limbs[i+1]), Val{N - 1}())...)
 
-@inline Base.iszero(x::MF{T,1}) where {T  } =  iszero(x._limbs[1])
-@inline Base.isone( x::MF{T,1}) where {T  } =  isone( x._limbs[1])
+@inline Base.iszero(x::MF{T,1}) where {T} = iszero(x._limbs[1])
+@inline Base.isone(x::MF{T,1}) where {T} = isone(x._limbs[1])
 @inline Base.iszero(x::MF{T,N}) where {T,N} = _iszero(renormalize(x))
-@inline Base.isone( x::MF{T,N}) where {T,N} = _isone( renormalize(x))
+@inline Base.isone(x::MF{T,N}) where {T,N} = _isone(renormalize(x))
 
 @inline _head(x::MF{T,N}) where {T,N} = renormalize(x)._limbs[1]
-@inline Base.exponent(   x::MF{T,N}) where {T,N} = exponent(   _head(x))
-@inline Base.signbit(    x::MF{T,N}) where {T,N} = signbit(    _head(x))
+@inline Base.exponent(x::MF{T,N}) where {T,N} = exponent(_head(x))
+@inline Base.signbit(x::MF{T,N}) where {T,N} = signbit(_head(x))
 @inline Base.issubnormal(x::MF{T,N}) where {T,N} = issubnormal(_head(x))
-@inline Base.isfinite(   x::MF{T,N}) where {T,N} = isfinite(   _head(x))
-@inline Base.isinf(      x::MF{T,N}) where {T,N} = isinf(      _head(x))
-@inline Base.isnan(      x::MF{T,N}) where {T,N} = isnan(      _head(x))
-@inline Base.isinteger(  x::MF{T,N}) where {T,N} =
+@inline Base.isfinite(x::MF{T,N}) where {T,N} = isfinite(_head(x))
+@inline Base.isinf(x::MF{T,N}) where {T,N} = isinf(_head(x))
+@inline Base.isnan(x::MF{T,N}) where {T,N} = isnan(_head(x))
+@inline Base.isinteger(x::MF{T,N}) where {T,N} =
     all(isinteger.(renormalize(x)._limbs))
 
 @inline function Base.nextfloat(x::MF{T,N}) where {T,N}
@@ -364,9 +366,9 @@ end
     multifloat_eq(renormalize(x), renormalize(y))
 @inline Base.:(!=)(x::MF{T,N}, y::MF{T,N}) where {T,N} =
     multifloat_ne(renormalize(x), renormalize(y))
-@inline Base.:(< )(x::MF{T,N}, y::MF{T,N}) where {T,N} =
+@inline Base.:(<)(x::MF{T,N}, y::MF{T,N}) where {T,N} =
     multifloat_lt(renormalize(x), renormalize(y))
-@inline Base.:(> )(x::MF{T,N}, y::MF{T,N}) where {T,N} =
+@inline Base.:(>)(x::MF{T,N}, y::MF{T,N}) where {T,N} =
     multifloat_gt(renormalize(x), renormalize(y))
 @inline Base.:(<=)(x::MF{T,N}, y::MF{T,N}) where {T,N} =
     multifloat_le(renormalize(x), renormalize(y))
@@ -391,25 +393,25 @@ end
 @inline Base.:+(x::MF{T,N}, y::MF{T,N}) where {T,N} = multifloat_add(x, y)
 @inline Base.:*(x::MF{T,N}, y::MF{T,N}) where {T,N} = multifloat_mul(x, y)
 @inline Base.:/(x::MF{T,N}, y::MF{T,N}) where {T,N} = multifloat_div(x, y)
-@inline Base.:+(x::MF{T,N}, y::T) where {T        ,N} =
+@inline Base.:+(x::MF{T,N}, y::T) where {T,N} =
     multifloat_float_add(x, y)
 @inline Base.:+(x::MF{T,N}, y::T) where {T<:Number,N} =
     multifloat_float_add(x, y)
-@inline Base.:*(x::MF{T,N}, y::T) where {T        ,N} =
+@inline Base.:*(x::MF{T,N}, y::T) where {T,N} =
     multifloat_float_mul(x, y)
 @inline Base.:*(x::MF{T,N}, y::T) where {T<:Number,N} =
     multifloat_float_mul(x, y)
 
 @inline Base.:-(x::MF{T,N}) where {T,N} = MF{T,N}(ntuple(i -> -x._limbs[i], Val{N}()))
-@inline Base.:-(x::MF{T,N}, y::MF{T,N}) where {T        ,N} = x + (-y)
-@inline Base.:-(x::MF{T,N}, y::T      ) where {T        ,N} = x + (-y)
-@inline Base.:-(x::MF{T,N}, y::T      ) where {T<:Number,N} = x + (-y)
+@inline Base.:-(x::MF{T,N}, y::MF{T,N}) where {T,N} = x + (-y)
+@inline Base.:-(x::MF{T,N}, y::T) where {T,N} = x + (-y)
+@inline Base.:-(x::MF{T,N}, y::T) where {T<:Number,N} = x + (-y)
 
-@inline Base.:+(x::T, y::MF{T,N}) where {T        ,N} = y + x
+@inline Base.:+(x::T, y::MF{T,N}) where {T,N} = y + x
 @inline Base.:+(x::T, y::MF{T,N}) where {T<:Number,N} = y + x
-@inline Base.:-(x::T, y::MF{T,N}) where {T        ,N} = -(y + (-x))
+@inline Base.:-(x::T, y::MF{T,N}) where {T,N} = -(y + (-x))
 @inline Base.:-(x::T, y::MF{T,N}) where {T<:Number,N} = -(y + (-x))
-@inline Base.:*(x::T, y::MF{T,N}) where {T        ,N} = y * x
+@inline Base.:*(x::T, y::MF{T,N}) where {T,N} = y * x
 @inline Base.:*(x::T, y::MF{T,N}) where {T<:Number,N} = y * x
 
 @inline Base.inv(x::MF{T,N}) where {T,N} = one(MF{T,N}) / x
@@ -426,7 +428,7 @@ end
 
 @inline unsafe_sqrt(x::Float32) = Base.sqrt_llvm(x)
 @inline unsafe_sqrt(x::Float64) = Base.sqrt_llvm(x)
-@inline unsafe_sqrt(x::T) where {T <: Real} = sqrt(x)
+@inline unsafe_sqrt(x::T) where {T<:Real} = sqrt(x)
 
 @inline function Base.sqrt(x::MF{T,N}) where {T,N}
     x = renormalize(x)
@@ -467,7 +469,7 @@ inverse_factorial_f64_literal(n::Int, i::Int) = :(
 meta_y(n::Int) = Symbol("y_", n)
 
 meta_y_definition(n::Int) = Expr(:(=), meta_y(n),
-    Expr(:call, :*, meta_y(div(n, 2)), meta_y(div(n+1, 2))))
+    Expr(:call, :*, meta_y(div(n, 2)), meta_y(div(n + 1, 2))))
 
 meta_exp_term(n::Int, i::Int) = :(
     $(Symbol("y_", i)) * $(inverse_factorial_f64_literal(n, i)))
@@ -510,19 +512,19 @@ end
 
 function Base.log(x::MultiFloat{T,N}) where {T,N}
     y = MultiFloat{T,N}(log(x._limbs[1]))
-    for _ = 1 : ceil(Int, log2(N)) + 1
+    for _ = 1:ceil(Int, log2(N))+1
         y += x * exp(-y) - one(T)
     end
     return y
 end
 
 function Base.log1p(x::MultiFloat{T,N}) where {T,N}
-    return 2*atanh(x/(2+x))
+    return 2 * atanh(x / (2 + x))
 end
 
 function Base.expm1(x::MultiFloat{T,N}) where {T,N}
-    t = tanh(x/2)
-    return 2*t/(1-t)
+    t = tanh(x / 2)
+    return 2 * t / (1 - t)
 end
 
 ############################################## BIGFLOAT TRANSCENDENTAL STOP-GAPS
@@ -602,7 +604,7 @@ end
 ################################################################ PRECISION MODES
 
 function use_clean_multifloat_arithmetic(n::Integer=8)
-    for i = 1 : n
+    for i = 1:n
         eval(multifloat_eq_func(i))
         eval(multifloat_ne_func(i))
         eval(multifloat_lt_func(i))
@@ -611,14 +613,14 @@ function use_clean_multifloat_arithmetic(n::Integer=8)
         eval(multifloat_ge_func(i))
         eval(multifloat_rand_func(i))
     end
-    for i = 2 : n+1
-        eval(two_pass_renorm_func(     i, sloppy=false))
-        eval(multifloat_add_func(      i, sloppy=false))
-        eval(multifloat_mul_func(      i, sloppy=false))
-        eval(multifloat_div_func(      i, sloppy=false))
+    for i = 2:n+1
+        eval(two_pass_renorm_func(i, sloppy=false))
+        eval(multifloat_add_func(i, sloppy=false))
+        eval(multifloat_mul_func(i, sloppy=false))
+        eval(multifloat_div_func(i, sloppy=false))
         eval(multifloat_float_add_func(i, sloppy=false))
         eval(multifloat_float_mul_func(i, sloppy=false))
-        eval(multifloat_sqrt_func(     i, sloppy=false))
+        eval(multifloat_sqrt_func(i, sloppy=false))
     end
     eval(MultiFloats.multifloat_exp_func(2, 20, 1, sloppy=false))
     eval(MultiFloats.multifloat_exp_func(3, 28, 1, sloppy=false))
@@ -633,7 +635,7 @@ function use_clean_multifloat_arithmetic(n::Integer=8)
 end
 
 function use_standard_multifloat_arithmetic(n::Integer=8)
-    for i = 1 : n
+    for i = 1:n
         eval(multifloat_eq_func(i))
         eval(multifloat_ne_func(i))
         eval(multifloat_lt_func(i))
@@ -642,15 +644,15 @@ function use_standard_multifloat_arithmetic(n::Integer=8)
         eval(multifloat_ge_func(i))
         eval(multifloat_rand_func(i))
     end
-    for i = 2 : n
-        eval(two_pass_renorm_func(     i, sloppy=true ))
-        eval(two_pass_renorm_func(     i, sloppy=false))
-        eval(multifloat_add_func(      i, sloppy=false))
-        eval(multifloat_mul_func(      i, sloppy=true ))
-        eval(multifloat_div_func(      i, sloppy=true ))
+    for i = 2:n
+        eval(two_pass_renorm_func(i, sloppy=true))
+        eval(two_pass_renorm_func(i, sloppy=false))
+        eval(multifloat_add_func(i, sloppy=false))
+        eval(multifloat_mul_func(i, sloppy=true))
+        eval(multifloat_div_func(i, sloppy=true))
         eval(multifloat_float_add_func(i, sloppy=false))
-        eval(multifloat_float_mul_func(i, sloppy=true ))
-        eval(multifloat_sqrt_func(     i, sloppy=true ))
+        eval(multifloat_float_mul_func(i, sloppy=true))
+        eval(multifloat_sqrt_func(i, sloppy=true))
     end
     eval(MultiFloats.multifloat_exp_func(2, 17, 2, sloppy=false))
     eval(MultiFloats.multifloat_exp_func(3, 19, 4, sloppy=true))
@@ -665,7 +667,7 @@ function use_standard_multifloat_arithmetic(n::Integer=8)
 end
 
 function use_sloppy_multifloat_arithmetic(n::Integer=8)
-    for i = 1 : n
+    for i = 1:n
         eval(multifloat_eq_func(i))
         eval(multifloat_ne_func(i))
         eval(multifloat_lt_func(i))
@@ -674,14 +676,14 @@ function use_sloppy_multifloat_arithmetic(n::Integer=8)
         eval(multifloat_ge_func(i))
         eval(multifloat_rand_func(i))
     end
-    for i = 2 : n
-        eval(one_pass_renorm_func(     i, sloppy=true))
-        eval(multifloat_add_func(      i, sloppy=true))
-        eval(multifloat_mul_func(      i, sloppy=true))
-        eval(multifloat_div_func(      i, sloppy=true))
+    for i = 2:n
+        eval(one_pass_renorm_func(i, sloppy=true))
+        eval(multifloat_add_func(i, sloppy=true))
+        eval(multifloat_mul_func(i, sloppy=true))
+        eval(multifloat_div_func(i, sloppy=true))
         eval(multifloat_float_add_func(i, sloppy=true))
         eval(multifloat_float_mul_func(i, sloppy=true))
-        eval(multifloat_sqrt_func(     i, sloppy=true))
+        eval(multifloat_sqrt_func(i, sloppy=true))
     end
     eval(MultiFloats.multifloat_exp_func(2, 17, 2, sloppy=false))
     eval(MultiFloats.multifloat_exp_func(3, 19, 4, sloppy=true))

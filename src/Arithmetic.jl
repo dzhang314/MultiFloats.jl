@@ -50,15 +50,15 @@ mpadd_name(src_len::Int, dst_len::Int) = Symbol("mpadd_", src_len, '_', dst_len)
 ################################################################ RENORMALIZATION
 
 function one_pass_renorm_func(n::Int; sloppy::Bool=false)
-    args = [Symbol('a', i) for i = 0 : n - sloppy]
-    sums = [Symbol('s', i) for i = 0 : n - 1]
+    args = [Symbol('a', i) for i = 0:n-sloppy]
+    sums = [Symbol('s', i) for i = 0:n-1]
     if (n == 2) && sloppy
         return function_def_typed(renorm_name(2), :T, args,
             [Expr(:call, :quick_two_sum, args...)])
     end
     code = inline_block()
     push!(code, meta_quick_two_sum(sums[1], sums[2], args[1], args[2]))
-    for i = 1 : n-2
+    for i = 1:n-2
         push!(code, meta_quick_two_sum(
             sums[i+1], sums[i+2], sums[i+1], args[i+2]))
     end
@@ -68,19 +68,19 @@ function one_pass_renorm_func(n::Int; sloppy::Bool=false)
 end
 
 function two_pass_renorm_func(n::Int; sloppy::Bool=false)
-    args = [Symbol('a', i) for i = 0 : n - sloppy]
-    sums = [Symbol('s', i) for i = 0 : n - 1]
+    args = [Symbol('a', i) for i = 0:n-sloppy]
+    sums = [Symbol('s', i) for i = 0:n-1]
     if (n == 2) && sloppy
         return function_def_typed(renorm_name(2), :T, args,
             [Expr(:call, :quick_two_sum, args...)])
     end
     code = inline_block()
     push!(code, meta_quick_two_sum(:t, args[end], args[end-1], args[end]))
-    for i = n-2-sloppy : -1 : 1
+    for i = n-2-sloppy:-1:1
         push!(code, meta_quick_two_sum(:t, args[i+2], args[i+1], :t))
     end
     push!(code, meta_quick_two_sum(sums[1], sums[2], args[1], :t))
-    for i = 1 : n-2
+    for i = 1:n-2
         push!(code, meta_quick_two_sum(
             sums[i+1], sums[i+2], sums[i+1], args[i+2]))
     end
@@ -105,12 +105,12 @@ end
 
 function mpadd_func(src_len::Int, dst_len::Int)
     @assert src_len >= dst_len
-    args = [Symbol('a', i) for i = 1 : src_len]
-    sums = [Symbol('s', i) for i = 0 : dst_len - 1]
+    args = [Symbol('a', i) for i = 1:src_len]
+    sums = [Symbol('s', i) for i = 0:dst_len-1]
     vars = [(a, 0) for a in args]
     code = inline_block()
     k = 0
-    for i = 0 : dst_len-2
+    for i = 0:dst_len-2
         while true
             addends = [v[1] for v in vars if v[2] == i]
             if length(addends) == 1
@@ -118,10 +118,10 @@ function mpadd_func(src_len::Int, dst_len::Int)
                 deleteat!(vars, [v[1] == addends[1] for v in vars])
                 break
             end
-            for j = 1 : div(length(addends), 2)
+            for j = 1:div(length(addends), 2)
                 a, b = addends[2*j-1], addends[2*j]
                 push!(code, meta_two_sum(add_var!(vars, 'm', k, i),
-                    add_var!(vars, 'm', k+1, i+1), a, b))
+                    add_var!(vars, 'm', k + 1, i + 1), a, b))
                 k += 2
                 deleteat!(vars, [v[1] == a || v[1] == b for v in vars])
             end
@@ -157,7 +157,7 @@ function generate_accumulation_code!(code::Vector{Expr},
     for i = 0 : N - sloppy
         addends = [v[1] for v in vars if v[2] == i]
         results = [sums[i+1]]
-        for j = i + 1 : min(i + length(addends) - 1, N - sloppy)
+        for j = i+1:min(i + length(addends) - 1, N - sloppy)
             push!(results, add_var!(vars, 'm', i, j))
         end
         push!(code, _mpsum(results, addends))
@@ -172,13 +172,13 @@ end
 function multifloat_add_func(N::Int; sloppy::Bool=false)
     code = inline_block()
     vars = Tuple{Symbol,Int}[]
-    for i = 1 : N - sloppy
-        tmp = add_var!(vars, 't', i-1)
+    for i = 1:N-sloppy
+        tmp = add_var!(vars, 't', i - 1)
         err = add_var!(vars, 'e', i)
         push!(code, meta_two_sum(tmp, err, :(a._limbs[$i]), :(b._limbs[$i])))
     end
     if sloppy
-        tmp = add_var!(vars, 't', N-1)
+        tmp = add_var!(vars, 't', N - 1)
         push!(code, :($tmp = a._limbs[$N] + b._limbs[$N]))
     end
     reverse!(vars)
@@ -191,8 +191,8 @@ function multifloat_float_add_func(N::Int; sloppy::Bool=false)
     vars = Tuple{Symbol,Int}[]
     push!(code, meta_two_sum(add_var!(vars, 't', 0), add_var!(vars, 'e', 1),
         :(a._limbs[1]), :b))
-    for i = 2 : N
-        push!(code, Expr(:(=), add_var!(vars, 't', i-1), :(a._limbs[$i])))
+    for i = 2:N
+        push!(code, Expr(:(=), add_var!(vars, 't', i - 1), :(a._limbs[$i])))
     end
     reverse!(vars)
     generate_accumulation_code!(code, vars, N, sloppy=sloppy)
@@ -202,19 +202,25 @@ end
 
 function multifloat_mul_func(N::Int; sloppy::Bool=false)
     code = inline_block()
-    for i = 0 : N-1-sloppy, j = 0 : i
+    for i = 0:N-1-sloppy, j = 0:i
         push!(code, meta_two_prod(
-            Symbol('t', j, '_', i), Symbol('e', j, '_', i+1),
-            :(a._limbs[$(j+1)]), :(b._limbs[$(i-j+1)])))
+            Symbol('t', j, '_', i), Symbol('e', j, '_', i + 1),
+            :(a._limbs[$(j + 1)]), :(b._limbs[$(i - j + 1)])))
     end
-    for i = 0 : N-2+sloppy
+    for i = 0:N-2+sloppy
         push!(code, Expr(:(=), Symbol('t', i, '_', N - sloppy),
             :(a._limbs[$(i + 2 - sloppy)] * b._limbs[$(N - i)])))
     end
     vars = Tuple{Symbol,Int}[]
-    for i = 0 : N-1-sloppy, j = 0 : i; add_var!(vars, 't', j, i       ); end
-    for i = 0 : N-2+sloppy           ; add_var!(vars, 't', i, N-sloppy); end
-    for i = 0 : N-1-sloppy, j = 0 : i; add_var!(vars, 'e', j, i+1     ); end
+    for i = 0:N-1-sloppy, j = 0:i
+        add_var!(vars, 't', j, i)
+    end
+    for i = 0:N-2+sloppy
+        add_var!(vars, 't', i, N - sloppy)
+    end
+    for i = 0:N-1-sloppy, j = 0:i
+        add_var!(vars, 'e', j, i + 1)
+    end
     generate_accumulation_code!(code, vars, N, sloppy=sloppy)
     function_def_typed(:multifloat_mul, meta_multifloat(N), [:a, :b], code)
 end
@@ -226,11 +232,15 @@ function multifloat_float_mul_func(N::Int; sloppy::Bool=false)
             :(a._limbs[$(i+1)]), :b))
     end
     if sloppy
-        push!(code, Expr(:(=), Symbol('t', N-1), :(a._limbs[$N] * b)))
+        push!(code, Expr(:(=), Symbol('t', N - 1), :(a._limbs[$N] * b)))
     end
     vars = Tuple{Symbol,Int}[]
-    for i = 0 : N-1;      add_var!(vars, 't', i); end
-    for i = 1 : N-sloppy; add_var!(vars, 'e', i); end
+    for i = 0:N-1
+        add_var!(vars, 't', i)
+    end
+    for i = 1:N-sloppy
+        add_var!(vars, 'e', i)
+    end
     generate_accumulation_code!(code, vars, N, sloppy=sloppy)
     function_def(:multifloat_float_mul,
         [Expr(:(::), :a, meta_multifloat(N)), Expr(:(::), :b, :T)], code)
@@ -238,10 +248,10 @@ end
 
 function multifloat_div_func(N::Int; sloppy::Bool=false)
     code = inline_block()
-    quots = [Symbol('q', i) for i = 0 : N - sloppy]
+    quots = [Symbol('q', i) for i = 0:N-sloppy]
     push!(code, :($(quots[1]) = a._limbs[1] / b._limbs[1]))
     push!(code, :(r = a - b * $(quots[1])))
-    for i = 2 : N-sloppy
+    for i = 2:N-sloppy
         push!(code, :($(quots[i]) = r._limbs[1] / b._limbs[1]))
         push!(code, :(r -= b * $(quots[i])))
     end
@@ -260,7 +270,7 @@ function multifloat_sqrt_func(N::Int; sloppy::Bool=false)
     code = inline_block()
     push!(code, :(r = MultiFloat{T,$N}(inv(unsafe_sqrt(x._limbs[1])))))
     push!(code, :(h = scale(T(0.5), x)))
-    for _ = 1 : num_sqrt_iters(N, sloppy)
+    for _ = 1:num_sqrt_iters(N, sloppy)
         push!(code, :(r += r * (T(0.5) - h * (r * r))))
     end
     push!(code, :(r * x))
