@@ -43,7 +43,8 @@ const Float64x8 = Float64x{8}
 @inline MultiFloat{T,N}(x::MultiFloat{T,M}) where {T,M,N} =
     MultiFloat{T,N}((
         ntuple(i -> x._limbs[i], Val{min(M, N)}())...,
-        ntuple(_ -> zero(T), Val{max(N - M, 0)}())...))
+        ntuple(_ -> zero(T), Val{max(N - M, 0)}())...
+    ))
 
 # Values of the types Bool, Int8, UInt8, Int16, UInt16, Float16, Int32, UInt32,
 # and Float32 can be converted losslessly to a single Float64, which has 53
@@ -187,8 +188,9 @@ MultiFloat{T,N}(x::Rational{U}) where {T,N,U} =
     MultiFloat{T,N}(numerator(x)) / MultiFloat{T,N}(denominator(x))
 
 MultiFloat{T,N}(x::AbstractString) where {T,N} =
-    MultiFloat{T,N}(BigFloat(x, precision = precision(T)
-        + exponent(floatmax(T)) - exponent(floatmin(T))))
+    MultiFloat{T,N}(BigFloat(x, precision=(
+        precision(T) + exponent(floatmax(T)) - exponent(floatmin(T))
+    )))
 
 ######################################################## CONVERSION TO BIG TYPES
 
@@ -307,7 +309,10 @@ end
 @inline _iszero(x::MF{T,N}) where {T,N} =
     (&)(ntuple(i -> iszero(x._limbs[i]), Val{N}())...)
 @inline _isone(x::MF{T,N}) where {T,N} =
-    isone(x._limbs[1]) & (&)(ntuple(i -> iszero(x._limbs[i+1]), Val{N - 1}())...)
+    isone(x._limbs[1]) & (&)(ntuple(
+        i -> iszero(x._limbs[i+1]),
+        Val{N - 1}()
+    )...)
 
 @inline Base.iszero(x::MF{T,1}) where {T} = iszero(x._limbs[1])
 @inline Base.isone(x::MF{T,1}) where {T} = isone(x._limbs[1])
@@ -402,7 +407,8 @@ end
 @inline Base.:*(x::MF{T,N}, y::T) where {T<:Number,N} =
     multifloat_float_mul(x, y)
 
-@inline Base.:-(x::MF{T,N}) where {T,N} = MF{T,N}(ntuple(i -> -x._limbs[i], Val{N}()))
+@inline Base.:-(x::MF{T,N}) where {T,N} =
+    MF{T,N}(ntuple(i -> -x._limbs[i], Val{N}()))
 @inline Base.:-(x::MF{T,N}, y::MF{T,N}) where {T,N} = x + (-y)
 @inline Base.:-(x::MF{T,N}, y::T) where {T,N} = x + (-y)
 @inline Base.:-(x::MF{T,N}, y::T) where {T<:Number,N} = x + (-y)
@@ -451,14 +457,18 @@ end
 
 ######################################################## EXPONENTIATION (BASE E)
 
-const INVERSE_FACTORIALS_F64 = setprecision(() ->
-    [MultiFloat{Float64,20}(inv(BigFloat(factorial(BigInt(i)))))
-        for i = 1 : 170],
-    BigFloat, 1200)
+const INVERSE_FACTORIALS_F64 = setprecision(
+    () -> [
+        MultiFloat{Float64,20}(inv(BigFloat(factorial(BigInt(i)))))
+        for i = 1:170
+    ],
+    BigFloat, 1200
+)
 
-const LOG2_F64 = setprecision(() ->
-    MultiFloat{Float64,20}(log(BigFloat(2))),
-    BigFloat, 1200)
+const LOG2_F64 = setprecision(
+    () -> MultiFloat{Float64,20}(log(BigFloat(2))),
+    BigFloat, 1200
+)
 
 log2_f64_literal(n::Int) = :(
     MultiFloat{Float64,$n}($(LOG2_F64._limbs[1:n])))
@@ -474,27 +484,38 @@ meta_y_definition(n::Int) = Expr(:(=), meta_y(n),
 meta_exp_term(n::Int, i::Int) = :(
     $(Symbol("y_", i)) * $(inverse_factorial_f64_literal(n, i)))
 
-function multifloat_exp_func(n::Int, num_terms::Int,
-                             reduction_power::Int; sloppy::Bool=false)
+function multifloat_exp_func(
+    n::Int, num_terms::Int, reduction_power::Int; sloppy::Bool=false
+)
     return Expr(:function,
         :(multifloat_exp(x::MultiFloat{Float64,$n})),
         Expr(:block,
             :(exponent_f = Base.rint_llvm(
                 x._limbs[1] / $(LOG2_F64._limbs[1]))),
             :(exponent_i = Base.fptosi(Int, exponent_f)),
-            :(y_1 = scale($(ldexp(1.0, -reduction_power)),
-                MultiFloat{Float64,$n}(MultiFloat{Float64,$(n + !sloppy)}(x) -
-                    exponent_f * $(log2_f64_literal(n + !sloppy))))),
-            [meta_y_definition(i) for i = 2 : num_terms]...,
+            :(y_1 = scale(
+                $(ldexp(1.0, -reduction_power)),
+                MultiFloat{Float64,$n}(
+                    MultiFloat{Float64,$(n + !sloppy)}(x) -
+                    exponent_f * $(log2_f64_literal(n + !sloppy))
+                )
+            )),
+            [meta_y_definition(i) for i = 2:num_terms]...,
             :(exp_y = $(meta_exp_term(n, num_terms))),
-            [:(exp_y += $(meta_exp_term(n, i)))
-                for i = num_terms-1 : -1 : 3]...,
+            [
+                :(exp_y += $(meta_exp_term(n, i)))
+                for i = num_terms-1:-1:3
+            ]...,
             :(exp_y += scale(0.5, y_2)),
             :(exp_y += y_1),
             :(exp_y += 1.0),
-            [:(exp_y *= exp_y) for _ = 1 : reduction_power]...,
-            :(return scale(reinterpret(Float64,
-                UInt64(1023 + exponent_i) << 52), exp_y))))
+            [:(exp_y *= exp_y) for _ = 1:reduction_power]...,
+            :(return scale(
+                reinterpret(Float64, UInt64(1023 + exponent_i) << 52),
+                exp_y
+            ))
+        )
+    )
 end
 
 @inline multifloat_exp(x::MF{T,1}) where {T} = MF{T,1}(exp(x._limbs[1]))
@@ -550,13 +571,17 @@ for name in BASE_TRANSCENDENTAL_FUNCTIONS
 end
 
 eval_bigfloat(f::Function, x::MultiFloat{T,N}, k::Int) where {T,N} =
-    setprecision(() -> MultiFloat{T,N}(f(BigFloat(x))),
-                 BigFloat, precision(MultiFloat{T,N}) + k)
+    setprecision(
+        () -> MultiFloat{T,N}(f(BigFloat(x))),
+        BigFloat, precision(MultiFloat{T,N}) + k
+    )
 
 function use_bigfloat_transcendentals(k::Int=20)
     for name in BASE_TRANSCENDENTAL_FUNCTIONS
-        eval(:(Base.$name(x::MultiFloat{T,N}) where {T,N} =
-                eval_bigfloat($name, x, $k)))
+        eval(:(
+            Base.$name(x::MultiFloat{T,N}) where {T,N} =
+                eval_bigfloat($name, x, $k)
+        ))
     end
 end
 
@@ -579,24 +604,31 @@ end
     return reinterpret(Float64, expnt | mntsa)
 end
 
-@inline function _rand_mf64(rng::AbstractRNG, offset::Int,
-                            padding::NTuple{N,Int}) where {N}
-    exponents = (cumsum(padding) .+
-        (precision(Float64) + 1) .* ntuple(identity, Val{N}()))
-    return Float64x{N+1}((_rand_f64(rng, offset),
-                          _rand_sf64.(rng, offset .- exponents)...))
+@inline function _rand_mf64(
+    rng::AbstractRNG, offset::Int, padding::NTuple{N,Int}
+) where {N}
+    exponents = (
+        cumsum(padding) .+
+        (precision(Float64) + 1) .* ntuple(identity, Val{N}())
+    )
+    return Float64x{N + 1}((
+        _rand_f64(rng, offset),
+        _rand_sf64.(rng, offset .- exponents)...
+    ))
 end
 
 function multifloat_rand_func(n::Int)
-    :(
-        Random.rand(rng::AbstractRNG,
-                    ::SamplerTrivial{CloseOpen01{Float64x{$n}}}) =
-        _rand_mf64(
+    return :(
+        Random.rand(
+            rng::AbstractRNG,
+            ::SamplerTrivial{CloseOpen01{Float64x{$n}}}
+        ) = _rand_mf64(
             rng,
             -leading_zeros(rand(rng, UInt64)) - 1,
-            $(Expr(:tuple,
-                   ntuple(_ -> :(leading_zeros(rand(rng, UInt64))), Val{n - 1}())...
-            ))
+            $(Expr(:tuple, ntuple(
+                _ -> :(leading_zeros(rand(rng, UInt64))),
+                Val{n - 1}()
+            )...))
         )
     )
 end
