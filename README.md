@@ -1,6 +1,6 @@
 # MultiFloats.jl
 
-#### Copyright © 2019-2021 by David K. Zhang. Released under the [MIT License](https://github.com/dzhang314/MultiFloats.jl/blob/master/LICENSE).
+#### Copyright © 2019-2023 by David K. Zhang. Released under the [MIT License](https://github.com/dzhang314/MultiFloats.jl/blob/master/LICENSE).
 
 **MultiFloats.jl** is a Julia package for extended-precision arithmetic using 100 – 400 bits (≈ 30 – 120 digits). In this range, it is the fastest extended-precision library that I am aware of. At 100-bit precision, **MultiFloats.jl** is roughly **40x faster than [`BigFloat`](https://docs.julialang.org/en/v1/manual/integers-and-floating-point-numbers/#Arbitrary-Precision-Arithmetic)** and **2x faster than [DoubleFloats.jl](https://github.com/JuliaMath/DoubleFloats.jl)**.
 
@@ -231,7 +231,7 @@ Two basic linear algebra tasks are used below to compare the performance of exte
 |                                                        | MultiFloats | BigFloat | ArbNumerics | Decimals | DecFP | DoubleFloats | Quadmath |
 |--------------------------------------------------------|-------------|----------|-------------|----------|-------|--------------|----------|
 | user-selectable precision                              | ✔️          | ✔️      | ✔️          | ❌       | ❌    | ❌          | ❌       |
-| avoids dynamic memory allocation                       | ✔️          | ❌      | ❌          | ❌       | ✔️    | ⚠️          | ✔️       |
+| avoids dynamic memory allocation                       | ✔️          | ❌      | ❌          | ❌       | ✔️    | ✔️          | ✔️       |
 | basic arithmetic `+`, `-`, `*`, `/`, `sqrt`            | ✔️          | ✔️      | ✔️          | ❌       | ✔️    | ✔️          | ✔️       |
 | transcendental functions `sin`, `cos`, `exp`, `log`    | ❌ (WIP)    | ✔️      | ✔️          | ❌       | ✔️    | ✔️          | ✔️       |
 | compatible with **[GenericSVD.jl](https://github.com/JuliaLinearAlgebra/GenericSVD.jl)** | ✔️          | ✔️      | ✔️          | ❌       | ❌    | ✔️          | ✔️       |
