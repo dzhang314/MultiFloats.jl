@@ -63,7 +63,7 @@ function one_pass_renorm_func(n::Int; sloppy::Bool=false)
             sums[i+1], sums[i+2], sums[i+1], args[i+2]))
     end
     push!(code, sloppy ? meta_tuple(sums...) :
-        meta_tuple(sums[1:n-1]..., meta_sum([sums[n], args[n+1]])))
+                meta_tuple(sums[1:n-1]..., meta_sum([sums[n], args[n+1]])))
     function_def_typed(renorm_name(n), :T, args, code)
 end
 
@@ -85,7 +85,7 @@ function two_pass_renorm_func(n::Int; sloppy::Bool=false)
             sums[i+1], sums[i+2], sums[i+1], args[i+2]))
     end
     push!(code, sloppy ? meta_tuple(sums...) :
-        meta_tuple(sums[1:n-1]..., meta_sum([sums[n], args[n+1]])))
+                meta_tuple(sums[1:n-1]..., meta_sum([sums[n], args[n+1]])))
     function_def_typed(renorm_name(n), :T, args, code)
 end
 
@@ -151,10 +151,12 @@ function _mpsum(results::Vector{Symbol}, addends::Vector{Symbol})
     end
 end
 
-function generate_accumulation_code!(code::Vector{Expr},
-        vars::Vector{Tuple{Symbol,Int}}, N::Int; sloppy::Bool=false)
-    sums = [Symbol('s', i) for i = 0 : N - sloppy]
-    for i = 0 : N - sloppy
+function generate_accumulation_code!(
+    code::Vector{Expr}, vars::Vector{Tuple{Symbol,Int}}, N::Int;
+    sloppy::Bool=false
+)
+    sums = [Symbol('s', i) for i = 0:N-sloppy]
+    for i = 0:N-sloppy
         addends = [v[1] for v in vars if v[2] == i]
         results = [sums[i+1]]
         for j = i+1:min(i + length(addends) - 1, N - sloppy)
@@ -227,9 +229,11 @@ end
 
 function multifloat_float_mul_func(N::Int; sloppy::Bool=false)
     code = inline_block()
-    for i = 0 : N-1-sloppy
-        push!(code, meta_two_prod(Symbol('t', i), Symbol('e', i+1),
-            :(a._limbs[$(i+1)]), :b))
+    for i = 0:N-1-sloppy
+        push!(code, meta_two_prod(
+            Symbol('t', i), Symbol('e', i + 1),
+            :(a._limbs[$(i + 1)]), :b
+        ))
     end
     if sloppy
         push!(code, Expr(:(=), Symbol('t', N - 1), :(a._limbs[$N] * b)))
@@ -279,33 +283,53 @@ end
 
 ########################################################### RECURSIVE COMPARISON
 
-eq_expr(n::Int) = (n == 1
+eq_expr(n::Int) = (
+    n == 1
     ? :(x._limbs[$n] == y._limbs[$n])
-    : :($(eq_expr(n-1)) & (x._limbs[$n] == y._limbs[$n])))
+    : :($(eq_expr(n - 1)) & (x._limbs[$n] == y._limbs[$n]))
+)
 
-ne_expr(n::Int) = (n == 1
+ne_expr(n::Int) = (
+    n == 1
     ? :(x._limbs[$n] != y._limbs[$n])
-    : :($(ne_expr(n-1)) | (x._limbs[$n] != y._limbs[$n])))
+    : :($(ne_expr(n - 1)) | (x._limbs[$n] != y._limbs[$n]))
+)
 
-lt_expr(m::Int, n::Int) = (m == n
+lt_expr(m::Int, n::Int) = (
+    m == n
     ? :(x._limbs[$m] < y._limbs[$m])
-    : :((x._limbs[$m] < y._limbs[$m]) |
-        ((x._limbs[$m] == y._limbs[$m]) & $(lt_expr(m+1, n)))))
+    : :(
+        (x._limbs[$m] < y._limbs[$m]) |
+        ((x._limbs[$m] == y._limbs[$m]) & $(lt_expr(m + 1, n)))
+    )
+)
 
-gt_expr(m::Int, n::Int) = (m == n
+gt_expr(m::Int, n::Int) = (
+    m == n
     ? :(x._limbs[$m] > y._limbs[$m])
-    : :((x._limbs[$m] > y._limbs[$m]) |
-        ((x._limbs[$m] == y._limbs[$m]) & $(gt_expr(m+1, n)))))
+    : :(
+        (x._limbs[$m] > y._limbs[$m]) |
+        ((x._limbs[$m] == y._limbs[$m]) & $(gt_expr(m + 1, n)))
+    )
+)
 
-le_expr(m::Int, n::Int) = (m == n
+le_expr(m::Int, n::Int) = (
+    m == n
     ? :(x._limbs[$m] <= y._limbs[$m])
-    : :((x._limbs[$m] < y._limbs[$m]) |
-        ((x._limbs[$m] == y._limbs[$m]) & $(le_expr(m+1, n)))))
+    : :(
+        (x._limbs[$m] < y._limbs[$m]) |
+        ((x._limbs[$m] == y._limbs[$m]) & $(le_expr(m + 1, n)))
+    )
+)
 
-ge_expr(m::Int, n::Int) = (m == n
+ge_expr(m::Int, n::Int) = (
+    m == n
     ? :(x._limbs[$m] >= y._limbs[$m])
-    : :((x._limbs[$m] > y._limbs[$m]) |
-        ((x._limbs[$m] == y._limbs[$m]) & $(ge_expr(m+1, n)))))
+    : :(
+        (x._limbs[$m] > y._limbs[$m]) |
+        ((x._limbs[$m] == y._limbs[$m]) & $(ge_expr(m + 1, n)))
+    )
+)
 
 ########################################################### COMPARISON FUNCTIONS
 
