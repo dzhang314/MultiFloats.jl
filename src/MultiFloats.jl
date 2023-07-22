@@ -504,10 +504,19 @@ function Base.log(x::MultiFloat{T,N}) where {T,N}
     return y
 end
 
+function Base.log1p(x::MultiFloat{T,N}) where {T,N}
+    return 2*atanh(x/(2+x))
+end
+
+function Base.expm1(x::MultiFloat{T,N}) where {T,N}
+    t = tanh(x/2)
+    return 2*t/(1-t)
+end
+
 ############################################## BIGFLOAT TRANSCENDENTAL STOP-GAPS
 
 BASE_TRANSCENDENTAL_FUNCTIONS = [
-    :exp2, :exp10, :expm1, :log2, :log10, :log1p,
+    :exp2, :exp10, :log2, :log10,
     :sin, :cos, :tan, :sec, :csc, :cot,
     :sinpi, :cospi,
     :sinh, :cosh, :tanh, :sech, :csch, :coth,
