@@ -1,5 +1,7 @@
 baremodule Arithmetic
 
+#=
+
 export one_pass_renorm_func, two_pass_renorm_func,
     multifloat_add_func, multifloat_float_add_func,
     multifloat_mul_func, multifloat_float_mul_func,
@@ -14,10 +16,6 @@ using Base: +, -, *, div, !, (:), ==, !=, <, <=, >, >=, min, max,
 
 const SymExpr = Union{Symbol,Expr}
 
-meta_tuple(x...) = Expr(:tuple, x...)
-
-inline_block() = [Expr(:meta, :inline)] # same as @inline
-
 function_def(name, args, body) =
     Expr(:function,
         Expr(:where, Expr(:call, name, args...), :T),
@@ -26,17 +24,11 @@ function_def(name, args, body) =
 function_def_typed(name, arg_type, args, body) =
     function_def(name, [Expr(:(::), arg, arg_type) for arg in args], body)
 
-meta_two_sum(s::Symbol, e::Symbol, a::SymExpr, b::SymExpr) =
-    Expr(:(=), meta_tuple(s, e), Expr(:call, :two_sum, a, b))
-
 meta_two_prod(p::Symbol, e::Symbol, a::SymExpr, b::SymExpr) =
     Expr(:(=), meta_tuple(p, e), Expr(:call, :two_prod, a, b))
 
 meta_quick_two_sum(s::Symbol, e::Symbol, a::Symbol, b::Symbol) =
     Expr(:(=), meta_tuple(s, e), Expr(:call, :quick_two_sum, a, b))
-
-meta_sum(addends::Vector{Symbol}) =
-    length(addends) == 1 ? addends[1] : Expr(:call, :+, addends...)
 
 meta_sum(result::Symbol, addends::Vector{Symbol}) =
     Expr(:(=), result, meta_sum(addends))
@@ -342,5 +334,7 @@ multifloat_lt_func(N::Int) = cmp_func(:multifloat_lt, N, lt_expr(1, N))
 multifloat_gt_func(N::Int) = cmp_func(:multifloat_gt, N, gt_expr(1, N))
 multifloat_le_func(N::Int) = cmp_func(:multifloat_le, N, le_expr(1, N))
 multifloat_ge_func(N::Int) = cmp_func(:multifloat_ge, N, ge_expr(1, N))
+
+=#
 
 end # baremodule Arithmetic

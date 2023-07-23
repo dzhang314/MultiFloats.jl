@@ -1,9 +1,179 @@
 module MultiFloats
 
-export MultiFloat, renormalize,
-    Float16x, Float32x, Float64x,
+using SIMD: Vec
+
+########################################################## ERROR-FREE ARITHMETIC
+
+@inline function fast_two_sum(a::T, b::T) where {T}
+    sum = a + b
+    b_prime = sum - a
+    b_err = b - b_prime
+    return (sum, b_err)
+end
+
+@inline function fast_two_diff(a::T, b::T) where {T}
+    diff = a - b
+    b_prime = a - diff
+    b_err = b_prime - b
+    return (diff, b_err)
+end
+
+@inline function two_sum(a::T, b::T) where {T}
+    sum = a + b
+    a_prime = sum - b
+    b_prime = sum - a_prime
+    a_err = a - a_prime
+    b_err = b - b_prime
+    err = a_err + b_err
+    return (sum, err)
+end
+
+@inline function two_diff(a::T, b::T) where {T}
+    diff = a - b
+    a_prime = diff + b
+    b_prime = a_prime - diff
+    a_err = a - a_prime
+    b_err = b - b_prime
+    err = a_err - b_err
+    return (diff, err)
+end
+
+@inline function two_prod(a::T, b::T) where {T}
+    prod = a * b
+    err = fma(a, b, -prod)
+    return (prod, err)
+end
+
+################################################################################
+
+const SymExpr = Union{Symbol,Expr}
+
+inline_block() = [Expr(:meta, :inline)]
+
+meta_tuple(xs...) = Expr(:tuple, xs...)
+
+meta_two_sum(s::Symbol, e::Symbol, a::SymExpr, b::SymExpr) =
+    Expr(:(=), meta_tuple(s, e), Expr(:call, :two_sum, a, b))
+
+function meta_sum(::Type{T}, xs::Vector{SymExpr}) where {T}
+    if isempty(xs)
+        return zero(T)
+    elseif length(xs) == 1
+        return only(xs)
+    else
+        return Expr(:call, :+, xs...)
+    end
+end
+
+################################################################################
+
+@generated function accurate_sum(::Val{N}, xs::T...) where {T,N}
+    @assert N > 0
+    terms = [SymExpr[] for _ = 1:N]
+    for i = 1:length(xs)
+        push!(terms[1], :(xs[$i]))
+    end
+    code = inline_block()
+    count = 0
+    for j = 1:N-1
+        curr_terms = terms[j]
+        next_terms = terms[j+1]
+        while length(curr_terms) > 1
+            sum_term = Symbol('s', count)
+            err_term = Symbol('e', count)
+            count += 1
+            push!(code, meta_two_sum(
+                sum_term, err_term, curr_terms[1], curr_terms[2]
+            ))
+            deleteat!(curr_terms, 1:2)
+            push!(curr_terms, sum_term)
+            push!(next_terms, err_term)
+        end
+    end
+    push!(code, Expr(:return, meta_tuple(meta_sum.(T, terms)...)))
+    return Expr(:block, code...)
+end
+
+############################################################# STRUCT DEFINITIONS
+
+export MultiFloat, MultiFloatVec
+
+struct MultiFloat{T,N} <: AbstractFloat
+    _limbs::NTuple{N,T}
+end
+
+struct MultiFloatVec{M,T,N}
+    _limbs::NTuple{N,Vec{M,T}}
+end
+
+################################################################### TYPE ALIASES
+
+export Float16x, Float32x, Float64x,
     Float64x1, Float64x2, Float64x3, Float64x4,
     Float64x5, Float64x6, Float64x7, Float64x8,
+    v1Float64x1, v1Float64x2, v1Float64x3, v1Float64x4,
+    v1Float64x5, v1Float64x6, v1Float64x7, v1Float64x8,
+    v2Float64x1, v2Float64x2, v2Float64x3, v2Float64x4,
+    v2Float64x5, v2Float64x6, v2Float64x7, v2Float64x8,
+    v4Float64x1, v4Float64x2, v4Float64x3, v4Float64x4,
+    v4Float64x5, v4Float64x6, v4Float64x7, v4Float64x8,
+    v8Float64x1, v8Float64x2, v8Float64x3, v8Float64x4,
+    v8Float64x5, v8Float64x6, v8Float64x7, v8Float64x8
+
+const Float16x{N} = MultiFloat{Float16,N}
+const Float32x{N} = MultiFloat{Float32,N}
+const Float64x{N} = MultiFloat{Float64,N}
+
+const Float64x1 = MultiFloat{Float64,1}
+const Float64x2 = MultiFloat{Float64,2}
+const Float64x3 = MultiFloat{Float64,3}
+const Float64x4 = MultiFloat{Float64,4}
+const Float64x5 = MultiFloat{Float64,5}
+const Float64x6 = MultiFloat{Float64,6}
+const Float64x7 = MultiFloat{Float64,7}
+const Float64x8 = MultiFloat{Float64,8}
+
+const v1Float64x1 = MultiFloatVec{1,Float64,1}
+const v1Float64x2 = MultiFloatVec{1,Float64,2}
+const v1Float64x3 = MultiFloatVec{1,Float64,3}
+const v1Float64x4 = MultiFloatVec{1,Float64,4}
+const v1Float64x5 = MultiFloatVec{1,Float64,5}
+const v1Float64x6 = MultiFloatVec{1,Float64,6}
+const v1Float64x7 = MultiFloatVec{1,Float64,7}
+const v1Float64x8 = MultiFloatVec{1,Float64,8}
+
+const v2Float64x1 = MultiFloatVec{2,Float64,1}
+const v2Float64x2 = MultiFloatVec{2,Float64,2}
+const v2Float64x3 = MultiFloatVec{2,Float64,3}
+const v2Float64x4 = MultiFloatVec{2,Float64,4}
+const v2Float64x5 = MultiFloatVec{2,Float64,5}
+const v2Float64x6 = MultiFloatVec{2,Float64,6}
+const v2Float64x7 = MultiFloatVec{2,Float64,7}
+const v2Float64x8 = MultiFloatVec{2,Float64,8}
+
+const v4Float64x1 = MultiFloatVec{4,Float64,1}
+const v4Float64x2 = MultiFloatVec{4,Float64,2}
+const v4Float64x3 = MultiFloatVec{4,Float64,3}
+const v4Float64x4 = MultiFloatVec{4,Float64,4}
+const v4Float64x5 = MultiFloatVec{4,Float64,5}
+const v4Float64x6 = MultiFloatVec{4,Float64,6}
+const v4Float64x7 = MultiFloatVec{4,Float64,7}
+const v4Float64x8 = MultiFloatVec{4,Float64,8}
+
+const v8Float64x1 = MultiFloatVec{8,Float64,1}
+const v8Float64x2 = MultiFloatVec{8,Float64,2}
+const v8Float64x3 = MultiFloatVec{8,Float64,3}
+const v8Float64x4 = MultiFloatVec{8,Float64,4}
+const v8Float64x5 = MultiFloatVec{8,Float64,5}
+const v8Float64x6 = MultiFloatVec{8,Float64,6}
+const v8Float64x7 = MultiFloatVec{8,Float64,7}
+const v8Float64x8 = MultiFloatVec{8,Float64,8}
+
+################################################################################
+
+#=
+
+export renormalize,
     use_clean_multifloat_arithmetic,
     use_standard_multifloat_arithmetic,
     use_sloppy_multifloat_arithmetic
@@ -13,25 +183,8 @@ using .Arithmetic
 
 ####################################################### DEFINITION OF MULTIFLOAT
 
-struct MultiFloat{T,N} <: AbstractFloat
-    _limbs::NTuple{N,T}
-end
-
 # Short alias for brevity of type declarations
 const MF = MultiFloat
-
-const Float16x{N} = MultiFloat{Float16,N}
-const Float32x{N} = MultiFloat{Float32,N}
-const Float64x{N} = MultiFloat{Float64,N}
-
-const Float64x1 = Float64x{1}
-const Float64x2 = Float64x{2}
-const Float64x3 = Float64x{3}
-const Float64x4 = Float64x{4}
-const Float64x5 = Float64x{5}
-const Float64x6 = Float64x{6}
-const Float64x7 = Float64x{7}
-const Float64x8 = Float64x{8}
 
 ############################################## CONSTRUCTION FROM PRIMITIVE TYPES
 
@@ -265,36 +418,7 @@ function Base.show(io::IO, x::MultiFloat{T,N}) where {T,N}
     return call_normalized(y -> show(io, y), x)
 end
 
-# Thanks to Greg Plowman (https://github.com/GregPlowman) for suggesting
-# implementations of Printf.fix_dec and Printf.ini_dec for @printf support.
-
 @static if VERSION < v"1.1"
-
-    import Printf: fix_dec, ini_dec
-
-    fix_dec(out, x::MultiFloat{T,N}, flags::String, width::Int,
-        precision::Int, c::Char) where {T,N} =
-        call_normalized(d -> fix_dec(out, BigFloat(d), flags,
-                width, precision, c), x)
-
-    ini_dec(out, x::MultiFloat{T,N}, ndigits::Int, flags::String,
-        width::Int, precision::Int, c::Char) where {T,N} =
-        call_normalized(d -> ini_dec(out, BigFloat(d), ndigits,
-                flags, width, precision, c), x)
-
-elseif VERSION < v"1.6"
-
-    import Printf: fix_dec, ini_dec
-
-    fix_dec(out, x::MultiFloat{T,N}, flags::String, width::Int,
-        precision::Int, c::Char, digits) where {T,N} =
-        call_normalized(d -> fix_dec(out, BigFloat(d), flags,
-                width, precision, c, digits), x)
-
-    ini_dec(out, x::MultiFloat{T,N}, ndigits::Int, flags::String,
-        width::Int, precision::Int, c::Char, digits) where {T,N} =
-        call_normalized(d -> ini_dec(out, BigFloat(d), ndigits,
-                flags, width, precision, c, digits), x)
 
 else
 
@@ -730,5 +854,7 @@ function use_sloppy_multifloat_arithmetic(n::Integer=8)
 end
 
 use_standard_multifloat_arithmetic()
+
+=#
 
 end # module MultiFloats
