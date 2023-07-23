@@ -95,54 +95,6 @@ function add_var!(vars::Vector{Tuple{Symbol,Int}}, prefix::Char, i::Int, j::Int)
     var
 end
 
-function mpadd_func(src_len::Int, dst_len::Int)
-    @assert src_len >= dst_len
-    args = [Symbol('a', i) for i = 1:src_len]
-    sums = [Symbol('s', i) for i = 0:dst_len-1]
-    vars = [(a, 0) for a in args]
-    code = inline_block()
-    k = 0
-    for i = 0:dst_len-2
-        while true
-            addends = [v[1] for v in vars if v[2] == i]
-            if length(addends) == 1
-                push!(code, Expr(:(=), sums[i+1], addends[1]))
-                deleteat!(vars, [v[1] == addends[1] for v in vars])
-                break
-            end
-            for j = 1:div(length(addends), 2)
-                a, b = addends[2*j-1], addends[2*j]
-                push!(code, meta_two_sum(add_var!(vars, 'm', k, i),
-                    add_var!(vars, 'm', k + 1, i + 1), a, b))
-                k += 2
-                deleteat!(vars, [v[1] == a || v[1] == b for v in vars])
-            end
-        end
-    end
-    push!(code, meta_sum(sums[dst_len], [v[1] for v in vars]))
-    push!(code, meta_tuple(sums...))
-    function_def_typed(mpadd_name(src_len, dst_len), :T, args, code)
-end
-
-const MPADD_CACHE = Dict{Symbol,Expr}()
-
-function _mpsum(results::Vector{Symbol}, addends::Vector{Symbol})
-    src_len = length(addends)
-    dst_len = length(results)
-    @assert src_len >= dst_len
-    if dst_len == 1
-        meta_sum(results[1], addends)
-    elseif src_len == dst_len == 2
-        meta_two_sum(results[1], results[2], addends[1], addends[2])
-    else
-        func_name = mpadd_name(src_len, dst_len)
-        if !haskey(MPADD_CACHE, func_name)
-            MPADD_CACHE[func_name] = mpadd_func(src_len, dst_len)
-        end
-        Expr(:(=), meta_tuple(results...), Expr(:call, func_name, addends...))
-    end
-end
-
 function generate_accumulation_code!(
     code::Vector{Expr}, vars::Vector{Tuple{Symbol,Int}}, N::Int;
     sloppy::Bool=false

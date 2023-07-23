@@ -44,7 +44,7 @@ end
     return (prod, err)
 end
 
-################################################################################
+###################################################### METAPROGRAMMING UTILITIES
 
 const SymExpr = Union{Symbol,Expr}
 
@@ -65,7 +65,7 @@ function meta_sum(::Type{T}, xs::Vector{SymExpr}) where {T}
     end
 end
 
-################################################################################
+################################################# EXTENDED ERROR-FREE ARITHMETIC
 
 @generated function accurate_sum(::Val{N}, xs::T...) where {T,N}
     @assert N > 0
@@ -169,7 +169,7 @@ const v8Float64x6 = MultiFloatVec{8,Float64,6}
 const v8Float64x7 = MultiFloatVec{8,Float64,7}
 const v8Float64x8 = MultiFloatVec{8,Float64,8}
 
-################################################################################
+#################################################################### LEGACY CODE
 
 #=
 
@@ -180,8 +180,6 @@ export renormalize,
 
 include("./Arithmetic.jl")
 using .Arithmetic
-
-####################################################### DEFINITION OF MULTIFLOAT
 
 # Short alias for brevity of type declarations
 const MF = MultiFloat
@@ -418,15 +416,8 @@ function Base.show(io::IO, x::MultiFloat{T,N}) where {T,N}
     return call_normalized(y -> show(io, y), x)
 end
 
-@static if VERSION < v"1.1"
-
-else
-
-    import Printf: tofloat
-
-    tofloat(x::MultiFloat{T,N}) where {T,N} = call_normalized(BigFloat, x)
-
-end
+import Printf: tofloat
+tofloat(x::MultiFloat{T,N}) where {T,N} = call_normalized(BigFloat, x)
 
 ################################################### FLOATING-POINT INTROSPECTION
 
@@ -470,24 +461,6 @@ end
 import LinearAlgebra: floatmin2
 @inline floatmin2(::Type{MF{T,N}}) where {T,N} = MF{T,N}(ldexp(one(T),
     div(exponent(floatmin(T)) - N * exponent(eps(T)), 2)))
-
-##################################################### ERROR-FREE TRANSFORMATIONS
-
-@inline function two_sum(a::T, b::T) where {T}
-    s = a + b
-    v = s - a
-    s, (a - (s - v)) + (b - v)
-end
-
-@inline function quick_two_sum(a::T, b::T) where {T}
-    s = a + b
-    s, b - (s - a)
-end
-
-@inline function two_prod(a::T, b::T) where {T}
-    p = a * b
-    p, fma(a, b, -p)
-end
 
 ##################################################################### COMPARISON
 
