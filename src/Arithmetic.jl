@@ -14,8 +14,6 @@ using Base: +, -, *, div, !, (:), ==, !=, <, <=, >, >=, min, max,
 
 ###################################################### METAPROGRAMMING UTILITIES
 
-const SymExpr = Union{Symbol,Expr}
-
 function_def(name, args, body) =
     Expr(:function,
         Expr(:where, Expr(:call, name, args...), :T),
@@ -36,50 +34,6 @@ meta_sum(result::Symbol, addends::Vector{Symbol}) =
 meta_multifloat(N::Int) = :(MultiFloat{T,$N})
 
 renorm_name(n::Int) = Symbol("renorm_", n)
-
-mpadd_name(src_len::Int, dst_len::Int) = Symbol("mpadd_", src_len, '_', dst_len)
-
-################################################################ RENORMALIZATION
-
-function one_pass_renorm_func(n::Int; sloppy::Bool=false)
-    args = [Symbol('a', i) for i = 0:n-sloppy]
-    sums = [Symbol('s', i) for i = 0:n-1]
-    if (n == 2) && sloppy
-        return function_def_typed(renorm_name(2), :T, args,
-            [Expr(:call, :quick_two_sum, args...)])
-    end
-    code = inline_block()
-    push!(code, meta_quick_two_sum(sums[1], sums[2], args[1], args[2]))
-    for i = 1:n-2
-        push!(code, meta_quick_two_sum(
-            sums[i+1], sums[i+2], sums[i+1], args[i+2]))
-    end
-    push!(code, sloppy ? meta_tuple(sums...) :
-                meta_tuple(sums[1:n-1]..., meta_sum([sums[n], args[n+1]])))
-    function_def_typed(renorm_name(n), :T, args, code)
-end
-
-function two_pass_renorm_func(n::Int; sloppy::Bool=false)
-    args = [Symbol('a', i) for i = 0:n-sloppy]
-    sums = [Symbol('s', i) for i = 0:n-1]
-    if (n == 2) && sloppy
-        return function_def_typed(renorm_name(2), :T, args,
-            [Expr(:call, :quick_two_sum, args...)])
-    end
-    code = inline_block()
-    push!(code, meta_quick_two_sum(:t, args[end], args[end-1], args[end]))
-    for i = n-2-sloppy:-1:1
-        push!(code, meta_quick_two_sum(:t, args[i+2], args[i+1], :t))
-    end
-    push!(code, meta_quick_two_sum(sums[1], sums[2], args[1], :t))
-    for i = 1:n-2
-        push!(code, meta_quick_two_sum(
-            sums[i+1], sums[i+2], sums[i+1], args[i+2]))
-    end
-    push!(code, sloppy ? meta_tuple(sums...) :
-                meta_tuple(sums[1:n-1]..., meta_sum([sums[n], args[n+1]])))
-    function_def_typed(renorm_name(n), :T, args, code)
-end
 
 ################################################################### ACCUMULATION
 

@@ -52,6 +52,9 @@ inline_block() = [Expr(:meta, :inline)]
 
 meta_tuple(xs...) = Expr(:tuple, xs...)
 
+meta_fast_two_sum(s::Symbol, e::Symbol, a::SymExpr, b::SymExpr) =
+    Expr(:(=), meta_tuple(s, e), Expr(:call, :fast_two_sum, a, b))
+
 meta_two_sum(s::Symbol, e::Symbol, a::SymExpr, b::SymExpr) =
     Expr(:(=), meta_tuple(s, e), Expr(:call, :two_sum, a, b))
 
@@ -91,6 +94,39 @@ end
         end
     end
     push!(code, Expr(:return, meta_tuple(meta_sum.(T, terms)...)))
+    return Expr(:block, code...)
+end
+
+@generated function one_pass_renormalize(::Val{N}, xs::T...) where {T,N}
+    @assert (length(xs) == N) || (length(xs) == N + 1)
+    code = inline_block()
+    args = [Symbol('x', i - 1) for i = 1:length(xs)]
+    push!(code, Expr(:(=), meta_tuple(args...), :xs))
+    for i = 1:N-1
+        push!(code, meta_fast_two_sum(args[i], args[i+1], args[i], args[i+1]))
+    end
+    push!(code, Expr(:return, meta_tuple(
+        args[1:N-1]...,
+        (length(xs) == N) ? args[N] : Expr(:call, :+, args[N:end]...)
+    )))
+    return Expr(:block, code...)
+end
+
+@generated function two_pass_renormalize(::Val{N}, xs::T...) where {T,N}
+    @assert (length(xs) == N) || (length(xs) == N + 1)
+    code = inline_block()
+    args = [Symbol('x', i - 1) for i = 1:length(xs)]
+    push!(code, Expr(:(=), meta_tuple(args...), :xs))
+    for i = length(xs)-1:-1:2
+        push!(code, meta_fast_two_sum(args[i], args[i+1], args[i], args[i+1]))
+    end
+    for i = 1:N-1
+        push!(code, meta_fast_two_sum(args[i], args[i+1], args[i], args[i+1]))
+    end
+    push!(code, Expr(:return, meta_tuple(
+        args[1:N-1]...,
+        (length(xs) == N) ? args[N] : Expr(:call, :+, args[N:end]...)
+    )))
     return Expr(:block, code...)
 end
 
@@ -168,6 +204,24 @@ const v8Float64x5 = MultiFloatVec{8,Float64,5}
 const v8Float64x6 = MultiFloatVec{8,Float64,6}
 const v8Float64x7 = MultiFloatVec{8,Float64,7}
 const v8Float64x8 = MultiFloatVec{8,Float64,8}
+
+################################################# MULTIFLOAT-SPECIFIC ARITHMETIC
+
+@inline function scale(alpha::T, x::MultiFloat{T,N}) where {T,N}
+    return MultiFloat{T,N}(ntuple(i -> alpha * x._limbs[i], Val{N}()))
+end
+
+@inline function scale(alpha::T, x::MultiFloatVec{M,T,N}) where {M,T,N}
+    return MultiFloatVec{M,T,N}(ntuple(i -> alpha * x._limbs[i], Val{N}()))
+end
+
+@inline function scale(alpha::Vec{M,T}, x::MultiFloat{T,N}) where {M,T,N}
+    return MultiFloatVec{M,T,N}(ntuple(i -> alpha * x._limbs[i], Val{N}()))
+end
+
+@inline function scale(alpha::Vec{M,T}, x::MultiFloatVec{M,T,N}) where {M,T,N}
+    return MultiFloatVec{M,T,N}(ntuple(i -> alpha * x._limbs[i], Val{N}()))
+end
 
 #################################################################### LEGACY CODE
 
@@ -543,9 +597,6 @@ end
 end
 
 ######################################################## EXPONENTIATION (BASE 2)
-
-@inline scale(a::T, x::MultiFloat{T,N}) where {T,N} =
-    MultiFloat{T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
 
 @inline function Base.ldexp(x::MF{T,N}, n::U) where {T,N,U<:Integer}
     x = renormalize(x)
