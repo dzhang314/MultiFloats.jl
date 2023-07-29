@@ -358,28 +358,18 @@ const _MF = MultiFloat
 const _MFV = MultiFloatVec
 
 
-@inline function Base.zero(::Type{_MF{T,N}}) where {T,N}
-    return _MF{T,N}(ntuple(_ -> zero(T), Val{N}()))
-end
-
-
-@inline function Base.zero(::Type{_MFV{M,T,N}}) where {M,T,N}
-    return _MFV{M,T,N}(ntuple(_ -> zero(Vec{M,T}), Val{N}()))
-end
-
-
-@inline function Base.one(::Type{_MF{T,N}}) where {T,N}
-    return _MF{T,N}(
-        ntuple(i -> ifelse(i == 1, one(T), zero(T)), Val{N}())
-    )
-end
-
-
-@inline function Base.one(::Type{_MFV{M,T,N}}) where {M,T,N}
-    return _MFV{M,T,N}(
-        ntuple(i -> ifelse(i == 1, one(Vec{M,T}), zero(Vec{M,T})), Val{N}())
-    )
-end
+@inline Base.zero(::Type{_MF{T,N}}) where {T,N} =
+    _MF{T,N}(ntuple(_ -> zero(T), Val{N}()))
+@inline Base.zero(::Type{_MFV{M,T,N}}) where {M,T,N} =
+    _MFV{M,T,N}(ntuple(_ -> zero(Vec{M,T}), Val{N}()))
+@inline Base.zero(::_MF{T,N}) where {T,N} = zero(_MF{T,N})
+@inline Base.zero(::_MFV{M,T,N}) where {M,T,N} = zero(_MFV{M,T,N})
+@inline Base.one(::Type{_MF{T,N}}) where {T,N} =
+    _MF{T,N}(ntuple(i -> ifelse(i == 1, one(T), zero(T)), Val{N}()))
+@inline Base.one(::Type{_MFV{M,T,N}}) where {M,T,N} =
+    _MFV{M,T,N}(ntuple(i -> ifelse(i == 1, one(Vec{M,T}), zero(Vec{M,T})), Val{N}()))
+@inline Base.one(::_MF{T,N}) where {T,N} = one(_MF{T,N})
+@inline Base.one(::_MFV{M,T,N}) where {M,T,N} = one(_MFV{M,T,N})
 
 
 ################################################################################
@@ -675,40 +665,80 @@ end
 ################################################################################
 
 
+function multifloat_div_expr(vec_width::Int, T::DataType, num_limbs::Int)
+    code = _inline_block()
+    terms = [[Symbol('q', i)] for i = 1:num_limbs]
+    for i = 1:num_limbs
+        if i == 1
+            push!(code, :(r = a))
+        else
+            push!(code, :(r = r - b * $(only(terms[i-1]))))
+        end
+        push!(code, :($(only(terms[i])) = r._limbs[1] / b._limbs[1]))
+    end
+    return _meta_return_multifloat(
+        vec_width, T, num_limbs, code, terms, :two_pass_renorm
+    )
+end
+
+
+@generated multifloat_div(a::_MF{T,N}, b::_MF{T,N}) where {T,N} =
+    multifloat_div_expr(-1, T, N)
+@generated multifloat_div(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} =
+    multifloat_div_expr(M, T, N)
+
+
+################################################################################
+
+
 @inline Base.:+(a::_MF{T,N}, b::_MF{T,N}) where {T,N} = multifloat_add(a, b)
 @inline Base.:+(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} = multifloat_add(a, b)
 @inline Base.:+(a::_MF{T,N}, b::T) where {T,N} = multifloat_float_add(a, b)
+@inline Base.:+(a::_MF{T,N}, b::T) where {T<:Number,N} = multifloat_float_add(a, b)
 @inline Base.:+(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T,N} = multifloat_float_add(a, b)
+@inline Base.:+(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T<:Number,N} = multifloat_float_add(a, b)
 @inline Base.:+(a::T, b::_MF{T,N}) where {T,N} = multifloat_float_add(b, a)
+@inline Base.:+(a::T, b::_MF{T,N}) where {T<:Number,N} = multifloat_float_add(b, a)
 @inline Base.:+(a::Vec{M,T}, b::_MFV{M,T,N}) where {M,T,N} = multifloat_float_add(b, a)
+@inline Base.:+(a::Vec{M,T}, b::_MFV{M,T,N}) where {M,T<:Number,N} = multifloat_float_add(b, a)
 @inline Base.:-(a::_MF{T,N}, b::_MF{T,N}) where {T,N} = multifloat_sub(a, b)
 @inline Base.:-(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} = multifloat_sub(a, b)
 @inline Base.:-(a::_MF{T,N}, b::T) where {T,N} = multifloat_float_sub(a, b)
+@inline Base.:-(a::_MF{T,N}, b::T) where {T<:Number,N} = multifloat_float_sub(a, b)
 @inline Base.:-(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T,N} = multifloat_float_sub(a, b)
+@inline Base.:-(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T<:Number,N} = multifloat_float_sub(a, b)
 @inline Base.:-(a::T, b::_MF{T,N}) where {T,N} = float_multifloat_sub(a, b)
+@inline Base.:-(a::T, b::_MF{T,N}) where {T<:Number,N} = float_multifloat_sub(a, b)
 @inline Base.:-(a::Vec{M,T}, b::_MFV{M,T,N}) where {M,T,N} = float_multifloat_sub(a, b)
+@inline Base.:-(a::Vec{M,T}, b::_MFV{M,T,N}) where {M,T<:Number,N} = float_multifloat_sub(a, b)
 @inline Base.:*(a::_MF{T,N}, b::_MF{T,N}) where {T,N} = multifloat_mul(a, b)
 @inline Base.:*(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} = multifloat_mul(a, b)
 @inline Base.:*(a::_MF{T,N}, b::T) where {T,N} = multifloat_float_mul(a, b)
+@inline Base.:*(a::_MF{T,N}, b::T) where {T<:Number,N} = multifloat_float_mul(a, b)
 @inline Base.:*(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T,N} = multifloat_float_mul(a, b)
+@inline Base.:*(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T<:Number,N} = multifloat_float_mul(a, b)
 @inline Base.:*(a::T, b::_MF{T,N}) where {T,N} = multifloat_float_mul(b, a)
+@inline Base.:*(a::T, b::_MF{T,N}) where {T<:Number,N} = multifloat_float_mul(b, a)
 @inline Base.:*(a::Vec{M,T}, b::_MFV{M,T,N}) where {M,T,N} = multifloat_float_mul(b, a)
+@inline Base.:*(a::Vec{M,T}, b::_MFV{M,T,N}) where {M,T<:Number,N} = multifloat_float_mul(b, a)
+@inline Base.:/(a::_MF{T,N}, b::_MF{T,N}) where {T,N} = multifloat_div(a, b)
+@inline Base.:/(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} = multifloat_div(a, b)
 
 
 ################################################# MULTIFLOAT-SPECIFIC ARITHMETIC
 
 
 @inline scale(a::T, x::_MF{T,N}) where {T,N} =
-    return MultiFloat{T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
+    MultiFloat{T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
 
 @inline scale(a::T, x::_MFV{M,T,N}) where {M,T,N} =
-    return MultiFloatVec{M,T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
+    MultiFloatVec{M,T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
 
 @inline scale(a::Vec{M,T}, x::_MF{T,N}) where {M,T,N} =
-    return MultiFloatVec{M,T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
+    MultiFloatVec{M,T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
 
 @inline scale(a::Vec{M,T}, x::_MFV{M,T,N}) where {M,T,N} =
-    return MultiFloatVec{M,T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
+    MultiFloatVec{M,T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
 
 
 #################################################################### LEGACY CODE

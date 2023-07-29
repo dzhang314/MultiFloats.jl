@@ -26,21 +26,6 @@ meta_multifloat(N::Int) = :(MultiFloat{T,$N})
 
 ########################################################### ARITHMETIC FUNCTIONS
 
-function multifloat_div_func(N::Int; sloppy::Bool=false)
-    code = inline_block()
-    quots = [Symbol('q', i) for i = 0:N-sloppy]
-    push!(code, :($(quots[1]) = a._limbs[1] / b._limbs[1]))
-    push!(code, :(r = a - b * $(quots[1])))
-    for i = 2:N-sloppy
-        push!(code, :($(quots[i]) = r._limbs[1] / b._limbs[1]))
-        push!(code, :(r -= b * $(quots[i])))
-    end
-    push!(code, :($(quots[N+1-sloppy]) = r._limbs[1] / b._limbs[1]))
-    push!(code, Expr(:call, meta_multifloat(N),
-        Expr(:call, renorm_name(N), quots...)))
-    function_def_typed(:multifloat_div, meta_multifloat(N), [:a, :b], code)
-end
-
 num_sqrt_iters(N::Int, sloppy::Bool) =
     (2 <= N <= 3) ? 2 :
     (4 <= N <= 5) ? 3 :
