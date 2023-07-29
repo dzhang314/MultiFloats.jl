@@ -22,74 +22,9 @@ function_def(name, args, body) =
 function_def_typed(name, arg_type, args, body) =
     function_def(name, [Expr(:(::), arg, arg_type) for arg in args], body)
 
-meta_two_prod(p::Symbol, e::Symbol, a::SymExpr, b::SymExpr) =
-    Expr(:(=), meta_tuple(p, e), Expr(:call, :two_prod, a, b))
-
 meta_multifloat(N::Int) = :(MultiFloat{T,$N})
 
 ########################################################### ARITHMETIC FUNCTIONS
-
-function multifloat_float_add_func(N::Int; sloppy::Bool=false)
-    code = inline_block()
-    vars = Tuple{Symbol,Int}[]
-    push!(code, meta_two_sum(add_var!(vars, 't', 0), add_var!(vars, 'e', 1),
-        :(a._limbs[1]), :b))
-    for i = 2:N
-        push!(code, Expr(:(=), add_var!(vars, 't', i - 1), :(a._limbs[$i])))
-    end
-    reverse!(vars)
-    generate_accumulation_code!(code, vars, N, sloppy=sloppy)
-    function_def(:multifloat_float_add,
-        [Expr(:(::), :a, meta_multifloat(N)), Expr(:(::), :b, :T)], code)
-end
-
-function multifloat_mul_func(N::Int; sloppy::Bool=false)
-    code = inline_block()
-    for i = 0:N-1-sloppy, j = 0:i
-        push!(code, meta_two_prod(
-            Symbol('t', j, '_', i), Symbol('e', j, '_', i + 1),
-            :(a._limbs[$(j + 1)]), :(b._limbs[$(i - j + 1)])))
-    end
-    for i = 0:N-2+sloppy
-        push!(code, Expr(:(=), Symbol('t', i, '_', N - sloppy),
-            :(a._limbs[$(i + 2 - sloppy)] * b._limbs[$(N - i)])))
-    end
-    vars = Tuple{Symbol,Int}[]
-    for i = 0:N-1-sloppy, j = 0:i
-        add_var!(vars, 't', j, i)
-    end
-    for i = 0:N-2+sloppy
-        add_var!(vars, 't', i, N - sloppy)
-    end
-    for i = 0:N-1-sloppy, j = 0:i
-        add_var!(vars, 'e', j, i + 1)
-    end
-    generate_accumulation_code!(code, vars, N, sloppy=sloppy)
-    function_def_typed(:multifloat_mul, meta_multifloat(N), [:a, :b], code)
-end
-
-function multifloat_float_mul_func(N::Int; sloppy::Bool=false)
-    code = inline_block()
-    for i = 0:N-1-sloppy
-        push!(code, meta_two_prod(
-            Symbol('t', i), Symbol('e', i + 1),
-            :(a._limbs[$(i + 1)]), :b
-        ))
-    end
-    if sloppy
-        push!(code, Expr(:(=), Symbol('t', N - 1), :(a._limbs[$N] * b)))
-    end
-    vars = Tuple{Symbol,Int}[]
-    for i = 0:N-1
-        add_var!(vars, 't', i)
-    end
-    for i = 1:N-sloppy
-        add_var!(vars, 'e', i)
-    end
-    generate_accumulation_code!(code, vars, N, sloppy=sloppy)
-    function_def(:multifloat_float_mul,
-        [Expr(:(::), :a, meta_multifloat(N)), Expr(:(::), :b, :T)], code)
-end
 
 function multifloat_div_func(N::Int; sloppy::Bool=false)
     code = inline_block()

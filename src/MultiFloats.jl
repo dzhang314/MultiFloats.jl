@@ -1,6 +1,7 @@
 module MultiFloats
 
 using SIMD: Vec
+using SIMD.Intrinsics: extractelement
 
 
 ########################################################## ERROR-FREE ARITHMETIC
@@ -54,35 +55,48 @@ end
 ###################################################### METAPROGRAMMING UTILITIES
 
 
-inline_block() = [Expr(:meta, :inline)]
+_inline_block() = [Expr(:meta, :inline)]
 
 
-meta_tuple(xs...) = Expr(:tuple, xs...)
+_meta_tuple(xs...) = Expr(:tuple, xs...)
 
 
-meta_unpack(lhs::Vector{Symbol}, rhs::Union{Symbol,Expr}) =
-    Expr(:(=), meta_tuple(lhs...), rhs)
+_meta_unpack(lhs::Vector{Symbol}, rhs::Union{Symbol,Expr}) =
+    Expr(:(=), _meta_tuple(lhs...), rhs)
 
 
-meta_fast_two_sum(s::Symbol, e::Symbol, a::Symbol, b::Symbol) =
-    Expr(:(=), meta_tuple(s, e), Expr(:call, :fast_two_sum, a, b))
+_meta_fast_two_sum(s::Symbol, e::Symbol, a::Symbol, b::Symbol) =
+    Expr(:(=), _meta_tuple(s, e), Expr(:call, :fast_two_sum, a, b))
 
 
-meta_two_sum(s::Symbol, e::Symbol, a::Symbol, b::Symbol) =
-    Expr(:(=), meta_tuple(s, e), Expr(:call, :two_sum, a, b))
+_meta_two_sum(s::Symbol, e::Symbol, a::Symbol, b::Symbol) =
+    Expr(:(=), _meta_tuple(s, e), Expr(:call, :two_sum, a, b))
 
 
-meta_two_diff(d::Symbol, e::Symbol, a::Symbol, b::Symbol) =
-    Expr(:(=), meta_tuple(d, e), Expr(:call, :two_diff, a, b))
+_meta_two_diff(d::Symbol, e::Symbol, a::Symbol, b::Symbol) =
+    Expr(:(=), _meta_tuple(d, e), Expr(:call, :two_diff, a, b))
 
 
-function meta_sum(T::DataType, xs::Vector{Symbol})
+_meta_prod(p::Symbol, a::Symbol, b::Symbol) =
+    Expr(:(=), p, Expr(:call, :*, a, b))
+
+
+_meta_two_prod(p::Symbol, e::Symbol, a::Symbol, b::Symbol) =
+    Expr(:(=), _meta_tuple(p, e), Expr(:call, :two_prod, a, b))
+
+
+function _meta_sum(T::DataType, xs::Vector{Symbol})
     if isempty(xs)
         return zero(T)
     elseif length(xs) == 1
         return only(xs)
     else
-        return Expr(:call, :+, xs...)
+        xs = Vector{Union{Symbol,Expr}}(xs)
+        while length(xs) > 1
+            push!(xs, Expr(:call, :+, xs[1], xs[2]))
+            deleteat!(xs, 1:2)
+        end
+        return only(xs)
     end
 end
 
@@ -96,11 +110,11 @@ function accurate_sum_expr(
     num_outputs::Int
 )
     @assert num_outputs > 0
-    code = inline_block()
+    code = _inline_block()
 
     # Unpack argument tuple.
     args = [Symbol('x', i) for i = 1:num_inputs]
-    push!(code, meta_unpack(args, :xs))
+    push!(code, _meta_unpack(args, :xs))
 
     # Instantiate lists of terms of order 1, epsilon, epsilon^2, ...
     terms = [Symbol[] for _ = 1:num_outputs]
@@ -118,7 +132,7 @@ function accurate_sum_expr(
             count += 1
             sum_term = Symbol('s', count)
             err_term = Symbol('e', count)
-            push!(code, meta_two_sum(
+            push!(code, _meta_two_sum(
                 sum_term, err_term, curr_terms[1], curr_terms[2]
             ))
             deleteat!(curr_terms, 1:2)
@@ -128,7 +142,7 @@ function accurate_sum_expr(
     end
 
     # Return a tuple containing the final term of each order.
-    push!(code, Expr(:return, meta_tuple(meta_sum.(T, terms)...)))
+    push!(code, Expr(:return, _meta_tuple(_meta_sum.(T, terms)...)))
     return Expr(:block, code...)
 end
 
@@ -146,21 +160,21 @@ function one_pass_renorm_expr(
     @assert num_outputs > 0
     @assert ((num_inputs == num_outputs) ||
              (num_inputs == num_outputs + 1))
-    code = inline_block()
+    code = _inline_block()
 
     # Unpack argument tuple.
     args = [Symbol('x', i) for i = 1:num_inputs]
-    push!(code, meta_unpack(args, :xs))
+    push!(code, _meta_unpack(args, :xs))
 
     # Generate one-pass renormalization code.
     for i = 1:num_outputs-1
-        push!(code, meta_fast_two_sum(args[i], args[i+1], args[i], args[i+1]))
+        push!(code, _meta_fast_two_sum(args[i], args[i+1], args[i], args[i+1]))
     end
 
     # Return a tuple of renormalized terms.
-    push!(code, Expr(:return, meta_tuple(
+    push!(code, Expr(:return, _meta_tuple(
         args[1:num_outputs-1]...,
-        meta_sum(T, args[num_outputs:end])
+        _meta_sum(T, args[num_outputs:end])
     )))
     return Expr(:block, code...)
 end
@@ -179,24 +193,24 @@ function two_pass_renorm_expr(
     @assert num_outputs > 0
     @assert ((num_inputs == num_outputs) ||
              (num_inputs == num_outputs + 1))
-    code = inline_block()
+    code = _inline_block()
 
     # Unpack argument tuple.
     args = [Symbol('x', i) for i = 1:num_inputs]
-    push!(code, meta_unpack(args, :xs))
+    push!(code, _meta_unpack(args, :xs))
 
     # Generate two-pass renormalization code.
     for i = num_inputs-1:-1:2
-        push!(code, meta_fast_two_sum(args[i], args[i+1], args[i], args[i+1]))
+        push!(code, _meta_fast_two_sum(args[i], args[i+1], args[i], args[i+1]))
     end
     for i = 1:num_outputs-1
-        push!(code, meta_fast_two_sum(args[i], args[i+1], args[i], args[i+1]))
+        push!(code, _meta_fast_two_sum(args[i], args[i+1], args[i], args[i+1]))
     end
 
     # Return a tuple of renormalized terms.
-    push!(code, Expr(:return, meta_tuple(
+    push!(code, Expr(:return, _meta_tuple(
         args[1:num_outputs-1]...,
-        meta_sum(T, args[num_outputs:end])
+        _meta_sum(T, args[num_outputs:end])
     )))
     return Expr(:block, code...)
 end
@@ -297,6 +311,28 @@ const v8Float64x8 = MultiFloatVec{8,Float64,8}
 ################################################################################
 
 
+@inline function MultiFloat{T,N}(x::T) where {T,N}
+    return MultiFloat{T,N}(
+        ntuple(i -> ifelse(i == 1, x, zero(T)), Val{N}())
+    )
+end
+
+
+@inline function MultiFloatVec{M,T,N}(x::Vec{M,T}) where {M,T,N}
+    return MultiFloatVec{M,T,N}(
+        ntuple(i -> ifelse(i == 1, x, zero(Vec{M,T})), Val{N}())
+    )
+end
+
+
+@inline function MultiFloatVec{M,T,N}(x::T) where {M,T,N}
+    return MultiFloatVec{M,T,N}(Vec{M,T}(x))
+end
+
+
+################################################################################
+
+
 @inline function MultiFloatVec{M,T,N}(
     xs::NTuple{M,MultiFloat{T,N}}
 ) where {M,T,N}
@@ -307,10 +343,49 @@ const v8Float64x8 = MultiFloatVec{8,Float64,8}
 end
 
 
+@inline function Base.getindex(x::MultiFloatVec{M,T,N}, i::Int) where {M,T,N}
+    return MultiFloat{T,N}(ntuple(
+        j -> extractelement(x._limbs[j].data, i),
+        Val{N}()
+    ))
+end
+
+
 ################################################################################
 
 
-function push_accumulation_code!(
+const _MF = MultiFloat
+const _MFV = MultiFloatVec
+
+
+@inline function Base.zero(::Type{_MF{T,N}}) where {T,N}
+    return _MF{T,N}(ntuple(_ -> zero(T), Val{N}()))
+end
+
+
+@inline function Base.zero(::Type{_MFV{M,T,N}}) where {M,T,N}
+    return _MFV{M,T,N}(ntuple(_ -> zero(Vec{M,T}), Val{N}()))
+end
+
+
+@inline function Base.one(::Type{_MF{T,N}}) where {T,N}
+    return _MF{T,N}(
+        ntuple(i -> ifelse(i == 1, one(T), zero(T)), Val{N}())
+    )
+end
+
+
+@inline function Base.one(::Type{_MFV{M,T,N}}) where {M,T,N}
+    return _MFV{M,T,N}(
+        ntuple(i -> ifelse(i == 1, one(Vec{M,T}), zero(Vec{M,T})), Val{N}())
+    )
+end
+
+
+################################################################################
+
+
+function _push_accumulation_code!(
     code::Vector{Expr},
     results::Vector{Symbol},
     terms::Vector{Vector{Symbol}}
@@ -325,7 +400,7 @@ function push_accumulation_code!(
             count += 1
             push!(lhs, Symbol('t', count))
         end
-        push!(code, meta_unpack(lhs,
+        push!(code, _meta_unpack(lhs,
             Expr(:call, :accurate_sum, Val(num_spill), terms[i]...)
         ))
         for j = 2:num_spill
@@ -336,7 +411,7 @@ function push_accumulation_code!(
 end
 
 
-function meta_multifloat(vec_width::Int, T::DataType, num_limbs::Int)
+function _meta_multifloat(vec_width::Int, T::DataType, num_limbs::Int)
     if vec_width == -1
         return Expr(:curly, :MultiFloat, T, num_limbs)
     else
@@ -345,111 +420,307 @@ function meta_multifloat(vec_width::Int, T::DataType, num_limbs::Int)
 end
 
 
+################################################################################
+
+
 function multifloat_add_expr(vec_width::Int, T::DataType, num_limbs::Int)
-    code = inline_block()
+    code = _inline_block()
 
     a_limbs = [Symbol('a', i) for i = 1:num_limbs]
-    push!(code, meta_unpack(a_limbs, :(a._limbs)))
+    push!(code, _meta_unpack(a_limbs, :(a._limbs)))
 
     b_limbs = [Symbol('b', i) for i = 1:num_limbs]
-    push!(code, meta_unpack(b_limbs, :(b._limbs)))
+    push!(code, _meta_unpack(b_limbs, :(b._limbs)))
 
     terms = [Symbol[] for _ = 1:num_limbs+1]
     for i = 1:num_limbs
         sum_term = Symbol('s', i)
         err_term = Symbol('e', i)
-        push!(code, meta_two_sum(sum_term, err_term, a_limbs[i], b_limbs[i]))
+        push!(code, _meta_two_sum(sum_term, err_term, a_limbs[i], b_limbs[i]))
         push!(terms[i], sum_term)
         push!(terms[i+1], err_term)
     end
 
     results = [Symbol('x', i) for i = 1:num_limbs+1]
-    push_accumulation_code!(code, results, terms)
+    _push_accumulation_code!(code, results, terms)
     push!(code, Expr(:return, Expr(:call,
-        meta_multifloat(vec_width, T, num_limbs),
+        _meta_multifloat(vec_width, T, num_limbs),
         Expr(:call, :two_pass_renorm, Val(num_limbs), results...)
     )))
     return Expr(:block, code...)
 end
 
 
-@generated function multifloat_add(
-    a::MultiFloat{T,N}, b::MultiFloat{T,N}
-) where {T,N}
-    return multifloat_add_expr(-1, T, N)
+@generated multifloat_add(a::_MF{T,N}, b::_MF{T,N}) where {T,N} =
+    multifloat_add_expr(-1, T, N)
+@generated multifloat_add(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} =
+    multifloat_add_expr(M, T, N)
+
+
+function multifloat_float_add_expr(vec_width::Int, T::DataType, num_limbs::Int)
+    code = _inline_block()
+
+    a_limbs = [Symbol('a', i) for i = 1:num_limbs]
+    push!(code, _meta_unpack(a_limbs, :(a._limbs)))
+
+    terms = [Symbol[] for _ = 1:num_limbs+1]
+    last_term = :b
+    for i = 1:num_limbs
+        sum_term = Symbol('s', i)
+        err_term = Symbol('e', i)
+        push!(code, _meta_two_sum(sum_term, err_term, a_limbs[i], last_term))
+        push!(terms[i], sum_term)
+        last_term = err_term
+    end
+    push!(terms[num_limbs+1], last_term)
+
+    results = [Symbol('x', i) for i = 1:num_limbs+1]
+    _push_accumulation_code!(code, results, terms)
+    push!(code, Expr(:return, Expr(:call,
+        _meta_multifloat(vec_width, T, num_limbs),
+        Expr(:call, :two_pass_renorm, Val(num_limbs), results...)
+    )))
+    return Expr(:block, code...)
 end
 
 
-@generated function multifloat_add(
-    a::MultiFloatVec{M,T,N}, b::MultiFloatVec{M,T,N}
-) where {M,T,N}
-    return multifloat_add_expr(M, T, N)
-end
+@generated multifloat_float_add(a::_MF{T,N}, b::T) where {T,N} =
+    multifloat_float_add_expr(-1, T, N)
+@generated multifloat_float_add(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T,N} =
+    multifloat_float_add_expr(M, T, N)
+
+
+################################################################################
 
 
 function multifloat_sub_expr(vec_width::Int, T::DataType, num_limbs::Int)
-    code = inline_block()
+    code = _inline_block()
 
     a_limbs = [Symbol('a', i) for i = 1:num_limbs]
-    push!(code, meta_unpack(a_limbs, :(a._limbs)))
+    push!(code, _meta_unpack(a_limbs, :(a._limbs)))
 
     b_limbs = [Symbol('b', i) for i = 1:num_limbs]
-    push!(code, meta_unpack(b_limbs, :(b._limbs)))
+    push!(code, _meta_unpack(b_limbs, :(b._limbs)))
 
     terms = [Symbol[] for _ = 1:num_limbs+1]
     for i = 1:num_limbs
         diff_term = Symbol('d', i)
         err_term = Symbol('e', i)
-        push!(code, meta_two_diff(diff_term, err_term, a_limbs[i], b_limbs[i]))
+        push!(code, _meta_two_diff(diff_term, err_term, a_limbs[i], b_limbs[i]))
         push!(terms[i], diff_term)
         push!(terms[i+1], err_term)
     end
 
     results = [Symbol('x', i) for i = 1:num_limbs+1]
-    push_accumulation_code!(code, results, terms)
+    _push_accumulation_code!(code, results, terms)
     push!(code, Expr(:return, Expr(:call,
-        meta_multifloat(vec_width, T, num_limbs),
+        _meta_multifloat(vec_width, T, num_limbs),
         Expr(:call, :two_pass_renorm, Val(num_limbs), results...)
     )))
     return Expr(:block, code...)
 end
 
 
-@generated function multifloat_sub(
-    a::MultiFloat{T,N}, b::MultiFloat{T,N}
-) where {T,N}
-    return multifloat_sub_expr(-1, T, N)
+@generated multifloat_sub(a::_MF{T,N}, b::_MF{T,N}) where {T,N} =
+    multifloat_sub_expr(-1, T, N)
+@generated multifloat_sub(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} =
+    multifloat_sub_expr(M, T, N)
+
+
+function multifloat_float_sub_expr(vec_width::Int, T::DataType, num_limbs::Int)
+    code = _inline_block()
+
+    a_limbs = [Symbol('a', i) for i = 1:num_limbs]
+    push!(code, _meta_unpack(a_limbs, :(a._limbs)))
+
+    terms = [Symbol[] for _ = 1:num_limbs+1]
+    last_term = let
+        sum_term = Symbol('s', 1)
+        err_term = Symbol('e', 1)
+        push!(code, _meta_two_diff(sum_term, err_term, a_limbs[1], :b))
+        push!(terms[1], sum_term)
+        err_term
+    end
+    for i = 2:num_limbs
+        sum_term = Symbol('s', i)
+        err_term = Symbol('e', i)
+        push!(code, _meta_two_sum(sum_term, err_term, a_limbs[i], last_term))
+        push!(terms[i], sum_term)
+        last_term = err_term
+    end
+    push!(terms[num_limbs+1], last_term)
+
+    results = [Symbol('x', i) for i = 1:num_limbs+1]
+    _push_accumulation_code!(code, results, terms)
+    push!(code, Expr(:return, Expr(:call,
+        _meta_multifloat(vec_width, T, num_limbs),
+        Expr(:call, :two_pass_renorm, Val(num_limbs), results...)
+    )))
+    return Expr(:block, code...)
 end
 
 
-@generated function multifloat_sub(
-    a::MultiFloatVec{M,T,N}, b::MultiFloatVec{M,T,N}
-) where {M,T,N}
-    return multifloat_sub_expr(M, T, N)
+@generated multifloat_float_sub(a::_MF{T,N}, b::T) where {T,N} =
+    multifloat_float_sub_expr(-1, T, N)
+@generated multifloat_float_sub(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T,N} =
+    multifloat_float_sub_expr(M, T, N)
+
+
+function float_multifloat_sub_expr(vec_width::Int, T::DataType, num_limbs::Int)
+    code = _inline_block()
+
+    b_limbs = [Symbol('b', i) for i = 1:num_limbs]
+    push!(code, _meta_unpack(b_limbs, :(b._limbs)))
+
+    terms = [Symbol[] for _ = 1:num_limbs+1]
+    last_term = :a
+    for i = 1:num_limbs
+        sum_term = Symbol('s', i)
+        err_term = Symbol('e', i)
+        push!(code, _meta_two_diff(sum_term, err_term, last_term, b_limbs[i]))
+        push!(terms[i], sum_term)
+        last_term = err_term
+    end
+    push!(terms[num_limbs+1], last_term)
+
+    results = [Symbol('x', i) for i = 1:num_limbs+1]
+    _push_accumulation_code!(code, results, terms)
+    push!(code, Expr(:return, Expr(:call,
+        _meta_multifloat(vec_width, T, num_limbs),
+        Expr(:call, :two_pass_renorm, Val(num_limbs), results...)
+    )))
+    return Expr(:block, code...)
 end
+
+
+@generated float_multifloat_sub(a::T, b::_MF{T,N}) where {T,N} =
+    float_multifloat_sub_expr(-1, T, N)
+@generated float_multifloat_sub(a::Vec{M,T}, b::_MFV{M,T,N}) where {M,T,N} =
+    float_multifloat_sub_expr(M, T, N)
+
+
+################################################################################
+
+
+function multifloat_mul_expr(vec_width::Int, T::DataType, num_limbs::Int)
+    code = _inline_block()
+
+    a_limbs = [Symbol('a', i) for i = 1:num_limbs]
+    push!(code, _meta_unpack(a_limbs, :(a._limbs)))
+
+    b_limbs = [Symbol('b', i) for i = 1:num_limbs]
+    push!(code, _meta_unpack(b_limbs, :(b._limbs)))
+
+    terms = [Symbol[] for _ = 1:num_limbs]
+    count = 0
+    for i = 1:num_limbs-1
+        for j = 1:i
+            count += 1
+            prod_term = Symbol('p', count)
+            err_term = Symbol('e', count)
+            push!(code, _meta_two_prod(
+                prod_term, err_term, a_limbs[j], b_limbs[i-j+1]
+            ))
+            push!(terms[i], prod_term)
+            push!(terms[i+1], err_term)
+        end
+    end
+    for j = 1:num_limbs
+        count += 1
+        prod_term = Symbol('p', count)
+        push!(code, _meta_prod(prod_term, a_limbs[j], b_limbs[num_limbs-j+1]))
+        push!(terms[num_limbs], prod_term)
+    end
+
+    results = [Symbol('x', i) for i = 1:num_limbs]
+    _push_accumulation_code!(code, results, terms)
+    push!(code, Expr(:return, Expr(:call,
+        _meta_multifloat(vec_width, T, num_limbs),
+        Expr(:call, :two_pass_renorm, Val(num_limbs), results...)
+    )))
+    return Expr(:block, code...)
+end
+
+
+@generated multifloat_mul(a::_MF{T,N}, b::_MF{T,N}) where {T,N} =
+    multifloat_mul_expr(-1, T, N)
+@generated multifloat_mul(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} =
+    multifloat_mul_expr(M, T, N)
+
+
+function multifloat_float_mul_expr(vec_width::Int, T::DataType, num_limbs::Int)
+    code = _inline_block()
+
+    a_limbs = [Symbol('a', i) for i = 1:num_limbs]
+    push!(code, _meta_unpack(a_limbs, :(a._limbs)))
+
+    terms = [Symbol[] for _ = 1:num_limbs]
+    for i = 1:num_limbs-1
+        prod_term = Symbol('p', i)
+        err_term = Symbol('e', i)
+        push!(code, _meta_two_prod(prod_term, err_term, a_limbs[i], :b))
+        push!(terms[i], prod_term)
+        push!(terms[i+1], err_term)
+    end
+    let
+        prod_term = Symbol('p', num_limbs)
+        push!(code, _meta_prod(prod_term, a_limbs[num_limbs], :b))
+        push!(terms[num_limbs], prod_term)
+    end
+
+    results = [Symbol('x', i) for i = 1:num_limbs]
+    _push_accumulation_code!(code, results, terms)
+    push!(code, Expr(:return, Expr(:call,
+        _meta_multifloat(vec_width, T, num_limbs),
+        Expr(:call, :two_pass_renorm, Val(num_limbs), results...)
+    )))
+    return Expr(:block, code...)
+end
+
+
+@generated multifloat_float_mul(a::MultiFloat{T,N}, b::T) where {T,N} =
+    multifloat_float_mul_expr(-1, T, N)
+@generated multifloat_float_mul(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T,N} =
+    multifloat_float_mul_expr(M, T, N)
+
+
+################################################################################
+
+
+@inline Base.:+(a::_MF{T,N}, b::_MF{T,N}) where {T,N} = multifloat_add(a, b)
+@inline Base.:+(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} = multifloat_add(a, b)
+@inline Base.:+(a::_MF{T,N}, b::T) where {T,N} = multifloat_float_add(a, b)
+@inline Base.:+(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T,N} = multifloat_float_add(a, b)
+@inline Base.:+(a::T, b::_MF{T,N}) where {T,N} = multifloat_float_add(b, a)
+@inline Base.:+(a::Vec{M,T}, b::_MFV{M,T,N}) where {M,T,N} = multifloat_float_add(b, a)
+@inline Base.:-(a::_MF{T,N}, b::_MF{T,N}) where {T,N} = multifloat_sub(a, b)
+@inline Base.:-(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} = multifloat_sub(a, b)
+@inline Base.:-(a::_MF{T,N}, b::T) where {T,N} = multifloat_float_sub(a, b)
+@inline Base.:-(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T,N} = multifloat_float_sub(a, b)
+@inline Base.:-(a::T, b::_MF{T,N}) where {T,N} = float_multifloat_sub(a, b)
+@inline Base.:-(a::Vec{M,T}, b::_MFV{M,T,N}) where {M,T,N} = float_multifloat_sub(a, b)
+@inline Base.:*(a::_MF{T,N}, b::_MF{T,N}) where {T,N} = multifloat_mul(a, b)
+@inline Base.:*(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} = multifloat_mul(a, b)
+@inline Base.:*(a::_MF{T,N}, b::T) where {T,N} = multifloat_float_mul(a, b)
+@inline Base.:*(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T,N} = multifloat_float_mul(a, b)
+@inline Base.:*(a::T, b::_MF{T,N}) where {T,N} = multifloat_float_mul(b, a)
+@inline Base.:*(a::Vec{M,T}, b::_MFV{M,T,N}) where {M,T,N} = multifloat_float_mul(b, a)
 
 
 ################################################# MULTIFLOAT-SPECIFIC ARITHMETIC
 
 
-@inline function scale(alpha::T, x::MultiFloat{T,N}) where {T,N}
-    return MultiFloat{T,N}(ntuple(i -> alpha * x._limbs[i], Val{N}()))
-end
+@inline scale(a::T, x::_MF{T,N}) where {T,N} =
+    return MultiFloat{T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
 
+@inline scale(a::T, x::_MFV{M,T,N}) where {M,T,N} =
+    return MultiFloatVec{M,T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
 
-@inline function scale(alpha::T, x::MultiFloatVec{M,T,N}) where {M,T,N}
-    return MultiFloatVec{M,T,N}(ntuple(i -> alpha * x._limbs[i], Val{N}()))
-end
+@inline scale(a::Vec{M,T}, x::_MF{T,N}) where {M,T,N} =
+    return MultiFloatVec{M,T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
 
-
-@inline function scale(alpha::Vec{M,T}, x::MultiFloat{T,N}) where {M,T,N}
-    return MultiFloatVec{M,T,N}(ntuple(i -> alpha * x._limbs[i], Val{N}()))
-end
-
-
-@inline function scale(alpha::Vec{M,T}, x::MultiFloatVec{M,T,N}) where {M,T,N}
-    return MultiFloatVec{M,T,N}(ntuple(i -> alpha * x._limbs[i], Val{N}()))
-end
+@inline scale(a::Vec{M,T}, x::_MFV{M,T,N}) where {M,T,N} =
+    return MultiFloatVec{M,T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
 
 
 #################################################################### LEGACY CODE
@@ -465,14 +736,11 @@ include("./Arithmetic.jl")
 using .Arithmetic
 
 # Short alias for brevity of type declarations
-const MF = MultiFloat
+const _MF = MultiFloat
 
 ############################################## CONSTRUCTION FROM PRIMITIVE TYPES
 
 @inline MultiFloat{T,N}(x::MultiFloat{T,N}) where {T,N} = x
-
-@inline MultiFloat{T,N}(x::T) where {T,N} =
-    MultiFloat{T,N}((x, ntuple(_ -> zero(T), Val{N - 1}())...))
 
 @inline MultiFloat{T,N}(x::MultiFloat{T,M}) where {T,M,N} =
     MultiFloat{T,N}((
@@ -555,22 +823,22 @@ end
 
 # overload Base._precision to support the base keyword in Julia 1.8
 let precision = isdefined(Base, :_precision) ? (:_precision) : (:precision)
-    @eval @inline Base.$precision(::Type{MF{T,N}}) where {T,N} =
+    @eval @inline Base.$precision(::Type{_MF{T,N}}) where {T,N} =
         N * precision(T) + (N - 1) # implicit bits of precision between limbs
 end
 
-@inline Base.zero(::Type{MF{T,N}}) where {T,N} = MF{T,N}(zero(T))
-@inline Base.one(::Type{MF{T,N}}) where {T,N} = MF{T,N}(one(T))
-@inline Base.eps(::Type{MF{T,N}}) where {T,N} = MF{T,N}(eps(T)^N)
+@inline Base.zero(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(zero(T))
+@inline Base.one(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(one(T))
+@inline Base.eps(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(eps(T)^N)
 
 # TODO: This is technically not the maximum/minimum representable MultiFloat.
-@inline Base.floatmin(::Type{MF{T,N}}) where {T,N} = MF{T,N}(floatmin(T))
-@inline Base.floatmax(::Type{MF{T,N}}) where {T,N} = MF{T,N}(floatmax(T))
+@inline Base.floatmin(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(floatmin(T))
+@inline Base.floatmax(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(floatmax(T))
 
-@inline Base.typemin(::Type{MF{T,N}}) where {T,N} =
-    MF{T,N}(ntuple(_ -> typemin(T), Val{N}()))
-@inline Base.typemax(::Type{MF{T,N}}) where {T,N} =
-    MF{T,N}(ntuple(_ -> typemax(T), Val{N}()))
+@inline Base.typemin(::Type{_MF{T,N}}) where {T,N} =
+    _MF{T,N}(ntuple(_ -> typemin(T), Val{N}()))
+@inline Base.typemax(::Type{_MF{T,N}}) where {T,N} =
+    _MF{T,N}(ntuple(_ -> typemax(T), Val{N}()))
 
 #################################################### CONSTRUCTION FROM BIG TYPES
 
@@ -600,7 +868,7 @@ function MultiFloat{T,N}(x::BigFloat) where {T,N}
     elseif -floatmin(T) < x < floatmin(T)
         return zero(MultiFloat{T,N})
     elseif isnan(x)
-        return MF{T,N}(ntuple(_ -> T(NaN), Val{N}()))
+        return _MF{T,N}(ntuple(_ -> T(NaN), Val{N}()))
     end
     setrounding(
         let x = x
@@ -636,20 +904,20 @@ Base.Rational{BigInt}(x::MultiFloat{T,N}) where {T,N} =
 
 ################################################################ PROMOTION RULES
 
-Base.promote_rule(::Type{MF{T,N}}, ::Type{T}) where {T,N} = MF{T,N}
-Base.promote_rule(::Type{MF{T,N}}, ::Type{Int8}) where {T,N} = MF{T,N}
-Base.promote_rule(::Type{MF{T,N}}, ::Type{Int16}) where {T,N} = MF{T,N}
-Base.promote_rule(::Type{MF{T,N}}, ::Type{Int32}) where {T,N} = MF{T,N}
-Base.promote_rule(::Type{MF{T,N}}, ::Type{Int64}) where {T,N} = MF{T,N}
-Base.promote_rule(::Type{MF{T,N}}, ::Type{Int128}) where {T,N} = MF{T,N}
-Base.promote_rule(::Type{MF{T,N}}, ::Type{Bool}) where {T,N} = MF{T,N}
-Base.promote_rule(::Type{MF{T,N}}, ::Type{UInt8}) where {T,N} = MF{T,N}
-Base.promote_rule(::Type{MF{T,N}}, ::Type{UInt16}) where {T,N} = MF{T,N}
-Base.promote_rule(::Type{MF{T,N}}, ::Type{UInt32}) where {T,N} = MF{T,N}
-Base.promote_rule(::Type{MF{T,N}}, ::Type{UInt64}) where {T,N} = MF{T,N}
-Base.promote_rule(::Type{MF{T,N}}, ::Type{UInt128}) where {T,N} = MF{T,N}
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{T}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{Int8}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{Int16}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{Int32}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{Int64}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{Int128}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{Bool}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{UInt8}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{UInt16}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{UInt32}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{UInt64}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{UInt128}) where {T,N} = _MF{T,N}
 
-Base.promote_rule(::Type{MF{T,N}}, ::Type{BigFloat}) where {T,N} = BigFloat
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{BigFloat}) where {T,N} = BigFloat
 
 Base.promote_rule(::Type{Float32x{N}}, ::Type{Float16}) where {N} = Float32x{N}
 Base.promote_rule(::Type{Float64x{N}}, ::Type{Float16}) where {N} = Float64x{N}
@@ -657,11 +925,11 @@ Base.promote_rule(::Type{Float64x{N}}, ::Type{Float32}) where {N} = Float64x{N}
 
 ################################################################ RENORMALIZATION
 
-@inline function renormalize(x::MF{T,N}) where {T,N}
+@inline function renormalize(x::_MF{T,N}) where {T,N}
     total = +(x._limbs...)
     if isfinite(total)
         while true
-            x0::MF{T,N} = x + zero(T)
+            x0::_MF{T,N} = x + zero(T)
             if !(x0._limbs != x._limbs)
                 break
             end
@@ -704,110 +972,77 @@ tofloat(x::MultiFloat{T,N}) where {T,N} = call_normalized(BigFloat, x)
 
 ################################################### FLOATING-POINT INTROSPECTION
 
-@inline _iszero(x::MF{T,N}) where {T,N} =
+@inline _iszero(x::_MF{T,N}) where {T,N} =
     (&)(ntuple(i -> iszero(x._limbs[i]), Val{N}())...)
-@inline _isone(x::MF{T,N}) where {T,N} =
+@inline _isone(x::_MF{T,N}) where {T,N} =
     isone(x._limbs[1]) & (&)(ntuple(
         i -> iszero(x._limbs[i+1]),
         Val{N - 1}()
     )...)
 
-@inline Base.iszero(x::MF{T,1}) where {T} = iszero(x._limbs[1])
-@inline Base.isone(x::MF{T,1}) where {T} = isone(x._limbs[1])
-@inline Base.iszero(x::MF{T,N}) where {T,N} = _iszero(renormalize(x))
-@inline Base.isone(x::MF{T,N}) where {T,N} = _isone(renormalize(x))
+@inline Base.iszero(x::_MF{T,1}) where {T} = iszero(x._limbs[1])
+@inline Base.isone(x::_MF{T,1}) where {T} = isone(x._limbs[1])
+@inline Base.iszero(x::_MF{T,N}) where {T,N} = _iszero(renormalize(x))
+@inline Base.isone(x::_MF{T,N}) where {T,N} = _isone(renormalize(x))
 
-@inline _head(x::MF{T,N}) where {T,N} = renormalize(x)._limbs[1]
-@inline Base.exponent(x::MF{T,N}) where {T,N} = exponent(_head(x))
-@inline Base.signbit(x::MF{T,N}) where {T,N} = signbit(_head(x))
-@inline Base.issubnormal(x::MF{T,N}) where {T,N} = issubnormal(_head(x))
-@inline Base.isfinite(x::MF{T,N}) where {T,N} = isfinite(_head(x))
-@inline Base.isinf(x::MF{T,N}) where {T,N} = isinf(_head(x))
-@inline Base.isnan(x::MF{T,N}) where {T,N} = isnan(_head(x))
-@inline Base.isinteger(x::MF{T,N}) where {T,N} =
+@inline _head(x::_MF{T,N}) where {T,N} = renormalize(x)._limbs[1]
+@inline Base.exponent(x::_MF{T,N}) where {T,N} = exponent(_head(x))
+@inline Base.signbit(x::_MF{T,N}) where {T,N} = signbit(_head(x))
+@inline Base.issubnormal(x::_MF{T,N}) where {T,N} = issubnormal(_head(x))
+@inline Base.isfinite(x::_MF{T,N}) where {T,N} = isfinite(_head(x))
+@inline Base.isinf(x::_MF{T,N}) where {T,N} = isinf(_head(x))
+@inline Base.isnan(x::_MF{T,N}) where {T,N} = isnan(_head(x))
+@inline Base.isinteger(x::_MF{T,N}) where {T,N} =
     all(isinteger.(renormalize(x)._limbs))
 
-@inline function Base.nextfloat(x::MF{T,N}) where {T,N}
+@inline function Base.nextfloat(x::_MF{T,N}) where {T,N}
     y = renormalize(x)
-    return renormalize(MF{T,N}((
+    return renormalize(_MF{T,N}((
         ntuple(i -> y._limbs[i], Val{N - 1}())...,
         nextfloat(y._limbs[N]))))
 end
 
-@inline function Base.prevfloat(x::MF{T,N}) where {T,N}
+@inline function Base.prevfloat(x::_MF{T,N}) where {T,N}
     y = renormalize(x)
-    return renormalize(MF{T,N}((
+    return renormalize(_MF{T,N}((
         ntuple(i -> y._limbs[i], Val{N - 1}())...,
         prevfloat(y._limbs[N]))))
 end
 
 import LinearAlgebra: floatmin2
-@inline floatmin2(::Type{MF{T,N}}) where {T,N} = MF{T,N}(ldexp(one(T),
+@inline floatmin2(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(ldexp(one(T),
     div(exponent(floatmin(T)) - N * exponent(eps(T)), 2)))
 
 ##################################################################### COMPARISON
 
-@inline Base.:(==)(x::MF{T,N}, y::MF{T,N}) where {T,N} =
+@inline Base.:(==)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
     multifloat_eq(renormalize(x), renormalize(y))
-@inline Base.:(!=)(x::MF{T,N}, y::MF{T,N}) where {T,N} =
+@inline Base.:(!=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
     multifloat_ne(renormalize(x), renormalize(y))
-@inline Base.:(<)(x::MF{T,N}, y::MF{T,N}) where {T,N} =
+@inline Base.:(<)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
     multifloat_lt(renormalize(x), renormalize(y))
-@inline Base.:(>)(x::MF{T,N}, y::MF{T,N}) where {T,N} =
+@inline Base.:(>)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
     multifloat_gt(renormalize(x), renormalize(y))
-@inline Base.:(<=)(x::MF{T,N}, y::MF{T,N}) where {T,N} =
+@inline Base.:(<=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
     multifloat_le(renormalize(x), renormalize(y))
-@inline Base.:(>=)(x::MF{T,N}, y::MF{T,N}) where {T,N} =
+@inline Base.:(>=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
     multifloat_ge(renormalize(x), renormalize(y))
 
 ##################################################################### ARITHMETIC
 
-@inline multifloat_add(a::MF{T,1}, b::MF{T,1}) where {T} =
-    MF{T,1}(a._limbs[1] + b._limbs[1])
-@inline multifloat_mul(a::MF{T,1}, b::MF{T,1}) where {T} =
-    MF{T,1}(a._limbs[1] * b._limbs[1])
-@inline multifloat_div(a::MF{T,1}, b::MF{T,1}) where {T} =
-    MF{T,1}(a._limbs[1] / b._limbs[1])
-@inline multifloat_float_add(a::MF{T,1}, b::T) where {T} =
-    MF{T,1}(a._limbs[1] + b)
-@inline multifloat_float_mul(a::MF{T,1}, b::T) where {T} =
-    MF{T,1}(a._limbs[1] * b)
-@inline multifloat_sqrt(x::MF{T,1}) where {T} =
-    MF{T,1}(unsafe_sqrt(x._limbs[1]))
+@inline Base.:/(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = multifloat_div(x, y)
 
-@inline Base.:+(x::MF{T,N}, y::MF{T,N}) where {T,N} = multifloat_add(x, y)
-@inline Base.:*(x::MF{T,N}, y::MF{T,N}) where {T,N} = multifloat_mul(x, y)
-@inline Base.:/(x::MF{T,N}, y::MF{T,N}) where {T,N} = multifloat_div(x, y)
-@inline Base.:+(x::MF{T,N}, y::T) where {T,N} =
-    multifloat_float_add(x, y)
-@inline Base.:+(x::MF{T,N}, y::T) where {T<:Number,N} =
-    multifloat_float_add(x, y)
-@inline Base.:*(x::MF{T,N}, y::T) where {T,N} =
-    multifloat_float_mul(x, y)
-@inline Base.:*(x::MF{T,N}, y::T) where {T<:Number,N} =
-    multifloat_float_mul(x, y)
+@inline Base.:-(x::_MF{T,N}) where {T,N} =
+    _MF{T,N}(ntuple(i -> -x._limbs[i], Val{N}()))
 
-@inline Base.:-(x::MF{T,N}) where {T,N} =
-    MF{T,N}(ntuple(i -> -x._limbs[i], Val{N}()))
-@inline Base.:-(x::MF{T,N}, y::MF{T,N}) where {T,N} = x + (-y)
-@inline Base.:-(x::MF{T,N}, y::T) where {T,N} = x + (-y)
-@inline Base.:-(x::MF{T,N}, y::T) where {T<:Number,N} = x + (-y)
+@inline Base.inv(x::_MF{T,N}) where {T,N} = one(_MF{T,N}) / x
 
-@inline Base.:+(x::T, y::MF{T,N}) where {T,N} = y + x
-@inline Base.:+(x::T, y::MF{T,N}) where {T<:Number,N} = y + x
-@inline Base.:-(x::T, y::MF{T,N}) where {T,N} = -(y + (-x))
-@inline Base.:-(x::T, y::MF{T,N}) where {T<:Number,N} = -(y + (-x))
-@inline Base.:*(x::T, y::MF{T,N}) where {T,N} = y * x
-@inline Base.:*(x::T, y::MF{T,N}) where {T<:Number,N} = y * x
-
-@inline Base.inv(x::MF{T,N}) where {T,N} = one(MF{T,N}) / x
-
-@inline function Base.abs(x::MF{T,N}) where {T,N}
+@inline function Base.abs(x::_MF{T,N}) where {T,N}
     x = renormalize(x)
     ifelse(signbit(x._limbs[1]), -x, x)
 end
 
-@inline function Base.abs2(x::MF{T,N}) where {T,N}
+@inline function Base.abs2(x::_MF{T,N}) where {T,N}
     x = renormalize(x)
     renormalize(x * x)
 end
@@ -816,7 +1051,7 @@ end
 @inline unsafe_sqrt(x::Float64) = Base.sqrt_llvm(x)
 @inline unsafe_sqrt(x::T) where {T<:Real} = sqrt(x)
 
-@inline function Base.sqrt(x::MF{T,N}) where {T,N}
+@inline function Base.sqrt(x::_MF{T,N}) where {T,N}
     x = renormalize(x)
     if iszero(x)
         return x
@@ -827,7 +1062,7 @@ end
 
 ######################################################## EXPONENTIATION (BASE 2)
 
-@inline function Base.ldexp(x::MF{T,N}, n::U) where {T,N,U<:Integer}
+@inline function Base.ldexp(x::_MF{T,N}, n::U) where {T,N,U<:Integer}
     x = renormalize(x)
     return MultiFloat{T,N}(ntuple(i -> ldexp(x._limbs[i], n), Val{N}()))
 end
@@ -895,7 +1130,7 @@ function multifloat_exp_func(
     )
 end
 
-@inline multifloat_exp(x::MF{T,1}) where {T} = MF{T,1}(exp(x._limbs[1]))
+@inline multifloat_exp(x::_MF{T,1}) where {T} = _MF{T,1}(exp(x._limbs[1]))
 
 function Base.exp(x::MultiFloat{T,N}) where {T,N}
     x = renormalize(x)
