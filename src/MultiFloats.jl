@@ -420,6 +420,20 @@ function _meta_multifloat(vec_width::Int, T::DataType, num_limbs::Int)
 end
 
 
+function _meta_return_multifloat(
+    vec_width::Int, T::DataType, num_limbs::Int,
+    code::Vector{Expr}, terms::Vector{Vector{Symbol}}, renorm_func::Symbol
+)
+    results = [Symbol('x', i) for i = 1:length(terms)]
+    _push_accumulation_code!(code, results, terms)
+    push!(code, Expr(:return, Expr(:call,
+        _meta_multifloat(vec_width, T, num_limbs),
+        Expr(:call, renorm_func, Val(num_limbs), results...)
+    )))
+    return Expr(:block, code...)
+end
+
+
 ################################################################################
 
 
@@ -441,13 +455,9 @@ function multifloat_add_expr(vec_width::Int, T::DataType, num_limbs::Int)
         push!(terms[i+1], err_term)
     end
 
-    results = [Symbol('x', i) for i = 1:num_limbs+1]
-    _push_accumulation_code!(code, results, terms)
-    push!(code, Expr(:return, Expr(:call,
-        _meta_multifloat(vec_width, T, num_limbs),
-        Expr(:call, :two_pass_renorm, Val(num_limbs), results...)
-    )))
-    return Expr(:block, code...)
+    return _meta_return_multifloat(
+        vec_width, T, num_limbs, code, terms, :two_pass_renorm
+    )
 end
 
 
@@ -474,13 +484,9 @@ function multifloat_float_add_expr(vec_width::Int, T::DataType, num_limbs::Int)
     end
     push!(terms[num_limbs+1], last_term)
 
-    results = [Symbol('x', i) for i = 1:num_limbs+1]
-    _push_accumulation_code!(code, results, terms)
-    push!(code, Expr(:return, Expr(:call,
-        _meta_multifloat(vec_width, T, num_limbs),
-        Expr(:call, :two_pass_renorm, Val(num_limbs), results...)
-    )))
-    return Expr(:block, code...)
+    return _meta_return_multifloat(
+        vec_width, T, num_limbs, code, terms, :two_pass_renorm
+    )
 end
 
 
@@ -511,13 +517,9 @@ function multifloat_sub_expr(vec_width::Int, T::DataType, num_limbs::Int)
         push!(terms[i+1], err_term)
     end
 
-    results = [Symbol('x', i) for i = 1:num_limbs+1]
-    _push_accumulation_code!(code, results, terms)
-    push!(code, Expr(:return, Expr(:call,
-        _meta_multifloat(vec_width, T, num_limbs),
-        Expr(:call, :two_pass_renorm, Val(num_limbs), results...)
-    )))
-    return Expr(:block, code...)
+    return _meta_return_multifloat(
+        vec_width, T, num_limbs, code, terms, :two_pass_renorm
+    )
 end
 
 
@@ -534,29 +536,27 @@ function multifloat_float_sub_expr(vec_width::Int, T::DataType, num_limbs::Int)
     push!(code, _meta_unpack(a_limbs, :(a._limbs)))
 
     terms = [Symbol[] for _ = 1:num_limbs+1]
-    last_term = let
-        sum_term = Symbol('s', 1)
-        err_term = Symbol('e', 1)
-        push!(code, _meta_two_diff(sum_term, err_term, a_limbs[1], :b))
-        push!(terms[1], sum_term)
-        err_term
+    if num_limbs > 0
+        diff_term = Symbol('d', 1)
+        last_term = Symbol('e', 1)
+        push!(code, _meta_two_diff(diff_term, last_term, a_limbs[1], :b))
+        push!(terms[1], diff_term)
+        for i = 2:num_limbs
+            diff_term = Symbol('d', i)
+            err_term = Symbol('e', i)
+            push!(code, _meta_two_sum(diff_term, err_term, a_limbs[i], last_term))
+            push!(terms[i], diff_term)
+            last_term = err_term
+        end
+        push!(terms[num_limbs+1], last_term)
+    else
+        push!(code, :(d1 = -b))
+        push!(terms[1], :d1)
     end
-    for i = 2:num_limbs
-        sum_term = Symbol('s', i)
-        err_term = Symbol('e', i)
-        push!(code, _meta_two_sum(sum_term, err_term, a_limbs[i], last_term))
-        push!(terms[i], sum_term)
-        last_term = err_term
-    end
-    push!(terms[num_limbs+1], last_term)
 
-    results = [Symbol('x', i) for i = 1:num_limbs+1]
-    _push_accumulation_code!(code, results, terms)
-    push!(code, Expr(:return, Expr(:call,
-        _meta_multifloat(vec_width, T, num_limbs),
-        Expr(:call, :two_pass_renorm, Val(num_limbs), results...)
-    )))
-    return Expr(:block, code...)
+    return _meta_return_multifloat(
+        vec_width, T, num_limbs, code, terms, :two_pass_renorm
+    )
 end
 
 
@@ -575,21 +575,17 @@ function float_multifloat_sub_expr(vec_width::Int, T::DataType, num_limbs::Int)
     terms = [Symbol[] for _ = 1:num_limbs+1]
     last_term = :a
     for i = 1:num_limbs
-        sum_term = Symbol('s', i)
+        diff_term = Symbol('d', i)
         err_term = Symbol('e', i)
-        push!(code, _meta_two_diff(sum_term, err_term, last_term, b_limbs[i]))
-        push!(terms[i], sum_term)
+        push!(code, _meta_two_diff(diff_term, err_term, last_term, b_limbs[i]))
+        push!(terms[i], diff_term)
         last_term = err_term
     end
     push!(terms[num_limbs+1], last_term)
 
-    results = [Symbol('x', i) for i = 1:num_limbs+1]
-    _push_accumulation_code!(code, results, terms)
-    push!(code, Expr(:return, Expr(:call,
-        _meta_multifloat(vec_width, T, num_limbs),
-        Expr(:call, :two_pass_renorm, Val(num_limbs), results...)
-    )))
-    return Expr(:block, code...)
+    return _meta_return_multifloat(
+        vec_width, T, num_limbs, code, terms, :two_pass_renorm
+    )
 end
 
 
@@ -632,13 +628,9 @@ function multifloat_mul_expr(vec_width::Int, T::DataType, num_limbs::Int)
         push!(terms[num_limbs], prod_term)
     end
 
-    results = [Symbol('x', i) for i = 1:num_limbs]
-    _push_accumulation_code!(code, results, terms)
-    push!(code, Expr(:return, Expr(:call,
-        _meta_multifloat(vec_width, T, num_limbs),
-        Expr(:call, :two_pass_renorm, Val(num_limbs), results...)
-    )))
-    return Expr(:block, code...)
+    return _meta_return_multifloat(
+        vec_width, T, num_limbs, code, terms, :two_pass_renorm
+    )
 end
 
 
@@ -662,19 +654,15 @@ function multifloat_float_mul_expr(vec_width::Int, T::DataType, num_limbs::Int)
         push!(terms[i], prod_term)
         push!(terms[i+1], err_term)
     end
-    let
+    if num_limbs > 0
         prod_term = Symbol('p', num_limbs)
         push!(code, _meta_prod(prod_term, a_limbs[num_limbs], :b))
         push!(terms[num_limbs], prod_term)
     end
 
-    results = [Symbol('x', i) for i = 1:num_limbs]
-    _push_accumulation_code!(code, results, terms)
-    push!(code, Expr(:return, Expr(:call,
-        _meta_multifloat(vec_width, T, num_limbs),
-        Expr(:call, :two_pass_renorm, Val(num_limbs), results...)
-    )))
-    return Expr(:block, code...)
+    return _meta_return_multifloat(
+        vec_width, T, num_limbs, code, terms, :two_pass_renorm
+    )
 end
 
 
@@ -731,12 +719,6 @@ export renormalize,
     use_clean_multifloat_arithmetic,
     use_standard_multifloat_arithmetic,
     use_sloppy_multifloat_arithmetic
-
-include("./Arithmetic.jl")
-using .Arithmetic
-
-# Short alias for brevity of type declarations
-const _MF = MultiFloat
 
 ############################################## CONSTRUCTION FROM PRIMITIVE TYPES
 
