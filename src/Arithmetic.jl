@@ -25,15 +25,7 @@ function_def_typed(name, arg_type, args, body) =
 meta_two_prod(p::Symbol, e::Symbol, a::SymExpr, b::SymExpr) =
     Expr(:(=), meta_tuple(p, e), Expr(:call, :two_prod, a, b))
 
-meta_quick_two_sum(s::Symbol, e::Symbol, a::Symbol, b::Symbol) =
-    Expr(:(=), meta_tuple(s, e), Expr(:call, :quick_two_sum, a, b))
-
-meta_sum(result::Symbol, addends::Vector{Symbol}) =
-    Expr(:(=), result, meta_sum(addends))
-
 meta_multifloat(N::Int) = :(MultiFloat{T,$N})
-
-renorm_name(n::Int) = Symbol("renorm_", n)
 
 ################################################################### ACCUMULATION
 

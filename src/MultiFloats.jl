@@ -2,7 +2,9 @@ module MultiFloats
 
 using SIMD: Vec
 
+
 ########################################################## ERROR-FREE ARITHMETIC
+
 
 @inline function fast_two_sum(a::T, b::T) where {T}
     sum = a + b
@@ -11,12 +13,14 @@ using SIMD: Vec
     return (sum, b_err)
 end
 
+
 @inline function fast_two_diff(a::T, b::T) where {T}
     diff = a - b
     b_prime = a - diff
     b_err = b_prime - b
     return (diff, b_err)
 end
+
 
 @inline function two_sum(a::T, b::T) where {T}
     sum = a + b
@@ -28,6 +32,7 @@ end
     return (sum, err)
 end
 
+
 @inline function two_diff(a::T, b::T) where {T}
     diff = a - b
     a_prime = diff + b
@@ -38,27 +43,32 @@ end
     return (diff, err)
 end
 
+
 @inline function two_prod(a::T, b::T) where {T}
     prod = a * b
     err = fma(a, b, -prod)
     return (prod, err)
 end
 
+
 ###################################################### METAPROGRAMMING UTILITIES
 
-const SymExpr = Union{Symbol,Expr}
 
 inline_block() = [Expr(:meta, :inline)]
 
+
 meta_tuple(xs...) = Expr(:tuple, xs...)
 
-meta_fast_two_sum(s::Symbol, e::Symbol, a::SymExpr, b::SymExpr) =
+
+meta_fast_two_sum(s::Symbol, e::Symbol, a::Symbol, b::Symbol) =
     Expr(:(=), meta_tuple(s, e), Expr(:call, :fast_two_sum, a, b))
 
-meta_two_sum(s::Symbol, e::Symbol, a::SymExpr, b::SymExpr) =
+
+meta_two_sum(s::Symbol, e::Symbol, a::Symbol, b::Symbol) =
     Expr(:(=), meta_tuple(s, e), Expr(:call, :two_sum, a, b))
 
-function meta_sum(::Type{T}, xs::Vector{SymExpr}) where {T}
+
+function meta_sum(::Type{T}, xs::Vector{Symbol}) where {T}
     if isempty(xs)
         return zero(T)
     elseif length(xs) == 1
@@ -68,23 +78,38 @@ function meta_sum(::Type{T}, xs::Vector{SymExpr}) where {T}
     end
 end
 
+
 ################################################# EXTENDED ERROR-FREE ARITHMETIC
 
-@generated function accurate_sum(::Val{N}, xs::T...) where {T,N}
-    @assert N > 0
-    terms = [SymExpr[] for _ = 1:N]
-    for i = 1:length(xs)
-        push!(terms[1], :(xs[$i]))
-    end
+
+function accurate_sum_expr(
+    T::DataType,
+    num_inputs::Int,
+    num_outputs::Int
+)
+    @assert num_outputs > 0
     code = inline_block()
+
+    # Unpack argument tuple.
+    args = [Symbol('x', i) for i = 1:num_inputs]
+    push!(code, Expr(:(=), meta_tuple(args...), :xs))
+
+    # Instantiate lists of terms of order 1, epsilon, epsilon^2, ...
+    terms = [Symbol[] for _ = 1:num_outputs]
+
+    # All input arguments are assumed to be on the same order of magnitude.
+    # (If they are not, the error terms will automatically bubble down.)
+    append!(terms[1], args)
+
+    # Repeatedly call two_sum until only one term of each order remains.
     count = 0
-    for j = 1:N-1
+    for j = 1:num_outputs-1
         curr_terms = terms[j]
         next_terms = terms[j+1]
         while length(curr_terms) > 1
+            count += 1
             sum_term = Symbol('s', count)
             err_term = Symbol('e', count)
-            count += 1
             push!(code, meta_two_sum(
                 sum_term, err_term, curr_terms[1], curr_terms[2]
             ))
@@ -93,56 +118,105 @@ end
             push!(next_terms, err_term)
         end
     end
+
+    # Return a tuple containing the final term of each order.
     push!(code, Expr(:return, meta_tuple(meta_sum.(T, terms)...)))
     return Expr(:block, code...)
 end
 
-@generated function one_pass_renormalize(::Val{N}, xs::T...) where {T,N}
-    @assert (length(xs) == N) || (length(xs) == N + 1)
+
+@generated function accurate_sum(::Val{N}, xs::T...) where {T,N}
+    return accurate_sum_expr(T, length(xs), N)
+end
+
+
+function one_pass_renorm_expr(
+    T::DataType,
+    num_inputs::Int,
+    num_outputs::Int
+)
+    @assert num_outputs > 0
+    @assert ((num_inputs == num_outputs) ||
+             (num_inputs == num_outputs + 1))
     code = inline_block()
-    args = [Symbol('x', i - 1) for i = 1:length(xs)]
+
+    # Unpack argument tuple.
+    args = [Symbol('x', i) for i = 1:num_inputs]
     push!(code, Expr(:(=), meta_tuple(args...), :xs))
-    for i = 1:N-1
+
+    # Generate one-pass renormalization code.
+    for i = 1:num_outputs-1
         push!(code, meta_fast_two_sum(args[i], args[i+1], args[i], args[i+1]))
     end
+
+    # Return a tuple of renormalized terms.
     push!(code, Expr(:return, meta_tuple(
-        args[1:N-1]...,
-        (length(xs) == N) ? args[N] : Expr(:call, :+, args[N:end]...)
+        args[1:num_outputs-1]...,
+        meta_sum(T, args[num_outputs:end])
     )))
     return Expr(:block, code...)
 end
 
-@generated function two_pass_renormalize(::Val{N}, xs::T...) where {T,N}
-    @assert (length(xs) == N) || (length(xs) == N + 1)
+
+@generated function one_pass_renorm(::Val{N}, xs::T...) where {T,N}
+    return one_pass_renorm_expr(T, length(xs), N)
+end
+
+
+function two_pass_renorm_expr(
+    T::DataType,
+    num_inputs::Int,
+    num_outputs::Int
+)
+    @assert num_outputs > 0
+    @assert ((num_inputs == num_outputs) ||
+             (num_inputs == num_outputs + 1))
     code = inline_block()
-    args = [Symbol('x', i - 1) for i = 1:length(xs)]
+
+    # Unpack argument tuple.
+    args = [Symbol('x', i) for i = 1:num_inputs]
     push!(code, Expr(:(=), meta_tuple(args...), :xs))
-    for i = length(xs)-1:-1:2
+
+    # Generate two-pass renormalization code.
+    for i = num_inputs-1:-1:2
         push!(code, meta_fast_two_sum(args[i], args[i+1], args[i], args[i+1]))
     end
-    for i = 1:N-1
+    for i = 1:num_outputs-1
         push!(code, meta_fast_two_sum(args[i], args[i+1], args[i], args[i+1]))
     end
+
+    # Return a tuple of renormalized terms.
     push!(code, Expr(:return, meta_tuple(
-        args[1:N-1]...,
-        (length(xs) == N) ? args[N] : Expr(:call, :+, args[N:end]...)
+        args[1:num_outputs-1]...,
+        meta_sum(T, args[num_outputs:end])
     )))
     return Expr(:block, code...)
 end
+
+
+@generated function two_pass_renorm(::Val{N}, xs::T...) where {T,N}
+    return two_pass_renorm_expr(T, length(xs), N)
+end
+
 
 ############################################################# STRUCT DEFINITIONS
 
+
 export MultiFloat, MultiFloatVec
+
 
 struct MultiFloat{T,N} <: AbstractFloat
     _limbs::NTuple{N,T}
 end
 
+
 struct MultiFloatVec{M,T,N}
     _limbs::NTuple{N,Vec{M,T}}
 end
 
+
 ################################################################### TYPE ALIASES
+
 
 export Float16x, Float32x, Float64x,
     Float64x1, Float64x2, Float64x3, Float64x4,
@@ -156,9 +230,11 @@ export Float16x, Float32x, Float64x,
     v8Float64x1, v8Float64x2, v8Float64x3, v8Float64x4,
     v8Float64x5, v8Float64x6, v8Float64x7, v8Float64x8
 
+
 const Float16x{N} = MultiFloat{Float16,N}
 const Float32x{N} = MultiFloat{Float32,N}
 const Float64x{N} = MultiFloat{Float64,N}
+
 
 const Float64x1 = MultiFloat{Float64,1}
 const Float64x2 = MultiFloat{Float64,2}
@@ -169,6 +245,7 @@ const Float64x6 = MultiFloat{Float64,6}
 const Float64x7 = MultiFloat{Float64,7}
 const Float64x8 = MultiFloat{Float64,8}
 
+
 const v1Float64x1 = MultiFloatVec{1,Float64,1}
 const v1Float64x2 = MultiFloatVec{1,Float64,2}
 const v1Float64x3 = MultiFloatVec{1,Float64,3}
@@ -177,6 +254,7 @@ const v1Float64x5 = MultiFloatVec{1,Float64,5}
 const v1Float64x6 = MultiFloatVec{1,Float64,6}
 const v1Float64x7 = MultiFloatVec{1,Float64,7}
 const v1Float64x8 = MultiFloatVec{1,Float64,8}
+
 
 const v2Float64x1 = MultiFloatVec{2,Float64,1}
 const v2Float64x2 = MultiFloatVec{2,Float64,2}
@@ -187,6 +265,7 @@ const v2Float64x6 = MultiFloatVec{2,Float64,6}
 const v2Float64x7 = MultiFloatVec{2,Float64,7}
 const v2Float64x8 = MultiFloatVec{2,Float64,8}
 
+
 const v4Float64x1 = MultiFloatVec{4,Float64,1}
 const v4Float64x2 = MultiFloatVec{4,Float64,2}
 const v4Float64x3 = MultiFloatVec{4,Float64,3}
@@ -195,6 +274,7 @@ const v4Float64x5 = MultiFloatVec{4,Float64,5}
 const v4Float64x6 = MultiFloatVec{4,Float64,6}
 const v4Float64x7 = MultiFloatVec{4,Float64,7}
 const v4Float64x8 = MultiFloatVec{4,Float64,8}
+
 
 const v8Float64x1 = MultiFloatVec{8,Float64,1}
 const v8Float64x2 = MultiFloatVec{8,Float64,2}
@@ -205,23 +285,29 @@ const v8Float64x6 = MultiFloatVec{8,Float64,6}
 const v8Float64x7 = MultiFloatVec{8,Float64,7}
 const v8Float64x8 = MultiFloatVec{8,Float64,8}
 
+
 ################################################# MULTIFLOAT-SPECIFIC ARITHMETIC
+
 
 @inline function scale(alpha::T, x::MultiFloat{T,N}) where {T,N}
     return MultiFloat{T,N}(ntuple(i -> alpha * x._limbs[i], Val{N}()))
 end
 
+
 @inline function scale(alpha::T, x::MultiFloatVec{M,T,N}) where {M,T,N}
     return MultiFloatVec{M,T,N}(ntuple(i -> alpha * x._limbs[i], Val{N}()))
 end
+
 
 @inline function scale(alpha::Vec{M,T}, x::MultiFloat{T,N}) where {M,T,N}
     return MultiFloatVec{M,T,N}(ntuple(i -> alpha * x._limbs[i], Val{N}()))
 end
 
+
 @inline function scale(alpha::Vec{M,T}, x::MultiFloatVec{M,T,N}) where {M,T,N}
     return MultiFloatVec{M,T,N}(ntuple(i -> alpha * x._limbs[i], Val{N}()))
 end
+
 
 #################################################################### LEGACY CODE
 
