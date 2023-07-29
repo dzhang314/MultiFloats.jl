@@ -27,56 +27,7 @@ meta_two_prod(p::Symbol, e::Symbol, a::SymExpr, b::SymExpr) =
 
 meta_multifloat(N::Int) = :(MultiFloat{T,$N})
 
-################################################################### ACCUMULATION
-
-function add_var!(vars::Vector{Tuple{Symbol,Int}}, prefix::Char, i::Int)
-    var = Symbol(prefix, i)
-    push!(vars, (var, i))
-    var
-end
-
-function add_var!(vars::Vector{Tuple{Symbol,Int}}, prefix::Char, i::Int, j::Int)
-    var = Symbol(prefix, i, '_', j)
-    push!(vars, (var, j))
-    var
-end
-
-function generate_accumulation_code!(
-    code::Vector{Expr}, vars::Vector{Tuple{Symbol,Int}}, N::Int;
-    sloppy::Bool=false
-)
-    sums = [Symbol('s', i) for i = 0:N-sloppy]
-    for i = 0:N-sloppy
-        addends = [v[1] for v in vars if v[2] == i]
-        results = [sums[i+1]]
-        for j = i+1:min(i + length(addends) - 1, N - sloppy)
-            push!(results, add_var!(vars, 'm', i, j))
-        end
-        push!(code, _mpsum(results, addends))
-        deleteat!(vars, [v[2] <= i for v in vars])
-    end
-    push!(code, Expr(:call, meta_multifloat(N),
-        Expr(:call, renorm_name(N), sums...)))
-end
-
 ########################################################### ARITHMETIC FUNCTIONS
-
-function multifloat_add_func(N::Int; sloppy::Bool=false)
-    code = inline_block()
-    vars = Tuple{Symbol,Int}[]
-    for i = 1:N-sloppy
-        tmp = add_var!(vars, 't', i - 1)
-        err = add_var!(vars, 'e', i)
-        push!(code, meta_two_sum(tmp, err, :(a._limbs[$i]), :(b._limbs[$i])))
-    end
-    if sloppy
-        tmp = add_var!(vars, 't', N - 1)
-        push!(code, :($tmp = a._limbs[$N] + b._limbs[$N]))
-    end
-    reverse!(vars)
-    generate_accumulation_code!(code, vars, N, sloppy=sloppy)
-    function_def_typed(:multifloat_add, meta_multifloat(N), [:a, :b], code)
-end
 
 function multifloat_float_add_func(N::Int; sloppy::Bool=false)
     code = inline_block()

@@ -60,6 +60,10 @@ inline_block() = [Expr(:meta, :inline)]
 meta_tuple(xs...) = Expr(:tuple, xs...)
 
 
+meta_unpack(lhs::Vector{Symbol}, rhs::Union{Symbol,Expr}) =
+    Expr(:(=), meta_tuple(lhs...), rhs)
+
+
 meta_fast_two_sum(s::Symbol, e::Symbol, a::Symbol, b::Symbol) =
     Expr(:(=), meta_tuple(s, e), Expr(:call, :fast_two_sum, a, b))
 
@@ -68,7 +72,11 @@ meta_two_sum(s::Symbol, e::Symbol, a::Symbol, b::Symbol) =
     Expr(:(=), meta_tuple(s, e), Expr(:call, :two_sum, a, b))
 
 
-function meta_sum(::Type{T}, xs::Vector{Symbol}) where {T}
+meta_two_diff(d::Symbol, e::Symbol, a::Symbol, b::Symbol) =
+    Expr(:(=), meta_tuple(d, e), Expr(:call, :two_diff, a, b))
+
+
+function meta_sum(T::DataType, xs::Vector{Symbol})
     if isempty(xs)
         return zero(T)
     elseif length(xs) == 1
@@ -92,7 +100,7 @@ function accurate_sum_expr(
 
     # Unpack argument tuple.
     args = [Symbol('x', i) for i = 1:num_inputs]
-    push!(code, Expr(:(=), meta_tuple(args...), :xs))
+    push!(code, meta_unpack(args, :xs))
 
     # Instantiate lists of terms of order 1, epsilon, epsilon^2, ...
     terms = [Symbol[] for _ = 1:num_outputs]
@@ -142,7 +150,7 @@ function one_pass_renorm_expr(
 
     # Unpack argument tuple.
     args = [Symbol('x', i) for i = 1:num_inputs]
-    push!(code, Expr(:(=), meta_tuple(args...), :xs))
+    push!(code, meta_unpack(args, :xs))
 
     # Generate one-pass renormalization code.
     for i = 1:num_outputs-1
@@ -175,7 +183,7 @@ function two_pass_renorm_expr(
 
     # Unpack argument tuple.
     args = [Symbol('x', i) for i = 1:num_inputs]
-    push!(code, Expr(:(=), meta_tuple(args...), :xs))
+    push!(code, meta_unpack(args, :xs))
 
     # Generate two-pass renormalization code.
     for i = num_inputs-1:-1:2
@@ -284,6 +292,141 @@ const v8Float64x5 = MultiFloatVec{8,Float64,5}
 const v8Float64x6 = MultiFloatVec{8,Float64,6}
 const v8Float64x7 = MultiFloatVec{8,Float64,7}
 const v8Float64x8 = MultiFloatVec{8,Float64,8}
+
+
+################################################################################
+
+
+@inline function MultiFloatVec{M,T,N}(
+    xs::NTuple{M,MultiFloat{T,N}}
+) where {M,T,N}
+    return MultiFloatVec{M,T,N}(ntuple(
+        j -> Vec{M,T}(ntuple(i -> xs[i]._limbs[j], Val{M}())),
+        Val{N}()
+    ))
+end
+
+
+################################################################################
+
+
+function push_accumulation_code!(
+    code::Vector{Expr},
+    results::Vector{Symbol},
+    terms::Vector{Vector{Symbol}}
+)
+    @assert length(terms) == length(results)
+    count = 0
+    for i = 1:length(terms)
+        num_remain = length(terms) - i + 1
+        num_spill = min(length(terms[i]), num_remain)
+        lhs = [results[i]]
+        for j = 2:num_spill
+            count += 1
+            push!(lhs, Symbol('t', count))
+        end
+        push!(code, meta_unpack(lhs,
+            Expr(:call, :accurate_sum, Val(num_spill), terms[i]...)
+        ))
+        for j = 2:num_spill
+            push!(terms[i+j-1], lhs[j])
+        end
+    end
+    return code
+end
+
+
+function meta_multifloat(vec_width::Int, T::DataType, num_limbs::Int)
+    if vec_width == -1
+        return Expr(:curly, :MultiFloat, T, num_limbs)
+    else
+        return Expr(:curly, :MultiFloatVec, vec_width, T, num_limbs)
+    end
+end
+
+
+function multifloat_add_expr(vec_width::Int, T::DataType, num_limbs::Int)
+    code = inline_block()
+
+    a_limbs = [Symbol('a', i) for i = 1:num_limbs]
+    push!(code, meta_unpack(a_limbs, :(a._limbs)))
+
+    b_limbs = [Symbol('b', i) for i = 1:num_limbs]
+    push!(code, meta_unpack(b_limbs, :(b._limbs)))
+
+    terms = [Symbol[] for _ = 1:num_limbs+1]
+    for i = 1:num_limbs
+        sum_term = Symbol('s', i)
+        err_term = Symbol('e', i)
+        push!(code, meta_two_sum(sum_term, err_term, a_limbs[i], b_limbs[i]))
+        push!(terms[i], sum_term)
+        push!(terms[i+1], err_term)
+    end
+
+    results = [Symbol('x', i) for i = 1:num_limbs+1]
+    push_accumulation_code!(code, results, terms)
+    push!(code, Expr(:return, Expr(:call,
+        meta_multifloat(vec_width, T, num_limbs),
+        Expr(:call, :two_pass_renorm, Val(num_limbs), results...)
+    )))
+    return Expr(:block, code...)
+end
+
+
+@generated function multifloat_add(
+    a::MultiFloat{T,N}, b::MultiFloat{T,N}
+) where {T,N}
+    return multifloat_add_expr(-1, T, N)
+end
+
+
+@generated function multifloat_add(
+    a::MultiFloatVec{M,T,N}, b::MultiFloatVec{M,T,N}
+) where {M,T,N}
+    return multifloat_add_expr(M, T, N)
+end
+
+
+function multifloat_sub_expr(vec_width::Int, T::DataType, num_limbs::Int)
+    code = inline_block()
+
+    a_limbs = [Symbol('a', i) for i = 1:num_limbs]
+    push!(code, meta_unpack(a_limbs, :(a._limbs)))
+
+    b_limbs = [Symbol('b', i) for i = 1:num_limbs]
+    push!(code, meta_unpack(b_limbs, :(b._limbs)))
+
+    terms = [Symbol[] for _ = 1:num_limbs+1]
+    for i = 1:num_limbs
+        diff_term = Symbol('d', i)
+        err_term = Symbol('e', i)
+        push!(code, meta_two_diff(diff_term, err_term, a_limbs[i], b_limbs[i]))
+        push!(terms[i], diff_term)
+        push!(terms[i+1], err_term)
+    end
+
+    results = [Symbol('x', i) for i = 1:num_limbs+1]
+    push_accumulation_code!(code, results, terms)
+    push!(code, Expr(:return, Expr(:call,
+        meta_multifloat(vec_width, T, num_limbs),
+        Expr(:call, :two_pass_renorm, Val(num_limbs), results...)
+    )))
+    return Expr(:block, code...)
+end
+
+
+@generated function multifloat_sub(
+    a::MultiFloat{T,N}, b::MultiFloat{T,N}
+) where {T,N}
+    return multifloat_sub_expr(-1, T, N)
+end
+
+
+@generated function multifloat_sub(
+    a::MultiFloatVec{M,T,N}, b::MultiFloatVec{M,T,N}
+) where {M,T,N}
+    return multifloat_sub_expr(M, T, N)
+end
 
 
 ################################################# MULTIFLOAT-SPECIFIC ARITHMETIC
