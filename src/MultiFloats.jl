@@ -221,7 +221,7 @@ end
 end
 
 
-############################################################# STRUCT DEFINITIONS
+############################################################### TYPE DEFINITIONS
 
 
 export MultiFloat, MultiFloatVec
@@ -308,7 +308,7 @@ const v8Float64x7 = MultiFloatVec{8,Float64,7}
 const v8Float64x8 = MultiFloatVec{8,Float64,8}
 
 
-################################################################################
+############################################## CONSTRUCTION FROM PRIMITIVE TYPES
 
 
 @inline function MultiFloat{T,N}(x::T) where {T,N}
@@ -330,9 +330,6 @@ end
 end
 
 
-################################################################################
-
-
 @inline function MultiFloatVec{M,T,N}(
     xs::NTuple{M,MultiFloat{T,N}}
 ) where {M,T,N}
@@ -343,9 +340,12 @@ end
 end
 
 
+################################################################ VECTOR INDEXING
+
+
 @inline function Base.getindex(x::MultiFloatVec{M,T,N}, i::Int) where {M,T,N}
     return MultiFloat{T,N}(ntuple(
-        j -> extractelement(x._limbs[j].data, i),
+        j -> extractelement(x._limbs[j].data, i - 1),
         Val{N}()
     ))
 end
@@ -372,7 +372,65 @@ const _MFV = MultiFloatVec
 @inline Base.one(::_MFV{M,T,N}) where {M,T,N} = one(_MFV{M,T,N})
 
 
-################################################################################
+################################################# MULTIFLOAT-SPECIFIC ARITHMETIC
+
+
+export renormalize, scale
+
+
+@inline function _ntuple_equal(x::NTuple{N,T}, y::NTuple{N,T}) where {N,T}
+    return all(x .== y)
+end
+
+
+@inline function _ntuple_equal(
+    x::NTuple{N,Vec{M,T}}, y::NTuple{N,Vec{M,T}}
+) where {N,M,T}
+    return all(all.(x .== y))
+end
+
+
+@inline function renormalize(xs::NTuple{N,T}) where {N,T}
+    # total = +(xs...)
+    # if !isfinite(total)
+    #     return ntuple(_ -> total, Val{N}())
+    # end
+    while true
+        xs_new = two_pass_renorm(Val{N}(), xs...)
+        if _ntuple_equal(xs, xs_new)
+            return xs
+        else
+            xs = xs_new
+        end
+    end
+end
+
+
+@inline renormalize(x::_MF{T,N}) where {T,N} =
+    MultiFloat{T,N}(renormalize(x._limbs))
+
+
+@inline renormalize(x::_MFV{M,T,N}) where {M,T,N} =
+    MultiFloatVec{M,T,N}(renormalize(x._limbs))
+
+
+@inline scale(a::T, x::_MF{T,N}) where {T,N} =
+    MultiFloat{T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
+
+
+@inline scale(a::T, x::_MFV{M,T,N}) where {M,T,N} =
+    MultiFloatVec{M,T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
+
+
+@inline scale(a::Vec{M,T}, x::_MF{T,N}) where {M,T,N} =
+    MultiFloatVec{M,T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
+
+
+@inline scale(a::Vec{M,T}, x::_MFV{M,T,N}) where {M,T,N} =
+    MultiFloatVec{M,T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
+
+
+########################################### ARITHMETIC METAPROGRAMMING UTILITIES
 
 
 function _push_accumulation_code!(
@@ -424,7 +482,7 @@ function _meta_return_multifloat(
 end
 
 
-################################################################################
+####################################################################### ADDITION
 
 
 function multifloat_add_expr(vec_width::Int, T::DataType, num_limbs::Int)
@@ -486,7 +544,7 @@ end
     multifloat_float_add_expr(M, T, N)
 
 
-################################################################################
+#################################################################### SUBTRACTION
 
 
 function multifloat_sub_expr(vec_width::Int, T::DataType, num_limbs::Int)
@@ -585,7 +643,7 @@ end
     float_multifloat_sub_expr(M, T, N)
 
 
-################################################################################
+################################################################# MULTIPLICATION
 
 
 function multifloat_mul_expr(vec_width::Int, T::DataType, num_limbs::Int)
@@ -662,7 +720,7 @@ end
     multifloat_float_mul_expr(M, T, N)
 
 
-################################################################################
+####################################################################### DIVISION
 
 
 function multifloat_div_expr(vec_width::Int, T::DataType, num_limbs::Int)
@@ -688,7 +746,7 @@ end
     multifloat_div_expr(M, T, N)
 
 
-################################################################################
+########################################################### OPERATOR OVERLOADING
 
 
 @inline Base.:+(a::_MF{T,N}, b::_MF{T,N}) where {T,N} = multifloat_add(a, b)
@@ -723,22 +781,6 @@ end
 @inline Base.:*(a::Vec{M,T}, b::_MFV{M,T,N}) where {M,T<:Number,N} = multifloat_float_mul(b, a)
 @inline Base.:/(a::_MF{T,N}, b::_MF{T,N}) where {T,N} = multifloat_div(a, b)
 @inline Base.:/(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} = multifloat_div(a, b)
-
-
-################################################# MULTIFLOAT-SPECIFIC ARITHMETIC
-
-
-@inline scale(a::T, x::_MF{T,N}) where {T,N} =
-    MultiFloat{T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
-
-@inline scale(a::T, x::_MFV{M,T,N}) where {M,T,N} =
-    MultiFloatVec{M,T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
-
-@inline scale(a::Vec{M,T}, x::_MF{T,N}) where {M,T,N} =
-    MultiFloatVec{M,T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
-
-@inline scale(a::Vec{M,T}, x::_MFV{M,T,N}) where {M,T,N} =
-    MultiFloatVec{M,T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
 
 
 #################################################################### LEGACY CODE
