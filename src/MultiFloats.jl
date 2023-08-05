@@ -351,7 +351,18 @@ end
 end
 
 
-################################################################################
+######################################################## CONVERSION TO BIG TYPES
+
+
+Base.BigFloat(x::MultiFloat{T,N}) where {T,N} =
+    +(BigFloat.(reverse(x._limbs))...)
+
+
+Base.Rational{BigInt}(x::MultiFloat{T,N}) where {T,N} =
+    +(Rational{BigInt}.(x._limbs)...)
+
+
+####################################################### FLOATING-POINT CONSTANTS
 
 
 const _MF = MultiFloat
@@ -428,6 +439,56 @@ end
 
 @inline scale(a::Vec{M,T}, x::_MFV{M,T,N}) where {M,T,N} =
     MultiFloatVec{M,T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
+
+
+####################################################################### PRINTING
+
+
+function _call_renormalized(callback, x::_MF{T,N}) where {T,N}
+    total = +(reverse(x._limbs)...)
+    if !isfinite(total)
+        return callback(total)
+    end
+    i = N
+    while (i > 0) && iszero(x._limbs[i])
+        i -= 1
+    end
+    if iszero(i)
+        return callback(zero(T))
+    else
+        return setprecision(
+            () -> callback(BigFloat(x)),
+            precision(T) + exponent(x._limbs[1]) - exponent(x._limbs[i])
+        )
+    end
+end
+
+
+Base.show(io::IO, x::_MF{T,N}) where {T,N} =
+    _call_renormalized(y -> show(io, y), x)
+
+
+function Base.show(io::IO, x::_MFV{M,T,N}) where {M,T,N}
+    write(io, '<')
+    show(io, M)
+    write(io, " x ")
+    show(io, T)
+    write(io, " x ")
+    show(io, N)
+    write(io, ">[")
+    for i = 1:M
+        if i > 1
+            write(io, ", ")
+        end
+        _call_renormalized(y -> show(io, y), x[i])
+    end
+    write(io, ']')
+    return nothing
+end
+
+
+# import Printf: tofloat
+# tofloat(x::MultiFloat{T,N}) where {T,N} = call_normalized(BigFloat, x)
 
 
 ########################################### ARITHMETIC METAPROGRAMMING UTILITIES
@@ -948,14 +1009,6 @@ MultiFloat{T,N}(x::AbstractString) where {T,N} =
         precision(T) + exponent(floatmax(T)) - exponent(floatmin(T))
     )))
 
-######################################################## CONVERSION TO BIG TYPES
-
-Base.BigFloat(x::MultiFloat{T,N}) where {T,N} =
-    +(ntuple(i -> BigFloat(x._limbs[N-i+1]), Val{N}())...)
-
-Base.Rational{BigInt}(x::MultiFloat{T,N}) where {T,N} =
-    sum(Rational{BigInt}.(x._limbs))
-
 ################################################################ PROMOTION RULES
 
 Base.promote_rule(::Type{_MF{T,N}}, ::Type{T}) where {T,N} = _MF{T,N}
@@ -976,53 +1029,6 @@ Base.promote_rule(::Type{_MF{T,N}}, ::Type{BigFloat}) where {T,N} = BigFloat
 Base.promote_rule(::Type{Float32x{N}}, ::Type{Float16}) where {N} = Float32x{N}
 Base.promote_rule(::Type{Float64x{N}}, ::Type{Float16}) where {N} = Float64x{N}
 Base.promote_rule(::Type{Float64x{N}}, ::Type{Float32}) where {N} = Float64x{N}
-
-################################################################ RENORMALIZATION
-
-@inline function renormalize(x::_MF{T,N}) where {T,N}
-    total = +(x._limbs...)
-    if isfinite(total)
-        while true
-            x0::_MF{T,N} = x + zero(T)
-            if !(x0._limbs != x._limbs)
-                break
-            end
-            x = x0
-        end
-        return x
-    else
-        return MultiFloat{T,N}(ntuple(_ -> total, Val{N}()))
-    end
-end
-
-@inline renormalize(x::T) where {T<:Number} = x
-
-function call_normalized(callback, x::MultiFloat{T,N}) where {T,N}
-    x = renormalize(x)
-    if !isfinite(x._limbs[1])
-        return callback(x._limbs[1])
-    else
-        i = N
-        while (i > 0) && iszero(x._limbs[i])
-            i -= 1
-        end
-        if iszero(i)
-            return callback(zero(T))
-        else
-            return setprecision(() -> callback(BigFloat(x)),
-                precision(T) + exponent(x._limbs[1]) - exponent(x._limbs[i]))
-        end
-    end
-end
-
-####################################################################### PRINTING
-
-function Base.show(io::IO, x::MultiFloat{T,N}) where {T,N}
-    return call_normalized(y -> show(io, y), x)
-end
-
-import Printf: tofloat
-tofloat(x::MultiFloat{T,N}) where {T,N} = call_normalized(BigFloat, x)
 
 ################################################### FLOATING-POINT INTROSPECTION
 
