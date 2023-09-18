@@ -312,9 +312,12 @@ const v8Float64x8 = MultiFloatVec{8,Float64,8}
 
 
 @inline function MultiFloat{T,N}(x::T) where {T,N}
-    return MultiFloat{T,N}(
-        ntuple(i -> ifelse(i == 1, x, zero(T)), Val{N}())
-    )
+    return MultiFloat{T,N}(ntuple(i -> ifelse(i == 1, x, zero(T)), Val{N}()))
+end
+
+
+@inline function MultiFloatVec{M,T,N}(x::T) where {M,T,N}
+    return MultiFloatVec{M,T,N}(Vec{M,T}(x))
 end
 
 
@@ -325,8 +328,8 @@ end
 end
 
 
-@inline function MultiFloatVec{M,T,N}(x::T) where {M,T,N}
-    return MultiFloatVec{M,T,N}(Vec{M,T}(x))
+@inline function MultiFloatVec{M,T,N}(x::MultiFloat{T,N}) where {M,T,N}
+    return MultiFloatVec{M,T,N}(ntuple(i -> Vec{M,T}(x._limbs[i]), Val{N}()))
 end
 
 
