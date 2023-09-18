@@ -405,10 +405,26 @@ end
 
 
 @inline function renormalize(xs::NTuple{N,T}) where {N,T}
-    # total = +(xs...)
-    # if !isfinite(total)
-    #     return ntuple(_ -> total, Val{N}())
-    # end
+    total = +(xs...)
+    if !isfinite(total)
+        return ntuple(_ -> total, Val{N}())
+    end
+    while true
+        xs_new = two_pass_renorm(Val{N}(), xs...)
+        if _ntuple_equal(xs, xs_new)
+            return xs
+        else
+            xs = xs_new
+        end
+    end
+end
+
+
+@inline function renormalize(xs::NTuple{N,Vec{M,T}}) where {M,T,N}
+    total = +(xs...)
+    if any(!isfinite(total))
+        @assert false # TODO
+    end
     while true
         xs_new = two_pass_renorm(Val{N}(), xs...)
         if _ntuple_equal(xs, xs_new)
