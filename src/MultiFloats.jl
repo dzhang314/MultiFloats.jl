@@ -445,6 +445,7 @@ end
 
 
 function _call_renormalized(callback, x::_MF{T,N}) where {T,N}
+    x = renormalize(x)
     total = +(reverse(x._limbs)...)
     if !isfinite(total)
         return callback(total)
