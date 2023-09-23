@@ -308,12 +308,21 @@ const v8Float64x7 = MultiFloatVec{8,Float64,7}
 const v8Float64x8 = MultiFloatVec{8,Float64,8}
 
 
-############################################## CONSTRUCTION FROM PRIMITIVE TYPES
+################################################## CONSTRUCTION FROM MULTIFLOATS
 
 
 @inline function MultiFloat{T,N}(x::T) where {T,N}
     return MultiFloat{T,N}(ntuple(i -> ifelse(i == 1, x, zero(T)), Val{N}()))
 end
+
+
+@inline MultiFloat{T,N}(x::MultiFloat{T,N}) where {T,N} = x
+
+
+@inline MultiFloat{T,N}(x::MultiFloat{T,M}) where {T,M,N} = MultiFloat{T,N}((
+    ntuple(i -> x._limbs[i], Val{min(M, N)}())...,
+    ntuple(_ -> zero(T), Val{max(N - M, 0)}())...
+))
 
 
 @inline function MultiFloatVec{M,T,N}(x::T) where {M,T,N}
@@ -331,6 +340,9 @@ end
 @inline function MultiFloatVec{M,T,N}(x::MultiFloat{T,N}) where {M,T,N}
     return MultiFloatVec{M,T,N}(ntuple(i -> Vec{M,T}(x._limbs[i]), Val{N}()))
 end
+
+
+@inline MultiFloatVec{M,T,N}(x::MultiFloatVec{M,T,N}) where {M,T,N} = x
 
 
 @inline function MultiFloatVec{M,T,N}(
@@ -352,6 +364,91 @@ end
         Val{N}()
     ))
 end
+
+
+############################################## CONSTRUCTION FROM PRIMITIVE TYPES
+
+
+# Values of the types Bool, Int8, UInt8, Int16, UInt16, Float16, Int32, UInt32,
+# and Float32 can be converted losslessly to a single Float64, which has 53
+# bits of integer precision.
+@inline Float64x{N}(x::Bool) where {N} = Float64x{N}(Float64(x))
+@inline Float64x{N}(x::Int8) where {N} = Float64x{N}(Float64(x))
+@inline Float64x{N}(x::UInt8) where {N} = Float64x{N}(Float64(x))
+@inline Float64x{N}(x::Int16) where {N} = Float64x{N}(Float64(x))
+@inline Float64x{N}(x::UInt16) where {N} = Float64x{N}(Float64(x))
+@inline Float64x{N}(x::Float16) where {N} = Float64x{N}(Float64(x))
+@inline Float64x{N}(x::Int32) where {N} = Float64x{N}(Float64(x))
+@inline Float64x{N}(x::UInt32) where {N} = Float64x{N}(Float64(x))
+@inline Float64x{N}(x::Float32) where {N} = Float64x{N}(Float64(x))
+
+
+# Values of the types Int64, UInt64, Int128, and UInt128 cannot be converted
+# losslessly to a single Float64 and must be split into multiple components.
+
+
+@inline Float64x1(x::Int64) = Float64x1(Float64(x))
+@inline Float64x1(x::UInt64) = Float64x1(Float64(x))
+@inline Float64x1(x::Int128) = Float64x1(Float64(x))
+@inline Float64x1(x::UInt128) = Float64x1(Float64(x))
+
+
+@inline function Float64x2(x::Int128)
+    x0 = Float64(x)
+    x1 = Float64(x - Int128(x0))
+    Float64x2((x0, x1))
+end
+
+
+@inline function Float64x2(x::UInt128)
+    x0 = Float64(x)
+    x1 = Float64(reinterpret(Int128, x - UInt128(x0)))
+    Float64x2((x0, x1))
+end
+
+
+@inline function Float64x{N}(x::Int64) where {N}
+    x0 = Float64(x)
+    x1 = Float64(x - Int64(x0))
+    Float64x{N}((x0, x1, ntuple(_ -> 0.0, Val{N - 2}())...))
+end
+
+
+@inline function Float64x{N}(x::UInt64) where {N}
+    x0 = Float64(x)
+    x1 = Float64(reinterpret(Int64, x - UInt64(x0)))
+    Float64x{N}((x0, x1, ntuple(_ -> 0.0, Val{N - 2}())...))
+end
+
+
+@inline function Float64x{N}(x::Int128) where {N}
+    x0 = Float64(x)
+    r1 = x - Int128(x0)
+    x1 = Float64(r1)
+    x2 = Float64(r1 - Int128(x1))
+    Float64x{N}((x0, x1, x2, ntuple(_ -> 0.0, Val{N - 3}())...))
+end
+
+
+@inline function Float64x{N}(x::UInt128) where {N}
+    x0 = Float64(x)
+    r1 = reinterpret(Int128, x - UInt128(x0))
+    x1 = Float64(r1)
+    x2 = Float64(r1 - Int128(x1))
+    Float64x{N}((x0, x1, x2, ntuple(_ -> 0.0, Val{N - 3}())...))
+end
+
+
+################################################## CONVERSION TO PRIMITIVE TYPES
+
+
+@inline Base.Float16(x::Float64x{N}) where {N} = Float16(x._limbs[1])
+@inline Base.Float32(x::Float64x{N}) where {N} = Float32(x._limbs[1])
+
+
+@inline Base.Float16(x::Float16x{N}) where {N} = x._limbs[1]
+@inline Base.Float32(x::Float32x{N}) where {N} = x._limbs[1]
+@inline Base.Float64(x::Float64x{N}) where {N} = x._limbs[1]
 
 
 ######################################################## CONVERSION TO BIG TYPES
@@ -872,87 +969,6 @@ export renormalize,
     use_clean_multifloat_arithmetic,
     use_standard_multifloat_arithmetic,
     use_sloppy_multifloat_arithmetic
-
-############################################## CONSTRUCTION FROM PRIMITIVE TYPES
-
-@inline MultiFloat{T,N}(x::MultiFloat{T,N}) where {T,N} = x
-
-@inline MultiFloat{T,N}(x::MultiFloat{T,M}) where {T,M,N} =
-    MultiFloat{T,N}((
-        ntuple(i -> x._limbs[i], Val{min(M, N)}())...,
-        ntuple(_ -> zero(T), Val{max(N - M, 0)}())...
-    ))
-
-# Values of the types Bool, Int8, UInt8, Int16, UInt16, Float16, Int32, UInt32,
-# and Float32 can be converted losslessly to a single Float64, which has 53
-# bits of integer precision.
-
-@inline Float64x{N}(x::Bool) where {N} = Float64x{N}(Float64(x))
-@inline Float64x{N}(x::Int8) where {N} = Float64x{N}(Float64(x))
-@inline Float64x{N}(x::UInt8) where {N} = Float64x{N}(Float64(x))
-@inline Float64x{N}(x::Int16) where {N} = Float64x{N}(Float64(x))
-@inline Float64x{N}(x::UInt16) where {N} = Float64x{N}(Float64(x))
-@inline Float64x{N}(x::Float16) where {N} = Float64x{N}(Float64(x))
-@inline Float64x{N}(x::Int32) where {N} = Float64x{N}(Float64(x))
-@inline Float64x{N}(x::UInt32) where {N} = Float64x{N}(Float64(x))
-@inline Float64x{N}(x::Float32) where {N} = Float64x{N}(Float64(x))
-
-# Values of the types Int64, UInt64, Int128, and UInt128 cannot be converted
-# losslessly to a single Float64 and must be split into multiple components.
-
-@inline Float64x1(x::Int64) = Float64x1(Float64(x))
-@inline Float64x1(x::UInt64) = Float64x1(Float64(x))
-@inline Float64x1(x::Int128) = Float64x1(Float64(x))
-@inline Float64x1(x::UInt128) = Float64x1(Float64(x))
-
-@inline function Float64x2(x::Int128)
-    x0 = Float64(x)
-    x1 = Float64(x - Int128(x0))
-    Float64x2((x0, x1))
-end
-
-@inline function Float64x2(x::UInt128)
-    x0 = Float64(x)
-    x1 = Float64(reinterpret(Int128, x - UInt128(x0)))
-    Float64x2((x0, x1))
-end
-
-@inline function Float64x{N}(x::Int64) where {N}
-    x0 = Float64(x)
-    x1 = Float64(x - Int64(x0))
-    Float64x{N}((x0, x1, ntuple(_ -> 0.0, Val{N - 2}())...))
-end
-
-@inline function Float64x{N}(x::UInt64) where {N}
-    x0 = Float64(x)
-    x1 = Float64(reinterpret(Int64, x - UInt64(x0)))
-    Float64x{N}((x0, x1, ntuple(_ -> 0.0, Val{N - 2}())...))
-end
-
-@inline function Float64x{N}(x::Int128) where {N}
-    x0 = Float64(x)
-    r1 = x - Int128(x0)
-    x1 = Float64(r1)
-    x2 = Float64(r1 - Int128(x1))
-    Float64x{N}((x0, x1, x2, ntuple(_ -> 0.0, Val{N - 3}())...))
-end
-
-@inline function Float64x{N}(x::UInt128) where {N}
-    x0 = Float64(x)
-    r1 = reinterpret(Int128, x - UInt128(x0))
-    x1 = Float64(r1)
-    x2 = Float64(r1 - Int128(x1))
-    Float64x{N}((x0, x1, x2, ntuple(_ -> 0.0, Val{N - 3}())...))
-end
-
-################################################## CONVERSION TO PRIMITIVE TYPES
-
-@inline Base.Float16(x::Float64x{N}) where {N} = Float16(x._limbs[1])
-@inline Base.Float32(x::Float64x{N}) where {N} = Float32(x._limbs[1])
-
-@inline Base.Float16(x::Float16x{N}) where {N} = x._limbs[1]
-@inline Base.Float32(x::Float32x{N}) where {N} = x._limbs[1]
-@inline Base.Float64(x::Float64x{N}) where {N} = x._limbs[1]
 
 ####################################################### FLOATING-POINT CONSTANTS
 
