@@ -4,6 +4,256 @@ using SIMD: Vec
 using SIMD.Intrinsics: extractelement
 
 
+############################################################### TYPE DEFINITIONS
+
+
+export MultiFloat, MultiFloatVec
+
+
+struct MultiFloat{T,N} <: AbstractFloat
+    _limbs::NTuple{N,T}
+end
+
+
+struct MultiFloatVec{M,T,N}
+    _limbs::NTuple{N,Vec{M,T}}
+end
+
+
+# Private aliases for brevity.
+const _MF = MultiFloat
+const _MFV = MultiFloatVec
+
+
+################################################################### TYPE ALIASES
+
+
+export Float16x, Float32x, Float64x,
+    Float64x1, Float64x2, Float64x3, Float64x4,
+    Float64x5, Float64x6, Float64x7, Float64x8,
+    v1Float64x1, v1Float64x2, v1Float64x3, v1Float64x4,
+    v1Float64x5, v1Float64x6, v1Float64x7, v1Float64x8,
+    v2Float64x1, v2Float64x2, v2Float64x3, v2Float64x4,
+    v2Float64x5, v2Float64x6, v2Float64x7, v2Float64x8,
+    v4Float64x1, v4Float64x2, v4Float64x3, v4Float64x4,
+    v4Float64x5, v4Float64x6, v4Float64x7, v4Float64x8,
+    v8Float64x1, v8Float64x2, v8Float64x3, v8Float64x4,
+    v8Float64x5, v8Float64x6, v8Float64x7, v8Float64x8
+
+
+const Float16x{N} = MultiFloat{Float16,N}
+const Float32x{N} = MultiFloat{Float32,N}
+const Float64x{N} = MultiFloat{Float64,N}
+
+
+const Float64x1 = MultiFloat{Float64,1}
+const Float64x2 = MultiFloat{Float64,2}
+const Float64x3 = MultiFloat{Float64,3}
+const Float64x4 = MultiFloat{Float64,4}
+const Float64x5 = MultiFloat{Float64,5}
+const Float64x6 = MultiFloat{Float64,6}
+const Float64x7 = MultiFloat{Float64,7}
+const Float64x8 = MultiFloat{Float64,8}
+
+
+const v1Float64x1 = MultiFloatVec{1,Float64,1}
+const v1Float64x2 = MultiFloatVec{1,Float64,2}
+const v1Float64x3 = MultiFloatVec{1,Float64,3}
+const v1Float64x4 = MultiFloatVec{1,Float64,4}
+const v1Float64x5 = MultiFloatVec{1,Float64,5}
+const v1Float64x6 = MultiFloatVec{1,Float64,6}
+const v1Float64x7 = MultiFloatVec{1,Float64,7}
+const v1Float64x8 = MultiFloatVec{1,Float64,8}
+
+
+const v2Float64x1 = MultiFloatVec{2,Float64,1}
+const v2Float64x2 = MultiFloatVec{2,Float64,2}
+const v2Float64x3 = MultiFloatVec{2,Float64,3}
+const v2Float64x4 = MultiFloatVec{2,Float64,4}
+const v2Float64x5 = MultiFloatVec{2,Float64,5}
+const v2Float64x6 = MultiFloatVec{2,Float64,6}
+const v2Float64x7 = MultiFloatVec{2,Float64,7}
+const v2Float64x8 = MultiFloatVec{2,Float64,8}
+
+
+const v4Float64x1 = MultiFloatVec{4,Float64,1}
+const v4Float64x2 = MultiFloatVec{4,Float64,2}
+const v4Float64x3 = MultiFloatVec{4,Float64,3}
+const v4Float64x4 = MultiFloatVec{4,Float64,4}
+const v4Float64x5 = MultiFloatVec{4,Float64,5}
+const v4Float64x6 = MultiFloatVec{4,Float64,6}
+const v4Float64x7 = MultiFloatVec{4,Float64,7}
+const v4Float64x8 = MultiFloatVec{4,Float64,8}
+
+
+const v8Float64x1 = MultiFloatVec{8,Float64,1}
+const v8Float64x2 = MultiFloatVec{8,Float64,2}
+const v8Float64x3 = MultiFloatVec{8,Float64,3}
+const v8Float64x4 = MultiFloatVec{8,Float64,4}
+const v8Float64x5 = MultiFloatVec{8,Float64,5}
+const v8Float64x6 = MultiFloatVec{8,Float64,6}
+const v8Float64x7 = MultiFloatVec{8,Float64,7}
+const v8Float64x8 = MultiFloatVec{8,Float64,8}
+
+
+###################################################################### CONSTANTS
+
+
+@inline Base.zero(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(ntuple(
+    _ -> zero(T), Val{N}()))
+@inline Base.zero(::Type{_MFV{M,T,N}}) where {M,T,N} = _MFV{M,T,N}(ntuple(
+    _ -> zero(Vec{M,T}), Val{N}()))
+@inline Base.one(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(ntuple(
+    i -> ifelse(i == 1, one(T), zero(T)), Val{N}()))
+@inline Base.one(::Type{_MFV{M,T,N}}) where {M,T,N} = _MFV{M,T,N}(ntuple(
+    i -> ifelse(i == 1, one(Vec{M,T}), zero(Vec{M,T})), Val{N}()))
+
+
+@inline Base.zero(::_MF{T,N}) where {T,N} = zero(_MF{T,N})
+@inline Base.zero(::_MFV{M,T,N}) where {M,T,N} = zero(_MFV{M,T,N})
+@inline Base.one(::_MF{T,N}) where {T,N} = one(_MF{T,N})
+@inline Base.one(::_MFV{M,T,N}) where {M,T,N} = one(_MFV{M,T,N})
+
+
+################################################################### CONSTRUCTORS
+
+
+# Construct from a single limb: pad remaining limbs with zeroes.
+@inline _MF{T,N}(x::T) where {T,N} = _MF{T,N}(ntuple(
+    i -> ifelse(i == 1, x, zero(T)), Val{N}()))
+@inline _MFV{M,T,N}(x::Vec{M,T}) where {M,T,N} = _MFV{M,T,N}(ntuple(
+    i -> ifelse(i == 1, x, zero(Vec{M,T})), Val{N}()))
+@inline _MFV{M,T,N}(x::NTuple{M,T}) where {M,T,N} = _MFV{M,T,N}(Vec{M,T}(x))
+
+
+# Construct from multiple limbs: truncate or pad with zeroes.
+@inline _MF{T,N1}(x::_MF{T,N2}) where {T,N1,N2} = _MF{T,N1}(tuple(
+    ntuple(i -> x._limbs[i], Val{min(N1, N2)}())...,
+    ntuple(_ -> zero(T), Val{max(N1 - N2, 0)}())...))
+@inline _MFV{M,T,N1}(x::_MFV{M,T,N2}) where {M,T,N1,N2} = _MFV{M,T,N1}(tuple(
+    ntuple(i -> x._limbs[i], Val{min(N1, N2)}())...,
+    ntuple(_ -> zero(Vec{M,T}), Val{max(N1 - N2, 0)}())...))
+
+
+# Construct vector from scalar: broadcast.
+@inline _MFV{M,T,N}(x::T) where {M,T,N} = _MFV{M,T,N}(Vec{M,T}(x))
+@inline _MFV{M,T,N}(x::_MF{T,N}) where {M,T,N} = _MFV{M,T,N}(ntuple(
+    i -> Vec{M,T}(x._limbs[i]), Val{N}()))
+
+
+# Construct vector from tuple of scalars: transpose.
+@inline _MFV{M,T,N}(xs::NTuple{M,_MF{T,N}}) where {M,T,N} = _MFV{M,T,N}(ntuple(
+    j -> Vec{M,T}(ntuple(i -> xs[i]._limbs[j], Val{M}())), Val{N}()))
+
+
+################################################################ VECTOR INDEXING
+
+
+@inline Base.getindex(x::_MFV{M,T,N}, i::I) where {M,T,N,I} = _MF{T,N}(ntuple(
+    j -> extractelement(x._limbs[j].data, i - one(I)), Val{N}()))
+
+
+################################################ CONVERSION FROM PRIMITIVE TYPES
+
+
+# Bool, Int8, UInt8, Int16, UInt16, Float16, Int32, UInt32, and Float32
+# can be directly converted to Float64 without losing precision.
+
+
+@inline Float64x{N}(x::Bool) where {N} = Float64x{N}(Float64(x))
+@inline Float64x{N}(x::Int8) where {N} = Float64x{N}(Float64(x))
+@inline Float64x{N}(x::UInt8) where {N} = Float64x{N}(Float64(x))
+@inline Float64x{N}(x::Int16) where {N} = Float64x{N}(Float64(x))
+@inline Float64x{N}(x::UInt16) where {N} = Float64x{N}(Float64(x))
+@inline Float64x{N}(x::Float16) where {N} = Float64x{N}(Float64(x))
+@inline Float64x{N}(x::Int32) where {N} = Float64x{N}(Float64(x))
+@inline Float64x{N}(x::UInt32) where {N} = Float64x{N}(Float64(x))
+@inline Float64x{N}(x::Float32) where {N} = Float64x{N}(Float64(x))
+
+
+# Int64, UInt64, Int128, and UInt128 cannot be directly converted to Float64
+# without losing precision, so they must be split into multiple components.
+
+
+@inline Float64x1(x::Int64) = Float64x1(Float64(x))
+@inline Float64x1(x::UInt64) = Float64x1(Float64(x))
+@inline Float64x1(x::Int128) = Float64x1(Float64(x))
+@inline Float64x1(x::UInt128) = Float64x1(Float64(x))
+
+
+@inline function Float64x{N}(x::Int64) where {N}
+    x0 = Float64(x)
+    x1 = Float64(x - Int64(x0))
+    return Float64x{N}((x0, x1, ntuple(_ -> 0.0, Val{N - 2}())...))
+end
+
+
+@inline function Float64x{N}(x::UInt64) where {N}
+    x0 = Float64(x)
+    x1 = Float64(reinterpret(Int64, x - UInt64(x0)))
+    return Float64x{N}((x0, x1, ntuple(_ -> 0.0, Val{N - 2}())...))
+end
+
+
+@inline function Float64x2(x::Int128)
+    x0 = Float64(x)
+    x1 = Float64(x - Int128(x0))
+    return Float64x2((x0, x1))
+end
+
+
+@inline function Float64x2(x::UInt128)
+    x0 = Float64(x)
+    x1 = Float64(reinterpret(Int128, x - UInt128(x0)))
+    return Float64x2((x0, x1))
+end
+
+
+@inline function Float64x{N}(x::Int128) where {N}
+    x0 = Float64(x)
+    r1 = x - Int128(x0)
+    x1 = Float64(r1)
+    x2 = Float64(r1 - Int128(x1))
+    return Float64x{N}((x0, x1, x2, ntuple(_ -> 0.0, Val{N - 3}())...))
+end
+
+
+@inline function Float64x{N}(x::UInt128) where {N}
+    x0 = Float64(x)
+    r1 = reinterpret(Int128, x - UInt128(x0))
+    x1 = Float64(r1)
+    x2 = Float64(r1 - Int128(x1))
+    return Float64x{N}((x0, x1, x2, ntuple(_ -> 0.0, Val{N - 3}())...))
+end
+
+
+#=
+
+
+################################################## CONVERSION TO PRIMITIVE TYPES
+
+
+# TODO: normalize here?
+# @inline Base.Float16(x::Float64x{N}) where {N} = Float16(x._limbs[1])
+# @inline Base.Float32(x::Float64x{N}) where {N} = Float32(x._limbs[1])
+
+
+# @inline Base.Float16(x::Float16x{N}) where {N} = x._limbs[1]
+# @inline Base.Float32(x::Float32x{N}) where {N} = x._limbs[1]
+# @inline Base.Float64(x::Float64x{N}) where {N} = x._limbs[1]
+
+
+######################################################## CONVERSION TO BIG TYPES
+
+
+Base.BigFloat(x::MultiFloat{T,N}) where {T,N} =
+    +(BigFloat.(reverse(x._limbs))...)
+
+
+Base.Rational{BigInt}(x::MultiFloat{T,N}) where {T,N} =
+    +(Rational{BigInt}.(x._limbs)...)
+
+
 ########################################################## ERROR-FREE ARITHMETIC
 
 
@@ -216,253 +466,6 @@ end
 
 @generated two_pass_renorm(::Val{N}, xs::T...) where {T,N} =
     two_pass_renorm_expr(T, length(xs), N)
-
-
-############################################################### TYPE DEFINITIONS
-
-
-export MultiFloat, MultiFloatVec
-
-
-struct MultiFloat{T,N} <: AbstractFloat
-    _limbs::NTuple{N,T}
-end
-
-
-struct MultiFloatVec{M,T,N}
-    _limbs::NTuple{N,Vec{M,T}}
-end
-
-
-# Private aliases for brevity.
-const _MF = MultiFloat
-const _MFV = MultiFloatVec
-
-
-################################################################### TYPE ALIASES
-
-
-export Float16x, Float32x, Float64x,
-    Float64x1, Float64x2, Float64x3, Float64x4,
-    Float64x5, Float64x6, Float64x7, Float64x8,
-    v1Float64x1, v1Float64x2, v1Float64x3, v1Float64x4,
-    v1Float64x5, v1Float64x6, v1Float64x7, v1Float64x8,
-    v2Float64x1, v2Float64x2, v2Float64x3, v2Float64x4,
-    v2Float64x5, v2Float64x6, v2Float64x7, v2Float64x8,
-    v4Float64x1, v4Float64x2, v4Float64x3, v4Float64x4,
-    v4Float64x5, v4Float64x6, v4Float64x7, v4Float64x8,
-    v8Float64x1, v8Float64x2, v8Float64x3, v8Float64x4,
-    v8Float64x5, v8Float64x6, v8Float64x7, v8Float64x8
-
-
-const Float16x{N} = MultiFloat{Float16,N}
-const Float32x{N} = MultiFloat{Float32,N}
-const Float64x{N} = MultiFloat{Float64,N}
-
-
-const Float64x1 = MultiFloat{Float64,1}
-const Float64x2 = MultiFloat{Float64,2}
-const Float64x3 = MultiFloat{Float64,3}
-const Float64x4 = MultiFloat{Float64,4}
-const Float64x5 = MultiFloat{Float64,5}
-const Float64x6 = MultiFloat{Float64,6}
-const Float64x7 = MultiFloat{Float64,7}
-const Float64x8 = MultiFloat{Float64,8}
-
-
-const v1Float64x1 = MultiFloatVec{1,Float64,1}
-const v1Float64x2 = MultiFloatVec{1,Float64,2}
-const v1Float64x3 = MultiFloatVec{1,Float64,3}
-const v1Float64x4 = MultiFloatVec{1,Float64,4}
-const v1Float64x5 = MultiFloatVec{1,Float64,5}
-const v1Float64x6 = MultiFloatVec{1,Float64,6}
-const v1Float64x7 = MultiFloatVec{1,Float64,7}
-const v1Float64x8 = MultiFloatVec{1,Float64,8}
-
-
-const v2Float64x1 = MultiFloatVec{2,Float64,1}
-const v2Float64x2 = MultiFloatVec{2,Float64,2}
-const v2Float64x3 = MultiFloatVec{2,Float64,3}
-const v2Float64x4 = MultiFloatVec{2,Float64,4}
-const v2Float64x5 = MultiFloatVec{2,Float64,5}
-const v2Float64x6 = MultiFloatVec{2,Float64,6}
-const v2Float64x7 = MultiFloatVec{2,Float64,7}
-const v2Float64x8 = MultiFloatVec{2,Float64,8}
-
-
-const v4Float64x1 = MultiFloatVec{4,Float64,1}
-const v4Float64x2 = MultiFloatVec{4,Float64,2}
-const v4Float64x3 = MultiFloatVec{4,Float64,3}
-const v4Float64x4 = MultiFloatVec{4,Float64,4}
-const v4Float64x5 = MultiFloatVec{4,Float64,5}
-const v4Float64x6 = MultiFloatVec{4,Float64,6}
-const v4Float64x7 = MultiFloatVec{4,Float64,7}
-const v4Float64x8 = MultiFloatVec{4,Float64,8}
-
-
-const v8Float64x1 = MultiFloatVec{8,Float64,1}
-const v8Float64x2 = MultiFloatVec{8,Float64,2}
-const v8Float64x3 = MultiFloatVec{8,Float64,3}
-const v8Float64x4 = MultiFloatVec{8,Float64,4}
-const v8Float64x5 = MultiFloatVec{8,Float64,5}
-const v8Float64x6 = MultiFloatVec{8,Float64,6}
-const v8Float64x7 = MultiFloatVec{8,Float64,7}
-const v8Float64x8 = MultiFloatVec{8,Float64,8}
-
-
-################################################################### CONSTRUCTORS
-
-
-# Construction from a single limb: pad remaining limbs with zeroes.
-@inline _MF{T,N}(x::T) where {T,N} =
-    _MF{T,N}(ntuple(i -> ifelse(i == 1, x, zero(T)), Val{N}()))
-@inline _MFV{M,T,N}(x::Vec{M,T}) where {M,T,N} =
-    _MFV{M,T,N}(ntuple(i -> ifelse(i == 1, x, zero(Vec{M,T})), Val{N}()))
-@inline _MFV{M,T,N}(x::NTuple{M,T}) where {M,T,N} = _MFV{M,T,N}(Vec{M,T}(x))
-
-
-# Construction from multiple limbs: truncate or pad with zeroes.
-@inline _MF{T,N1}(x::_MF{T,N2}) where {T,N1,N2} = _MF{T,N1}((
-    ntuple(i -> x._limbs[i], Val{min(N1, N2)}())...,
-    ntuple(_ -> zero(T), Val{max(N1 - N2, 0)}())...
-))
-@inline _MFV{M,T,N1}(x::_MFV{M,T,N2}) where {M,T,N1,N2} = _MFV{M,T,N1}((
-    ntuple(i -> x._limbs[i], Val{min(N1, N2)}())...,
-    ntuple(_ -> zero(Vec{M,T}), Val{max(N1 - N2, 0)}())...
-))
-
-
-# Construction of vectors from scalars: broadcast.
-@inline _MFV{M,T,N}(x::T) where {M,T,N} = _MFV{M,T,N}(Vec{M,T}(x))
-@inline _MFV{M,T,N}(x::_MF{T,N}) where {M,T,N} =
-    _MFV{M,T,N}(ntuple(i -> Vec{M,T}(x._limbs[i]), Val{N}()))
-
-
-# Construction of a vector from a tuple of scalars: transpose.
-@inline _MFV{M,T,N}(xs::NTuple{M,_MF{T,N}}) where {M,T,N} = _MFV{M,T,N}(ntuple(
-    j -> Vec{M,T}(ntuple(i -> xs[i]._limbs[j], Val{M}())), Val{N}()
-))
-
-
-################################################################ VECTOR INDEXING
-
-
-@inline Base.getindex(x::_MFV{M,T,N}, i::I) where {M,T,N,I} = _MF{T,N}(ntuple(
-    j -> extractelement(x._limbs[j].data, i - one(I)), Val{N}()
-))
-
-
-############################################## CONSTRUCTION FROM PRIMITIVE TYPES
-
-
-# Values of the types Bool, Int8, UInt8, Int16, UInt16, Float16, Int32, UInt32,
-# and Float32 can be converted losslessly to a single Float64, which has 53
-# bits of integer precision.
-@inline Float64x{N}(x::Bool) where {N} = Float64x{N}(Float64(x))
-@inline Float64x{N}(x::Int8) where {N} = Float64x{N}(Float64(x))
-@inline Float64x{N}(x::UInt8) where {N} = Float64x{N}(Float64(x))
-@inline Float64x{N}(x::Int16) where {N} = Float64x{N}(Float64(x))
-@inline Float64x{N}(x::UInt16) where {N} = Float64x{N}(Float64(x))
-@inline Float64x{N}(x::Float16) where {N} = Float64x{N}(Float64(x))
-@inline Float64x{N}(x::Int32) where {N} = Float64x{N}(Float64(x))
-@inline Float64x{N}(x::UInt32) where {N} = Float64x{N}(Float64(x))
-@inline Float64x{N}(x::Float32) where {N} = Float64x{N}(Float64(x))
-
-
-# Values of the types Int64, UInt64, Int128, and UInt128 cannot be converted
-# losslessly to a single Float64 and must be split into multiple components.
-
-
-@inline Float64x1(x::Int64) = Float64x1(Float64(x))
-@inline Float64x1(x::UInt64) = Float64x1(Float64(x))
-@inline Float64x1(x::Int128) = Float64x1(Float64(x))
-@inline Float64x1(x::UInt128) = Float64x1(Float64(x))
-
-
-@inline function Float64x2(x::Int128)
-    x0 = Float64(x)
-    x1 = Float64(x - Int128(x0))
-    Float64x2((x0, x1))
-end
-
-
-@inline function Float64x2(x::UInt128)
-    x0 = Float64(x)
-    x1 = Float64(reinterpret(Int128, x - UInt128(x0)))
-    Float64x2((x0, x1))
-end
-
-
-@inline function Float64x{N}(x::Int64) where {N}
-    x0 = Float64(x)
-    x1 = Float64(x - Int64(x0))
-    Float64x{N}((x0, x1, ntuple(_ -> 0.0, Val{N - 2}())...))
-end
-
-
-@inline function Float64x{N}(x::UInt64) where {N}
-    x0 = Float64(x)
-    x1 = Float64(reinterpret(Int64, x - UInt64(x0)))
-    Float64x{N}((x0, x1, ntuple(_ -> 0.0, Val{N - 2}())...))
-end
-
-
-@inline function Float64x{N}(x::Int128) where {N}
-    x0 = Float64(x)
-    r1 = x - Int128(x0)
-    x1 = Float64(r1)
-    x2 = Float64(r1 - Int128(x1))
-    Float64x{N}((x0, x1, x2, ntuple(_ -> 0.0, Val{N - 3}())...))
-end
-
-
-@inline function Float64x{N}(x::UInt128) where {N}
-    x0 = Float64(x)
-    r1 = reinterpret(Int128, x - UInt128(x0))
-    x1 = Float64(r1)
-    x2 = Float64(r1 - Int128(x1))
-    Float64x{N}((x0, x1, x2, ntuple(_ -> 0.0, Val{N - 3}())...))
-end
-
-
-################################################## CONVERSION TO PRIMITIVE TYPES
-
-
-@inline Base.Float16(x::Float64x{N}) where {N} = Float16(x._limbs[1])
-@inline Base.Float32(x::Float64x{N}) where {N} = Float32(x._limbs[1])
-
-
-@inline Base.Float16(x::Float16x{N}) where {N} = x._limbs[1]
-@inline Base.Float32(x::Float32x{N}) where {N} = x._limbs[1]
-@inline Base.Float64(x::Float64x{N}) where {N} = x._limbs[1]
-
-
-######################################################## CONVERSION TO BIG TYPES
-
-
-Base.BigFloat(x::MultiFloat{T,N}) where {T,N} =
-    +(BigFloat.(reverse(x._limbs))...)
-
-
-Base.Rational{BigInt}(x::MultiFloat{T,N}) where {T,N} =
-    +(Rational{BigInt}.(x._limbs)...)
-
-
-####################################################### FLOATING-POINT CONSTANTS
-
-
-@inline Base.zero(::Type{_MF{T,N}}) where {T,N} =
-    _MF{T,N}(ntuple(_ -> zero(T), Val{N}()))
-@inline Base.zero(::Type{_MFV{M,T,N}}) where {M,T,N} =
-    _MFV{M,T,N}(ntuple(_ -> zero(Vec{M,T}), Val{N}()))
-@inline Base.zero(::_MF{T,N}) where {T,N} = zero(_MF{T,N})
-@inline Base.zero(::_MFV{M,T,N}) where {M,T,N} = zero(_MFV{M,T,N})
-@inline Base.one(::Type{_MF{T,N}}) where {T,N} =
-    _MF{T,N}(ntuple(i -> ifelse(i == 1, one(T), zero(T)), Val{N}()))
-@inline Base.one(::Type{_MFV{M,T,N}}) where {M,T,N} =
-    _MFV{M,T,N}(ntuple(i -> ifelse(i == 1, one(Vec{M,T}), zero(Vec{M,T})), Val{N}()))
-@inline Base.one(::_MF{T,N}) where {T,N} = one(_MF{T,N})
-@inline Base.one(::_MFV{M,T,N}) where {M,T,N} = one(_MFV{M,T,N})
 
 
 ################################################# MULTIFLOAT-SPECIFIC ARITHMETIC
@@ -1271,6 +1274,7 @@ end
 
 use_standard_multifloat_arithmetic()
 
+=#
 =#
 
 end # module MultiFloats
