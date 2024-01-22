@@ -147,9 +147,8 @@ function accurate_sum_expr(
 end
 
 
-@generated function accurate_sum(::Val{N}, xs::T...) where {T,N}
-    return accurate_sum_expr(T, length(xs), N)
-end
+@generated accurate_sum(::Val{N}, xs::T...) where {T,N} =
+    accurate_sum_expr(T, length(xs), N)
 
 
 function one_pass_renorm_expr(
@@ -180,9 +179,8 @@ function one_pass_renorm_expr(
 end
 
 
-@generated function one_pass_renorm(::Val{N}, xs::T...) where {T,N}
-    return one_pass_renorm_expr(T, length(xs), N)
-end
+@generated one_pass_renorm(::Val{N}, xs::T...) where {T,N} =
+    one_pass_renorm_expr(T, length(xs), N)
 
 
 function two_pass_renorm_expr(
@@ -216,9 +214,8 @@ function two_pass_renorm_expr(
 end
 
 
-@generated function two_pass_renorm(::Val{N}, xs::T...) where {T,N}
-    return two_pass_renorm_expr(T, length(xs), N)
-end
+@generated two_pass_renorm(::Val{N}, xs::T...) where {T,N} =
+    two_pass_renorm_expr(T, length(xs), N)
 
 
 ############################################################### TYPE DEFINITIONS
@@ -235,6 +232,11 @@ end
 struct MultiFloatVec{M,T,N}
     _limbs::NTuple{N,Vec{M,T}}
 end
+
+
+# Private aliases for brevity.
+const _MF = MultiFloat
+const _MFV = MultiFloatVec
 
 
 ################################################################### TYPE ALIASES
@@ -308,62 +310,46 @@ const v8Float64x7 = MultiFloatVec{8,Float64,7}
 const v8Float64x8 = MultiFloatVec{8,Float64,8}
 
 
-################################################## CONSTRUCTION FROM MULTIFLOATS
+################################################################### CONSTRUCTORS
 
 
-@inline function MultiFloat{T,N}(x::T) where {T,N}
-    return MultiFloat{T,N}(ntuple(i -> ifelse(i == 1, x, zero(T)), Val{N}()))
-end
+# Construction from a single limb: pad remaining limbs with zeroes.
+@inline _MF{T,N}(x::T) where {T,N} =
+    _MF{T,N}(ntuple(i -> ifelse(i == 1, x, zero(T)), Val{N}()))
+@inline _MFV{M,T,N}(x::Vec{M,T}) where {M,T,N} =
+    _MFV{M,T,N}(ntuple(i -> ifelse(i == 1, x, zero(Vec{M,T})), Val{N}()))
+@inline _MFV{M,T,N}(x::NTuple{M,T}) where {M,T,N} = _MFV{M,T,N}(Vec{M,T}(x))
 
 
-@inline MultiFloat{T,N}(x::MultiFloat{T,N}) where {T,N} = x
-
-
-@inline MultiFloat{T,N}(x::MultiFloat{T,M}) where {T,M,N} = MultiFloat{T,N}((
-    ntuple(i -> x._limbs[i], Val{min(M, N)}())...,
-    ntuple(_ -> zero(T), Val{max(N - M, 0)}())...
+# Construction from multiple limbs: truncate or pad with zeroes.
+@inline _MF{T,N1}(x::_MF{T,N2}) where {T,N1,N2} = _MF{T,N1}((
+    ntuple(i -> x._limbs[i], Val{min(N1, N2)}())...,
+    ntuple(_ -> zero(T), Val{max(N1 - N2, 0)}())...
+))
+@inline _MFV{M,T,N1}(x::_MFV{M,T,N2}) where {M,T,N1,N2} = _MFV{M,T,N1}((
+    ntuple(i -> x._limbs[i], Val{min(N1, N2)}())...,
+    ntuple(_ -> zero(Vec{M,T}), Val{max(N1 - N2, 0)}())...
 ))
 
 
-@inline function MultiFloatVec{M,T,N}(x::T) where {M,T,N}
-    return MultiFloatVec{M,T,N}(Vec{M,T}(x))
-end
+# Construction of vectors from scalars: broadcast.
+@inline _MFV{M,T,N}(x::T) where {M,T,N} = _MFV{M,T,N}(Vec{M,T}(x))
+@inline _MFV{M,T,N}(x::_MF{T,N}) where {M,T,N} =
+    _MFV{M,T,N}(ntuple(i -> Vec{M,T}(x._limbs[i]), Val{N}()))
 
 
-@inline function MultiFloatVec{M,T,N}(x::Vec{M,T}) where {M,T,N}
-    return MultiFloatVec{M,T,N}(
-        ntuple(i -> ifelse(i == 1, x, zero(Vec{M,T})), Val{N}())
-    )
-end
-
-
-@inline function MultiFloatVec{M,T,N}(x::MultiFloat{T,N}) where {M,T,N}
-    return MultiFloatVec{M,T,N}(ntuple(i -> Vec{M,T}(x._limbs[i]), Val{N}()))
-end
-
-
-@inline MultiFloatVec{M,T,N}(x::MultiFloatVec{M,T,N}) where {M,T,N} = x
-
-
-@inline function MultiFloatVec{M,T,N}(
-    xs::NTuple{M,MultiFloat{T,N}}
-) where {M,T,N}
-    return MultiFloatVec{M,T,N}(ntuple(
-        j -> Vec{M,T}(ntuple(i -> xs[i]._limbs[j], Val{M}())),
-        Val{N}()
-    ))
-end
+# Construction of a vector from a tuple of scalars: transpose.
+@inline _MFV{M,T,N}(xs::NTuple{M,_MF{T,N}}) where {M,T,N} = _MFV{M,T,N}(ntuple(
+    j -> Vec{M,T}(ntuple(i -> xs[i]._limbs[j], Val{M}())), Val{N}()
+))
 
 
 ################################################################ VECTOR INDEXING
 
 
-@inline function Base.getindex(x::MultiFloatVec{M,T,N}, i::Int) where {M,T,N}
-    return MultiFloat{T,N}(ntuple(
-        j -> extractelement(x._limbs[j].data, i - 1),
-        Val{N}()
-    ))
-end
+@inline Base.getindex(x::_MFV{M,T,N}, i::I) where {M,T,N,I} = _MF{T,N}(ntuple(
+    j -> extractelement(x._limbs[j].data, i - one(I)), Val{N}()
+))
 
 
 ############################################## CONSTRUCTION FROM PRIMITIVE TYPES
@@ -463,10 +449,6 @@ Base.Rational{BigInt}(x::MultiFloat{T,N}) where {T,N} =
 
 
 ####################################################### FLOATING-POINT CONSTANTS
-
-
-const _MF = MultiFloat
-const _MFV = MultiFloatVec
 
 
 @inline Base.zero(::Type{_MF{T,N}}) where {T,N} =
@@ -1163,99 +1145,6 @@ end
     return MultiFloat{T,N}(ntuple(i -> ldexp(x._limbs[i], n), Val{N}()))
 end
 
-######################################################## EXPONENTIATION (BASE E)
-
-const INVERSE_FACTORIALS_F64 = setprecision(
-    () -> [
-        MultiFloat{Float64,20}(inv(BigFloat(factorial(BigInt(i)))))
-        for i = 1:170
-    ],
-    BigFloat, 1200
-)
-
-const LOG2_F64 = setprecision(
-    () -> MultiFloat{Float64,20}(log(BigFloat(2))),
-    BigFloat, 1200
-)
-
-log2_f64_literal(n::Int) = :(
-    MultiFloat{Float64,$n}($(LOG2_F64._limbs[1:n])))
-
-inverse_factorial_f64_literal(n::Int, i::Int) = :(
-    MultiFloat{Float64,$n}($(INVERSE_FACTORIALS_F64[i]._limbs[1:n])))
-
-meta_y(n::Int) = Symbol("y_", n)
-
-meta_y_definition(n::Int) = Expr(:(=), meta_y(n),
-    Expr(:call, :*, meta_y(div(n, 2)), meta_y(div(n + 1, 2))))
-
-meta_exp_term(n::Int, i::Int) = :(
-    $(Symbol("y_", i)) * $(inverse_factorial_f64_literal(n, i)))
-
-function multifloat_exp_func(
-    n::Int, num_terms::Int, reduction_power::Int; sloppy::Bool=false
-)
-    return Expr(:function,
-        :(multifloat_exp(x::MultiFloat{Float64,$n})),
-        Expr(:block,
-            :(exponent_f = Base.rint_llvm(
-                x._limbs[1] / $(LOG2_F64._limbs[1]))),
-            :(exponent_i = Base.fptosi(Int, exponent_f)),
-            :(y_1 = scale(
-                $(ldexp(1.0, -reduction_power)),
-                MultiFloat{Float64,$n}(
-                    MultiFloat{Float64,$(n + !sloppy)}(x) -
-                    exponent_f * $(log2_f64_literal(n + !sloppy))
-                )
-            )),
-            [meta_y_definition(i) for i = 2:num_terms]...,
-            :(exp_y = $(meta_exp_term(n, num_terms))),
-            [
-                :(exp_y += $(meta_exp_term(n, i)))
-                for i = num_terms-1:-1:3
-            ]...,
-            :(exp_y += scale(0.5, y_2)),
-            :(exp_y += y_1),
-            :(exp_y += 1.0),
-            [:(exp_y *= exp_y) for _ = 1:reduction_power]...,
-            :(return scale(
-                reinterpret(Float64, UInt64(1023 + exponent_i) << 52),
-                exp_y
-            ))
-        )
-    )
-end
-
-@inline multifloat_exp(x::_MF{T,1}) where {T} = _MF{T,1}(exp(x._limbs[1]))
-
-function Base.exp(x::MultiFloat{T,N}) where {T,N}
-    x = renormalize(x)
-    if x._limbs[1] >= log(floatmax(Float64))
-        return typemax(MultiFloat{T,N})
-    elseif x._limbs[1] <= log(floatmin(Float64))
-        return zero(MultiFloat{T,N})
-    else
-        return multifloat_exp(x)
-    end
-end
-
-function Base.log(x::MultiFloat{T,N}) where {T,N}
-    y = MultiFloat{T,N}(log(x._limbs[1]))
-    for _ = 1:ceil(Int, log2(N))+1
-        y += x * exp(-y) - one(T)
-    end
-    return y
-end
-
-function Base.log1p(x::MultiFloat{T,N}) where {T,N}
-    return 2 * atanh(x / (2 + x))
-end
-
-function Base.expm1(x::MultiFloat{T,N}) where {T,N}
-    t = tanh(x / 2)
-    return 2 * t / (1 - t)
-end
-
 ############################################## BIGFLOAT TRANSCENDENTAL STOP-GAPS
 
 BASE_TRANSCENDENTAL_FUNCTIONS = [
@@ -1344,15 +1233,6 @@ end
 ################################################################ PRECISION MODES
 
 function use_clean_multifloat_arithmetic(n::Integer=8)
-    for i = 1:n
-        eval(multifloat_eq_func(i))
-        eval(multifloat_ne_func(i))
-        eval(multifloat_lt_func(i))
-        eval(multifloat_gt_func(i))
-        eval(multifloat_le_func(i))
-        eval(multifloat_ge_func(i))
-        eval(multifloat_rand_func(i))
-    end
     for i = 2:n+1
         eval(two_pass_renorm_func(i, sloppy=false))
         eval(multifloat_add_func(i, sloppy=false))
@@ -1362,28 +1242,9 @@ function use_clean_multifloat_arithmetic(n::Integer=8)
         eval(multifloat_float_mul_func(i, sloppy=false))
         eval(multifloat_sqrt_func(i, sloppy=false))
     end
-    eval(MultiFloats.multifloat_exp_func(2, 20, 1, sloppy=false))
-    eval(MultiFloats.multifloat_exp_func(3, 28, 1, sloppy=false))
-    eval(MultiFloats.multifloat_exp_func(4, 35, 1, sloppy=false))
-    eval(MultiFloats.multifloat_exp_func(5, 42, 1, sloppy=false))
-    eval(MultiFloats.multifloat_exp_func(6, 49, 1, sloppy=false))
-    eval(MultiFloats.multifloat_exp_func(7, 56, 1, sloppy=false))
-    eval(MultiFloats.multifloat_exp_func(8, 63, 1, sloppy=false))
-    for (_, v) in Arithmetic.MPADD_CACHE
-        eval(v)
-    end
 end
 
 function use_standard_multifloat_arithmetic(n::Integer=8)
-    for i = 1:n
-        eval(multifloat_eq_func(i))
-        eval(multifloat_ne_func(i))
-        eval(multifloat_lt_func(i))
-        eval(multifloat_gt_func(i))
-        eval(multifloat_le_func(i))
-        eval(multifloat_ge_func(i))
-        eval(multifloat_rand_func(i))
-    end
     for i = 2:n
         eval(two_pass_renorm_func(i, sloppy=true))
         eval(two_pass_renorm_func(i, sloppy=false))
@@ -1394,28 +1255,9 @@ function use_standard_multifloat_arithmetic(n::Integer=8)
         eval(multifloat_float_mul_func(i, sloppy=true))
         eval(multifloat_sqrt_func(i, sloppy=true))
     end
-    eval(MultiFloats.multifloat_exp_func(2, 17, 2, sloppy=false))
-    eval(MultiFloats.multifloat_exp_func(3, 19, 4, sloppy=true))
-    eval(MultiFloats.multifloat_exp_func(4, 20, 6, sloppy=true))
-    eval(MultiFloats.multifloat_exp_func(5, 23, 7, sloppy=true))
-    eval(MultiFloats.multifloat_exp_func(6, 23, 9, sloppy=true))
-    eval(MultiFloats.multifloat_exp_func(7, 22, 12, sloppy=true))
-    eval(MultiFloats.multifloat_exp_func(8, 24, 13, sloppy=true))
-    for (_, v) in Arithmetic.MPADD_CACHE
-        eval(v)
-    end
 end
 
 function use_sloppy_multifloat_arithmetic(n::Integer=8)
-    for i = 1:n
-        eval(multifloat_eq_func(i))
-        eval(multifloat_ne_func(i))
-        eval(multifloat_lt_func(i))
-        eval(multifloat_gt_func(i))
-        eval(multifloat_le_func(i))
-        eval(multifloat_ge_func(i))
-        eval(multifloat_rand_func(i))
-    end
     for i = 2:n
         eval(one_pass_renorm_func(i, sloppy=true))
         eval(multifloat_add_func(i, sloppy=true))
@@ -1424,16 +1266,6 @@ function use_sloppy_multifloat_arithmetic(n::Integer=8)
         eval(multifloat_float_add_func(i, sloppy=true))
         eval(multifloat_float_mul_func(i, sloppy=true))
         eval(multifloat_sqrt_func(i, sloppy=true))
-    end
-    eval(MultiFloats.multifloat_exp_func(2, 17, 2, sloppy=false))
-    eval(MultiFloats.multifloat_exp_func(3, 19, 4, sloppy=true))
-    eval(MultiFloats.multifloat_exp_func(4, 20, 6, sloppy=true))
-    eval(MultiFloats.multifloat_exp_func(5, 23, 7, sloppy=true))
-    eval(MultiFloats.multifloat_exp_func(6, 23, 9, sloppy=true))
-    eval(MultiFloats.multifloat_exp_func(7, 22, 12, sloppy=true))
-    eval(MultiFloats.multifloat_exp_func(8, 24, 13, sloppy=true))
-    for (_, v) in Arithmetic.MPADD_CACHE
-        eval(v)
     end
 end
 
