@@ -1,6 +1,6 @@
 module MultiFloats
 
-using SIMD: Vec
+using SIMD: Vec, vifelse
 using SIMD.Intrinsics: extractelement
 
 
@@ -227,31 +227,17 @@ end
 end
 
 
-#=
+######################################################################## SCALING
 
 
-################################################## CONVERSION TO PRIMITIVE TYPES
+export scale
 
 
-# TODO: normalize here?
-# @inline Base.Float16(x::Float64x{N}) where {N} = Float16(x._limbs[1])
-# @inline Base.Float32(x::Float64x{N}) where {N} = Float32(x._limbs[1])
-
-
-# @inline Base.Float16(x::Float16x{N}) where {N} = x._limbs[1]
-# @inline Base.Float32(x::Float32x{N}) where {N} = x._limbs[1]
-# @inline Base.Float64(x::Float64x{N}) where {N} = x._limbs[1]
-
-
-######################################################## CONVERSION TO BIG TYPES
-
-
-Base.BigFloat(x::MultiFloat{T,N}) where {T,N} =
-    +(BigFloat.(reverse(x._limbs))...)
-
-
-Base.Rational{BigInt}(x::MultiFloat{T,N}) where {T,N} =
-    +(Rational{BigInt}.(x._limbs)...)
+@inline scale(a, x) = a * x
+@inline scale(a::T, x::_MF{T,N}) where {T,N} =
+    _MF{T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
+@inline scale(a::T, x::_MFV{M,T,N}) where {M,T,N} =
+    _MFV{M,T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
 
 
 ########################################################## ERROR-FREE ARITHMETIC
@@ -351,6 +337,190 @@ function _meta_sum(T::DataType, xs::Vector{Symbol})
 end
 
 
+################################################################ RENORMALIZATION
+
+
+export renormalize
+
+
+function _one_pass_renorm_expr(T::DataType, num_inputs::Int, num_outputs::Int)
+    @assert num_outputs > 0
+    @assert ((num_inputs == num_outputs) ||
+             (num_inputs == num_outputs + 1))
+    code = _inline_block()
+
+    # Unpack argument tuple.
+    args = [Symbol('x', i) for i = 1:num_inputs]
+    push!(code, _meta_unpack(args, :xs))
+
+    # Generate one-pass renormalization code.
+    for i = 1:num_outputs-1
+        push!(code, _meta_fast_two_sum(args[i], args[i+1], args[i], args[i+1]))
+    end
+
+    # Return a tuple of renormalized terms.
+    push!(code, Expr(:return, _meta_tuple(
+        args[1:num_outputs-1]...,
+        _meta_sum(T, args[num_outputs:end])
+    )))
+    return Expr(:block, code...)
+end
+
+
+@generated _one_pass_renorm(::Val{N}, xs::T...) where {T,N} =
+    _one_pass_renorm_expr(T, length(xs), N)
+
+
+function _two_pass_renorm_expr(T::DataType, num_inputs::Int, num_outputs::Int)
+    @assert num_outputs > 0
+    @assert ((num_inputs == num_outputs) ||
+             (num_inputs == num_outputs + 1))
+    code = _inline_block()
+
+    # Unpack argument tuple.
+    args = [Symbol('x', i) for i = 1:num_inputs]
+    push!(code, _meta_unpack(args, :xs))
+
+    # Generate two-pass renormalization code.
+    for i = num_inputs-1:-1:2
+        push!(code, _meta_fast_two_sum(args[i], args[i+1], args[i], args[i+1]))
+    end
+    for i = 1:num_outputs-1
+        push!(code, _meta_fast_two_sum(args[i], args[i+1], args[i], args[i+1]))
+    end
+
+    # Return a tuple of renormalized terms.
+    push!(code, Expr(:return, _meta_tuple(
+        args[1:num_outputs-1]...,
+        _meta_sum(T, args[num_outputs:end])
+    )))
+    return Expr(:block, code...)
+end
+
+
+@generated _two_pass_renorm(::Val{N}, xs::T...) where {T,N} =
+    _two_pass_renorm_expr(T, length(xs), N)
+
+
+# This function is needed to work around the following SIMD bug:
+# https://github.com/eschnett/SIMD.jl/issues/115
+@inline _ntuple_equal(x::NTuple{N,T}, y::NTuple{N,T}
+) where {N,T} = all(x .== y)
+@inline _ntuple_equal(x::NTuple{N,Vec{M,T}}, y::NTuple{N,Vec{M,T}}
+) where {N,M,T} = all(all.(x .== y))
+
+
+@inline function renormalize(xs::NTuple{N,T}) where {N,T}
+    total = +(xs...)
+    if !isfinite(total)
+        return ntuple(_ -> total, Val{N}())
+    end
+    while true
+        xs_new = _two_pass_renorm(Val{N}(), xs...)
+        if _ntuple_equal(xs, xs_new)
+            return xs
+        else
+            xs = xs_new
+        end
+    end
+end
+
+
+@inline function renormalize(xs::NTuple{N,Vec{M,T}}) where {M,T,N}
+    total = +(xs...)
+    mask = isfinite(total)
+    xs = ntuple(i -> vifelse(mask, xs[i], zero(Vec{M,T})), Val{N}())
+    while true
+        xs_new = _two_pass_renorm(Val{N}(), xs...)
+        if _ntuple_equal(xs, xs_new)
+            return ntuple(i -> vifelse(mask, xs[i], total), Val{N}())
+        else
+            xs = xs_new
+        end
+    end
+end
+
+
+@inline renormalize(x::_MF{T,N}) where {T,N} =
+    _MF{T,N}(renormalize(x._limbs))
+@inline renormalize(x::_MFV{M,T,N}) where {M,T,N} =
+    _MFV{M,T,N}(renormalize(x._limbs))
+
+
+################################################### FLOATING-POINT INTROSPECTION
+
+
+@inline _iszero(x::_MF{T,N}) where {T,N} = (&)(ntuple(
+    i -> iszero(x._limbs[i]), Val{N}())...)
+@inline _iszero(x::_MFV{M,T,N}) where {M,T,N} = (&)(ntuple(
+    i -> iszero(x._limbs[i]), Val{N}())...)
+@inline _isone(x::_MF{T,N}) where {T,N} = isone(x._limbs[1]) & (&)(ntuple(
+    i -> iszero(x._limbs[i+1]), Val{N - 1}())...)
+@inline _isone(x::_MFV{M,T,N}) where {M,T,N} = isone(x._limbs[1]) & (&)(ntuple(
+    i -> iszero(x._limbs[i+1]), Val{N - 1}())...)
+
+
+@inline Base.iszero(x::_MF{T,N}) where {T,N} = _iszero(renormalize(x))
+@inline Base.iszero(x::_MFV{M,T,N}) where {M,T,N} = _iszero(renormalize(x))
+@inline Base.isone(x::_MF{T,N}) where {T,N} = _isone(renormalize(x))
+@inline Base.isone(x::_MFV{M,T,N}) where {M,T,N} = _isone(renormalize(x))
+
+
+#=
+
+
+@inline _head(x::_MF{T,N}) where {T,N} = renormalize(x)._limbs[1]
+@inline Base.exponent(x::_MF{T,N}) where {T,N} = exponent(_head(x))
+@inline Base.signbit(x::_MF{T,N}) where {T,N} = signbit(_head(x))
+@inline Base.issubnormal(x::_MF{T,N}) where {T,N} = issubnormal(_head(x))
+@inline Base.isfinite(x::_MF{T,N}) where {T,N} = isfinite(_head(x))
+@inline Base.isinf(x::_MF{T,N}) where {T,N} = isinf(_head(x))
+@inline Base.isnan(x::_MF{T,N}) where {T,N} = isnan(_head(x))
+@inline Base.isinteger(x::_MF{T,N}) where {T,N} =
+    all(isinteger.(renormalize(x)._limbs))
+
+@inline function Base.nextfloat(x::_MF{T,N}) where {T,N}
+    y = renormalize(x)
+    return renormalize(_MF{T,N}((
+        ntuple(i -> y._limbs[i], Val{N - 1}())...,
+        nextfloat(y._limbs[N]))))
+end
+
+@inline function Base.prevfloat(x::_MF{T,N}) where {T,N}
+    y = renormalize(x)
+    return renormalize(_MF{T,N}((
+        ntuple(i -> y._limbs[i], Val{N - 1}())...,
+        prevfloat(y._limbs[N]))))
+end
+
+
+######################################################## CONVERSION TO BIG TYPES
+
+
+Base.BigFloat(x::_MF{T,N}) where {T,N} =
+    +(BigFloat.(reverse(renormalize(x)._limbs))...)
+
+
+#=
+
+
+################################################## CONVERSION TO PRIMITIVE TYPES
+
+
+# TODO: normalize here?
+# @inline Base.Float16(x::Float64x{N}) where {N} = Float16(x._limbs[1])
+# @inline Base.Float32(x::Float64x{N}) where {N} = Float32(x._limbs[1])
+
+
+# @inline Base.Float16(x::Float16x{N}) where {N} = x._limbs[1]
+# @inline Base.Float32(x::Float32x{N}) where {N} = x._limbs[1]
+# @inline Base.Float64(x::Float64x{N}) where {N} = x._limbs[1]
+
+
+Base.Rational{BigInt}(x::MultiFloat{T,N}) where {T,N} =
+    +(Rational{BigInt}.(x._limbs)...)
+
+
 ################################################# EXTENDED ERROR-FREE ARITHMETIC
 
 
@@ -399,147 +569,6 @@ end
 
 @generated accurate_sum(::Val{N}, xs::T...) where {T,N} =
     accurate_sum_expr(T, length(xs), N)
-
-
-function one_pass_renorm_expr(
-    T::DataType,
-    num_inputs::Int,
-    num_outputs::Int
-)
-    @assert num_outputs > 0
-    @assert ((num_inputs == num_outputs) ||
-             (num_inputs == num_outputs + 1))
-    code = _inline_block()
-
-    # Unpack argument tuple.
-    args = [Symbol('x', i) for i = 1:num_inputs]
-    push!(code, _meta_unpack(args, :xs))
-
-    # Generate one-pass renormalization code.
-    for i = 1:num_outputs-1
-        push!(code, _meta_fast_two_sum(args[i], args[i+1], args[i], args[i+1]))
-    end
-
-    # Return a tuple of renormalized terms.
-    push!(code, Expr(:return, _meta_tuple(
-        args[1:num_outputs-1]...,
-        _meta_sum(T, args[num_outputs:end])
-    )))
-    return Expr(:block, code...)
-end
-
-
-@generated one_pass_renorm(::Val{N}, xs::T...) where {T,N} =
-    one_pass_renorm_expr(T, length(xs), N)
-
-
-function two_pass_renorm_expr(
-    T::DataType,
-    num_inputs::Int,
-    num_outputs::Int
-)
-    @assert num_outputs > 0
-    @assert ((num_inputs == num_outputs) ||
-             (num_inputs == num_outputs + 1))
-    code = _inline_block()
-
-    # Unpack argument tuple.
-    args = [Symbol('x', i) for i = 1:num_inputs]
-    push!(code, _meta_unpack(args, :xs))
-
-    # Generate two-pass renormalization code.
-    for i = num_inputs-1:-1:2
-        push!(code, _meta_fast_two_sum(args[i], args[i+1], args[i], args[i+1]))
-    end
-    for i = 1:num_outputs-1
-        push!(code, _meta_fast_two_sum(args[i], args[i+1], args[i], args[i+1]))
-    end
-
-    # Return a tuple of renormalized terms.
-    push!(code, Expr(:return, _meta_tuple(
-        args[1:num_outputs-1]...,
-        _meta_sum(T, args[num_outputs:end])
-    )))
-    return Expr(:block, code...)
-end
-
-
-@generated two_pass_renorm(::Val{N}, xs::T...) where {T,N} =
-    two_pass_renorm_expr(T, length(xs), N)
-
-
-################################################# MULTIFLOAT-SPECIFIC ARITHMETIC
-
-
-export renormalize, scale
-
-
-@inline function _ntuple_equal(x::NTuple{N,T}, y::NTuple{N,T}) where {N,T}
-    return all(x .== y)
-end
-
-
-@inline function _ntuple_equal(
-    x::NTuple{N,Vec{M,T}}, y::NTuple{N,Vec{M,T}}
-) where {N,M,T}
-    return all(all.(x .== y))
-end
-
-
-@inline function renormalize(xs::NTuple{N,T}) where {N,T}
-    total = +(xs...)
-    if !isfinite(total)
-        return ntuple(_ -> total, Val{N}())
-    end
-    while true
-        xs_new = two_pass_renorm(Val{N}(), xs...)
-        if _ntuple_equal(xs, xs_new)
-            return xs
-        else
-            xs = xs_new
-        end
-    end
-end
-
-
-@inline function renormalize(xs::NTuple{N,Vec{M,T}}) where {M,T,N}
-    total = +(xs...)
-    if any(!isfinite(total))
-        @assert false # TODO
-    end
-    while true
-        xs_new = two_pass_renorm(Val{N}(), xs...)
-        if _ntuple_equal(xs, xs_new)
-            return xs
-        else
-            xs = xs_new
-        end
-    end
-end
-
-
-@inline renormalize(x::_MF{T,N}) where {T,N} =
-    MultiFloat{T,N}(renormalize(x._limbs))
-
-
-@inline renormalize(x::_MFV{M,T,N}) where {M,T,N} =
-    MultiFloatVec{M,T,N}(renormalize(x._limbs))
-
-
-@inline scale(a::T, x::_MF{T,N}) where {T,N} =
-    MultiFloat{T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
-
-
-@inline scale(a::T, x::_MFV{M,T,N}) where {M,T,N} =
-    MultiFloatVec{M,T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
-
-
-@inline scale(a::Vec{M,T}, x::_MF{T,N}) where {M,T,N} =
-    MultiFloatVec{M,T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
-
-
-@inline scale(a::Vec{M,T}, x::_MFV{M,T,N}) where {M,T,N} =
-    MultiFloatVec{M,T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
 
 
 ####################################################################### PRINTING
@@ -945,16 +974,6 @@ end
 @inline Base.:/(a::_MF{T,N}, b::_MF{T,N}) where {T,N} = multifloat_div(a, b)
 @inline Base.:/(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} = multifloat_div(a, b)
 
-
-#################################################################### LEGACY CODE
-
-#=
-
-export renormalize,
-    use_clean_multifloat_arithmetic,
-    use_standard_multifloat_arithmetic,
-    use_sloppy_multifloat_arithmetic
-
 ####################################################### FLOATING-POINT CONSTANTS
 
 # overload Base._precision to support the base keyword in Julia 1.8
@@ -1050,49 +1069,6 @@ Base.promote_rule(::Type{_MF{T,N}}, ::Type{BigFloat}) where {T,N} = BigFloat
 Base.promote_rule(::Type{Float32x{N}}, ::Type{Float16}) where {N} = Float32x{N}
 Base.promote_rule(::Type{Float64x{N}}, ::Type{Float16}) where {N} = Float64x{N}
 Base.promote_rule(::Type{Float64x{N}}, ::Type{Float32}) where {N} = Float64x{N}
-
-################################################### FLOATING-POINT INTROSPECTION
-
-@inline _iszero(x::_MF{T,N}) where {T,N} =
-    (&)(ntuple(i -> iszero(x._limbs[i]), Val{N}())...)
-@inline _isone(x::_MF{T,N}) where {T,N} =
-    isone(x._limbs[1]) & (&)(ntuple(
-        i -> iszero(x._limbs[i+1]),
-        Val{N - 1}()
-    )...)
-
-@inline Base.iszero(x::_MF{T,1}) where {T} = iszero(x._limbs[1])
-@inline Base.isone(x::_MF{T,1}) where {T} = isone(x._limbs[1])
-@inline Base.iszero(x::_MF{T,N}) where {T,N} = _iszero(renormalize(x))
-@inline Base.isone(x::_MF{T,N}) where {T,N} = _isone(renormalize(x))
-
-@inline _head(x::_MF{T,N}) where {T,N} = renormalize(x)._limbs[1]
-@inline Base.exponent(x::_MF{T,N}) where {T,N} = exponent(_head(x))
-@inline Base.signbit(x::_MF{T,N}) where {T,N} = signbit(_head(x))
-@inline Base.issubnormal(x::_MF{T,N}) where {T,N} = issubnormal(_head(x))
-@inline Base.isfinite(x::_MF{T,N}) where {T,N} = isfinite(_head(x))
-@inline Base.isinf(x::_MF{T,N}) where {T,N} = isinf(_head(x))
-@inline Base.isnan(x::_MF{T,N}) where {T,N} = isnan(_head(x))
-@inline Base.isinteger(x::_MF{T,N}) where {T,N} =
-    all(isinteger.(renormalize(x)._limbs))
-
-@inline function Base.nextfloat(x::_MF{T,N}) where {T,N}
-    y = renormalize(x)
-    return renormalize(_MF{T,N}((
-        ntuple(i -> y._limbs[i], Val{N - 1}())...,
-        nextfloat(y._limbs[N]))))
-end
-
-@inline function Base.prevfloat(x::_MF{T,N}) where {T,N}
-    y = renormalize(x)
-    return renormalize(_MF{T,N}((
-        ntuple(i -> y._limbs[i], Val{N - 1}())...,
-        prevfloat(y._limbs[N]))))
-end
-
-import LinearAlgebra: floatmin2
-@inline floatmin2(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(ldexp(one(T),
-    div(exponent(floatmin(T)) - N * exponent(eps(T)), 2)))
 
 ##################################################################### COMPARISON
 
