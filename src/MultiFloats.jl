@@ -359,11 +359,8 @@ function _one_pass_renorm_expr(T::DataType, num_inputs::Int, num_outputs::Int)
     end
 
     # Return a tuple of renormalized terms.
-    push!(code, Expr(:return, _meta_tuple(
-        args[1:num_outputs-1]...,
-        _meta_sum(T, args[num_outputs:end])
-    )))
-    return Expr(:block, code...)
+    return Expr(:block, code..., Expr(:return, _meta_tuple(
+        args[1:num_outputs-1]..., _meta_sum(T, args[num_outputs:end]))))
 end
 
 
@@ -390,11 +387,8 @@ function _two_pass_renorm_expr(T::DataType, num_inputs::Int, num_outputs::Int)
     end
 
     # Return a tuple of renormalized terms.
-    push!(code, Expr(:return, _meta_tuple(
-        args[1:num_outputs-1]...,
-        _meta_sum(T, args[num_outputs:end])
-    )))
-    return Expr(:block, code...)
+    return Expr(:block, code..., Expr(:return, _meta_tuple(
+        args[1:num_outputs-1]..., _meta_sum(T, args[num_outputs:end]))))
 end
 
 
@@ -522,6 +516,10 @@ Base.BigFloat(x::_MF{T,N}) where {T,N} =
     +(BigFloat.(reverse(renormalize(x)._limbs))...)
 
 
+Base.Rational{BigInt}(x::_MF{T,N}) where {T,N} =
+    +(Rational{BigInt}.(reverse(renormalize(x)._limbs))...)
+
+
 ####################################################################### PRINTING
 
 
@@ -572,10 +570,13 @@ end
 
 
 # import Printf: tofloat
-# tofloat(x::MultiFloat{T,N}) where {T,N} = _call_big(BigFloat, x)
+# tofloat(x::_MF{T,N}) where {T,N} = _call_big(BigFloat, x)
 
 
 ##################################################################### COMPARISON
+
+
+# TODO: MultiFloat-to-Float comparison.
 
 
 _eq_expr(n::Int) = (n == 1) ? :(x._limbs[$n] == y._limbs[$n]) : :(
@@ -597,97 +598,37 @@ _ge_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$i] >= y._limbs[$i]) : :(
 
 
 @generated _eq(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _eq_expr(N)
-@generated _eq(x::_MF{T,N}, y::_MFV{M,T,N}) where {M,T,N} = _eq_expr(N)
-@generated _eq(x::_MFV{M,T,N}, y::_MF{T,N}) where {M,T,N} = _eq_expr(N)
 @generated _eq(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _eq_expr(N)
 @generated _ne(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _ne_expr(N)
-@generated _ne(x::_MF{T,N}, y::_MFV{M,T,N}) where {M,T,N} = _ne_expr(N)
-@generated _ne(x::_MFV{M,T,N}, y::_MF{T,N}) where {M,T,N} = _ne_expr(N)
 @generated _ne(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _ne_expr(N)
 @generated _lt(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _lt_expr(1, N)
-@generated _lt(x::_MF{T,N}, y::_MFV{M,T,N}) where {M,T,N} = _lt_expr(1, N)
-@generated _lt(x::_MFV{M,T,N}, y::_MF{T,N}) where {M,T,N} = _lt_expr(1, N)
 @generated _lt(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _lt_expr(1, N)
 @generated _gt(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _gt_expr(1, N)
-@generated _gt(x::_MF{T,N}, y::_MFV{M,T,N}) where {M,T,N} = _gt_expr(1, N)
-@generated _gt(x::_MFV{M,T,N}, y::_MF{T,N}) where {M,T,N} = _gt_expr(1, N)
 @generated _gt(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _gt_expr(1, N)
 @generated _le(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _le_expr(1, N)
-@generated _le(x::_MF{T,N}, y::_MFV{M,T,N}) where {M,T,N} = _le_expr(1, N)
-@generated _le(x::_MFV{M,T,N}, y::_MF{T,N}) where {M,T,N} = _le_expr(1, N)
 @generated _le(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _le_expr(1, N)
 @generated _ge(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _ge_expr(1, N)
-@generated _ge(x::_MF{T,N}, y::_MFV{M,T,N}) where {M,T,N} = _ge_expr(1, N)
-@generated _ge(x::_MFV{M,T,N}, y::_MF{T,N}) where {M,T,N} = _ge_expr(1, N)
 @generated _ge(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _ge_expr(1, N)
 
 
-@inline Base.:(==)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-    _eq(renormalize(x), renormalize(y))
-@inline Base.:(==)(x::_MF{T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-    _eq(renormalize(x), renormalize(y))
-@inline Base.:(==)(x::_MFV{M,T,N}, y::_MF{T,N}) where {M,T,N} =
-    _eq(renormalize(x), renormalize(y))
-@inline Base.:(==)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-    _eq(renormalize(x), renormalize(y))
-@inline Base.:(!=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-    _ne(renormalize(x), renormalize(y))
-@inline Base.:(!=)(x::_MF{T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-    _ne(renormalize(x), renormalize(y))
-@inline Base.:(!=)(x::_MFV{M,T,N}, y::_MF{T,N}) where {M,T,N} =
-    _ne(renormalize(x), renormalize(y))
-@inline Base.:(!=)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-    _ne(renormalize(x), renormalize(y))
-@inline Base.:(<)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-    _lt(renormalize(x), renormalize(y))
-@inline Base.:(<)(x::_MF{T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-    _lt(renormalize(x), renormalize(y))
-@inline Base.:(<)(x::_MFV{M,T,N}, y::_MF{T,N}) where {M,T,N} =
-    _lt(renormalize(x), renormalize(y))
-@inline Base.:(<)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-    _lt(renormalize(x), renormalize(y))
-@inline Base.:(>)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-    _gt(renormalize(x), renormalize(y))
-@inline Base.:(>)(x::_MF{T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-    _gt(renormalize(x), renormalize(y))
-@inline Base.:(>)(x::_MFV{M,T,N}, y::_MF{T,N}) where {M,T,N} =
-    _gt(renormalize(x), renormalize(y))
-@inline Base.:(>)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-    _gt(renormalize(x), renormalize(y))
-@inline Base.:(<=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-    _le(renormalize(x), renormalize(y))
-@inline Base.:(<=)(x::_MF{T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-    _le(renormalize(x), renormalize(y))
-@inline Base.:(<=)(x::_MFV{M,T,N}, y::_MF{T,N}) where {M,T,N} =
-    _le(renormalize(x), renormalize(y))
-@inline Base.:(<=)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-    _le(renormalize(x), renormalize(y))
-@inline Base.:(>=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-    _ge(renormalize(x), renormalize(y))
-@inline Base.:(>=)(x::_MF{T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-    _ge(renormalize(x), renormalize(y))
-@inline Base.:(>=)(x::_MFV{M,T,N}, y::_MF{T,N}) where {M,T,N} =
-    _ge(renormalize(x), renormalize(y))
-@inline Base.:(>=)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-    _ge(renormalize(x), renormalize(y))
+@inline Base.:(==)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _eq(renormalize(x), renormalize(y))
+@inline Base.:(==)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _eq(renormalize(x), renormalize(y))
+@inline Base.:(!=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _ne(renormalize(x), renormalize(y))
+@inline Base.:(!=)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _ne(renormalize(x), renormalize(y))
+@inline Base.:(<)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _lt(renormalize(x), renormalize(y))
+@inline Base.:(<)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _lt(renormalize(x), renormalize(y))
+@inline Base.:(>)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _gt(renormalize(x), renormalize(y))
+@inline Base.:(>)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _gt(renormalize(x), renormalize(y))
+@inline Base.:(<=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _le(renormalize(x), renormalize(y))
+@inline Base.:(<=)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _le(renormalize(x), renormalize(y))
+@inline Base.:(>=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _ge(renormalize(x), renormalize(y))
+@inline Base.:(>=)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _ge(renormalize(x), renormalize(y))
 
 
-################################################################################
-
-#=
-
-Base.Rational{BigInt}(x::MultiFloat{T,N}) where {T,N} =
-    +(Rational{BigInt}.(x._limbs)...)
+########################################################### ARITHMETIC UTILITIES
 
 
-################################################# EXTENDED ERROR-FREE ARITHMETIC
-
-
-function accurate_sum_expr(
-    T::DataType,
-    num_inputs::Int,
-    num_outputs::Int
-)
+function _accurate_sum_expr(T::DataType, num_inputs::Int, num_outputs::Int)
     @assert num_outputs > 0
     code = _inline_block()
 
@@ -711,9 +652,7 @@ function accurate_sum_expr(
             count += 1
             sum_term = Symbol('s', count)
             err_term = Symbol('e', count)
-            push!(code, _meta_two_sum(
-                sum_term, err_term, curr_terms[1], curr_terms[2]
-            ))
+            push!(code, _meta_two_sum(sum_term, err_term, curr_terms[1], curr_terms[2]))
             deleteat!(curr_terms, 1:2)
             push!(curr_terms, sum_term)
             push!(next_terms, err_term)
@@ -726,11 +665,8 @@ function accurate_sum_expr(
 end
 
 
-@generated accurate_sum(::Val{N}, xs::T...) where {T,N} =
-    accurate_sum_expr(T, length(xs), N)
-
-
-########################################### ARITHMETIC METAPROGRAMMING UTILITIES
+@generated _accurate_sum(::Val{N}, xs::T...) where {T,N} =
+    _accurate_sum_expr(T, length(xs), N)
 
 
 function _push_accumulation_code!(
@@ -748,9 +684,7 @@ function _push_accumulation_code!(
             count += 1
             push!(lhs, Symbol('t', count))
         end
-        push!(code, _meta_unpack(lhs,
-            Expr(:call, :accurate_sum, Val(num_spill), terms[i]...)
-        ))
+        push!(code, _meta_unpack(lhs, Expr(:call, :_accurate_sum, Val(num_spill), terms[i]...)))
         for j = 2:num_spill
             push!(terms[i+j-1], lhs[j])
         end
@@ -776,24 +710,20 @@ function _meta_return_multifloat(
     _push_accumulation_code!(code, results, terms)
     push!(code, Expr(:return, Expr(:call,
         _meta_multifloat(vec_width, T, num_limbs),
-        Expr(:call, renorm_func, Val(num_limbs), results...)
-    )))
+        Expr(:call, renorm_func, Val(num_limbs), results...))))
     return Expr(:block, code...)
 end
 
 
-####################################################################### ADDITION
+##################################################################### ARITHMETIC
 
 
-function multifloat_add_expr(vec_width::Int, T::DataType, num_limbs::Int)
+function _add_expr(vec_width::Int, T::DataType, num_limbs::Int)
     code = _inline_block()
-
     a_limbs = [Symbol('a', i) for i = 1:num_limbs]
     push!(code, _meta_unpack(a_limbs, :(a._limbs)))
-
     b_limbs = [Symbol('b', i) for i = 1:num_limbs]
     push!(code, _meta_unpack(b_limbs, :(b._limbs)))
-
     terms = [Symbol[] for _ = 1:num_limbs+1]
     for i = 1:num_limbs
         sum_term = Symbol('s', i)
@@ -802,25 +732,14 @@ function multifloat_add_expr(vec_width::Int, T::DataType, num_limbs::Int)
         push!(terms[i], sum_term)
         push!(terms[i+1], err_term)
     end
-
-    return _meta_return_multifloat(
-        vec_width, T, num_limbs, code, terms, :two_pass_renorm
-    )
+    return _meta_return_multifloat(vec_width, T, num_limbs, code, terms, :_two_pass_renorm)
 end
 
 
-@generated multifloat_add(a::_MF{T,N}, b::_MF{T,N}) where {T,N} =
-    multifloat_add_expr(-1, T, N)
-@generated multifloat_add(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} =
-    multifloat_add_expr(M, T, N)
-
-
-function multifloat_float_add_expr(vec_width::Int, T::DataType, num_limbs::Int)
+function _addf_expr(vec_width::Int, T::DataType, num_limbs::Int)
     code = _inline_block()
-
     a_limbs = [Symbol('a', i) for i = 1:num_limbs]
     push!(code, _meta_unpack(a_limbs, :(a._limbs)))
-
     terms = [Symbol[] for _ = 1:num_limbs+1]
     last_term = :b
     for i = 1:num_limbs
@@ -831,31 +750,16 @@ function multifloat_float_add_expr(vec_width::Int, T::DataType, num_limbs::Int)
         last_term = err_term
     end
     push!(terms[num_limbs+1], last_term)
-
-    return _meta_return_multifloat(
-        vec_width, T, num_limbs, code, terms, :two_pass_renorm
-    )
+    return _meta_return_multifloat(vec_width, T, num_limbs, code, terms, :_two_pass_renorm)
 end
 
 
-@generated multifloat_float_add(a::_MF{T,N}, b::T) where {T,N} =
-    multifloat_float_add_expr(-1, T, N)
-@generated multifloat_float_add(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T,N} =
-    multifloat_float_add_expr(M, T, N)
-
-
-#################################################################### SUBTRACTION
-
-
-function multifloat_sub_expr(vec_width::Int, T::DataType, num_limbs::Int)
+function _sub_expr(vec_width::Int, T::DataType, num_limbs::Int)
     code = _inline_block()
-
     a_limbs = [Symbol('a', i) for i = 1:num_limbs]
     push!(code, _meta_unpack(a_limbs, :(a._limbs)))
-
     b_limbs = [Symbol('b', i) for i = 1:num_limbs]
     push!(code, _meta_unpack(b_limbs, :(b._limbs)))
-
     terms = [Symbol[] for _ = 1:num_limbs+1]
     for i = 1:num_limbs
         diff_term = Symbol('d', i)
@@ -864,25 +768,14 @@ function multifloat_sub_expr(vec_width::Int, T::DataType, num_limbs::Int)
         push!(terms[i], diff_term)
         push!(terms[i+1], err_term)
     end
-
-    return _meta_return_multifloat(
-        vec_width, T, num_limbs, code, terms, :two_pass_renorm
-    )
+    return _meta_return_multifloat(vec_width, T, num_limbs, code, terms, :_two_pass_renorm)
 end
 
 
-@generated multifloat_sub(a::_MF{T,N}, b::_MF{T,N}) where {T,N} =
-    multifloat_sub_expr(-1, T, N)
-@generated multifloat_sub(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} =
-    multifloat_sub_expr(M, T, N)
-
-
-function multifloat_float_sub_expr(vec_width::Int, T::DataType, num_limbs::Int)
+function _subf_expr(vec_width::Int, T::DataType, num_limbs::Int)
     code = _inline_block()
-
     a_limbs = [Symbol('a', i) for i = 1:num_limbs]
     push!(code, _meta_unpack(a_limbs, :(a._limbs)))
-
     terms = [Symbol[] for _ = 1:num_limbs+1]
     if num_limbs > 0
         diff_term = Symbol('d', 1)
@@ -901,25 +794,14 @@ function multifloat_float_sub_expr(vec_width::Int, T::DataType, num_limbs::Int)
         push!(code, :(d1 = -b))
         push!(terms[1], :d1)
     end
-
-    return _meta_return_multifloat(
-        vec_width, T, num_limbs, code, terms, :two_pass_renorm
-    )
+    return _meta_return_multifloat(vec_width, T, num_limbs, code, terms, :_two_pass_renorm)
 end
 
 
-@generated multifloat_float_sub(a::_MF{T,N}, b::T) where {T,N} =
-    multifloat_float_sub_expr(-1, T, N)
-@generated multifloat_float_sub(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T,N} =
-    multifloat_float_sub_expr(M, T, N)
-
-
-function float_multifloat_sub_expr(vec_width::Int, T::DataType, num_limbs::Int)
+function _fsub_expr(vec_width::Int, T::DataType, num_limbs::Int)
     code = _inline_block()
-
     b_limbs = [Symbol('b', i) for i = 1:num_limbs]
     push!(code, _meta_unpack(b_limbs, :(b._limbs)))
-
     terms = [Symbol[] for _ = 1:num_limbs+1]
     last_term = :a
     for i = 1:num_limbs
@@ -930,31 +812,16 @@ function float_multifloat_sub_expr(vec_width::Int, T::DataType, num_limbs::Int)
         last_term = err_term
     end
     push!(terms[num_limbs+1], last_term)
-
-    return _meta_return_multifloat(
-        vec_width, T, num_limbs, code, terms, :two_pass_renorm
-    )
+    return _meta_return_multifloat(vec_width, T, num_limbs, code, terms, :_two_pass_renorm)
 end
 
 
-@generated float_multifloat_sub(a::T, b::_MF{T,N}) where {T,N} =
-    float_multifloat_sub_expr(-1, T, N)
-@generated float_multifloat_sub(a::Vec{M,T}, b::_MFV{M,T,N}) where {M,T,N} =
-    float_multifloat_sub_expr(M, T, N)
-
-
-################################################################# MULTIPLICATION
-
-
-function multifloat_mul_expr(vec_width::Int, T::DataType, num_limbs::Int)
+function _mul_expr(vec_width::Int, T::DataType, num_limbs::Int)
     code = _inline_block()
-
     a_limbs = [Symbol('a', i) for i = 1:num_limbs]
     push!(code, _meta_unpack(a_limbs, :(a._limbs)))
-
     b_limbs = [Symbol('b', i) for i = 1:num_limbs]
     push!(code, _meta_unpack(b_limbs, :(b._limbs)))
-
     terms = [Symbol[] for _ = 1:num_limbs]
     count = 0
     for i = 1:num_limbs-1
@@ -962,9 +829,7 @@ function multifloat_mul_expr(vec_width::Int, T::DataType, num_limbs::Int)
             count += 1
             prod_term = Symbol('p', count)
             err_term = Symbol('e', count)
-            push!(code, _meta_two_prod(
-                prod_term, err_term, a_limbs[j], b_limbs[i-j+1]
-            ))
+            push!(code, _meta_two_prod(prod_term, err_term, a_limbs[j], b_limbs[i-j+1]))
             push!(terms[i], prod_term)
             push!(terms[i+1], err_term)
         end
@@ -975,25 +840,14 @@ function multifloat_mul_expr(vec_width::Int, T::DataType, num_limbs::Int)
         push!(code, _meta_prod(prod_term, a_limbs[j], b_limbs[num_limbs-j+1]))
         push!(terms[num_limbs], prod_term)
     end
-
-    return _meta_return_multifloat(
-        vec_width, T, num_limbs, code, terms, :two_pass_renorm
-    )
+    return _meta_return_multifloat(vec_width, T, num_limbs, code, terms, :_two_pass_renorm)
 end
 
 
-@generated multifloat_mul(a::_MF{T,N}, b::_MF{T,N}) where {T,N} =
-    multifloat_mul_expr(-1, T, N)
-@generated multifloat_mul(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} =
-    multifloat_mul_expr(M, T, N)
-
-
-function multifloat_float_mul_expr(vec_width::Int, T::DataType, num_limbs::Int)
+function _mulf_expr(vec_width::Int, T::DataType, num_limbs::Int)
     code = _inline_block()
-
     a_limbs = [Symbol('a', i) for i = 1:num_limbs]
     push!(code, _meta_unpack(a_limbs, :(a._limbs)))
-
     terms = [Symbol[] for _ = 1:num_limbs]
     for i = 1:num_limbs-1
         prod_term = Symbol('p', i)
@@ -1007,23 +861,11 @@ function multifloat_float_mul_expr(vec_width::Int, T::DataType, num_limbs::Int)
         push!(code, _meta_prod(prod_term, a_limbs[num_limbs], :b))
         push!(terms[num_limbs], prod_term)
     end
-
-    return _meta_return_multifloat(
-        vec_width, T, num_limbs, code, terms, :two_pass_renorm
-    )
+    return _meta_return_multifloat(vec_width, T, num_limbs, code, terms, :_two_pass_renorm)
 end
 
 
-@generated multifloat_float_mul(a::MultiFloat{T,N}, b::T) where {T,N} =
-    multifloat_float_mul_expr(-1, T, N)
-@generated multifloat_float_mul(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T,N} =
-    multifloat_float_mul_expr(M, T, N)
-
-
-####################################################################### DIVISION
-
-
-function multifloat_div_expr(vec_width::Int, T::DataType, num_limbs::Int)
+function _div_expr(vec_width::Int, T::DataType, num_limbs::Int)
     code = _inline_block()
     terms = [[Symbol('q', i)] for i = 1:num_limbs]
     for i = 1:num_limbs
@@ -1034,54 +876,63 @@ function multifloat_div_expr(vec_width::Int, T::DataType, num_limbs::Int)
         end
         push!(code, :($(only(terms[i])) = r._limbs[1] / b._limbs[1]))
     end
-    return _meta_return_multifloat(
-        vec_width, T, num_limbs, code, terms, :two_pass_renorm
-    )
+    return _meta_return_multifloat(vec_width, T, num_limbs, code, terms, :_two_pass_renorm)
 end
 
 
-@generated multifloat_div(a::_MF{T,N}, b::_MF{T,N}) where {T,N} =
-    multifloat_div_expr(-1, T, N)
-@generated multifloat_div(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} =
-    multifloat_div_expr(M, T, N)
+@generated _add(a::_MF{T,N}, b::_MF{T,N}) where {T,N} = _add_expr(-1, T, N)
+@generated _add(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} = _add_expr(M, T, N)
+@generated _addf(a::_MF{T,N}, b::T) where {T,N} = _addf_expr(-1, T, N)
+@generated _addf(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T,N} = _addf_expr(M, T, N)
+@generated _sub(a::_MF{T,N}, b::_MF{T,N}) where {T,N} = _sub_expr(-1, T, N)
+@generated _sub(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} = _sub_expr(M, T, N)
+@generated _subf(a::_MF{T,N}, b::T) where {T,N} = _subf_expr(-1, T, N)
+@generated _subf(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T,N} = _subf_expr(M, T, N)
+@generated _fsub(a::T, b::_MF{T,N}) where {T,N} = _fsub_expr(-1, T, N)
+@generated _fsub(a::Vec{M,T}, b::_MFV{M,T,N}) where {M,T,N} = _fsub_expr(M, T, N)
+@generated _mul(a::_MF{T,N}, b::_MF{T,N}) where {T,N} = _mul_expr(-1, T, N)
+@generated _mul(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} = _mul_expr(M, T, N)
+@generated _mulf(a::MultiFloat{T,N}, b::T) where {T,N} = _mulf_expr(-1, T, N)
+@generated _mulf(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T,N} = _mulf_expr(M, T, N)
+@generated _div(a::_MF{T,N}, b::_MF{T,N}) where {T,N} = _div_expr(-1, T, N)
+@generated _div(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} = _div_expr(M, T, N)
 
 
-########################################################### OPERATOR OVERLOADING
+@inline Base.:+(a::_MF{T,N}, b::_MF{T,N}) where {T,N} = _add(a, b)
+@inline Base.:+(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} = _add(a, b)
+@inline Base.:+(a::_MF{T,N}, b::T) where {T,N} = _addf(a, b)
+@inline Base.:+(a::_MF{T,N}, b::T) where {T<:Number,N} = _addf(a, b)
+@inline Base.:+(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T,N} = _addf(a, b)
+@inline Base.:+(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T<:Number,N} = _addf(a, b)
+@inline Base.:+(a::T, b::_MF{T,N}) where {T,N} = _addf(b, a)
+@inline Base.:+(a::T, b::_MF{T,N}) where {T<:Number,N} = _addf(b, a)
+@inline Base.:+(a::Vec{M,T}, b::_MFV{M,T,N}) where {M,T,N} = _addf(b, a)
+@inline Base.:+(a::Vec{M,T}, b::_MFV{M,T,N}) where {M,T<:Number,N} = _addf(b, a)
+@inline Base.:-(a::_MF{T,N}, b::_MF{T,N}) where {T,N} = _sub(a, b)
+@inline Base.:-(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} = _sub(a, b)
+@inline Base.:-(a::_MF{T,N}, b::T) where {T,N} = _subf(a, b)
+@inline Base.:-(a::_MF{T,N}, b::T) where {T<:Number,N} = _subf(a, b)
+@inline Base.:-(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T,N} = _subf(a, b)
+@inline Base.:-(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T<:Number,N} = _subf(a, b)
+@inline Base.:-(a::T, b::_MF{T,N}) where {T,N} = _fsub(a, b)
+@inline Base.:-(a::T, b::_MF{T,N}) where {T<:Number,N} = _fsub(a, b)
+@inline Base.:-(a::Vec{M,T}, b::_MFV{M,T,N}) where {M,T,N} = _fsub(a, b)
+@inline Base.:-(a::Vec{M,T}, b::_MFV{M,T,N}) where {M,T<:Number,N} = _fsub(a, b)
+@inline Base.:*(a::_MF{T,N}, b::_MF{T,N}) where {T,N} = _mul(a, b)
+@inline Base.:*(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} = _mul(a, b)
+@inline Base.:*(a::_MF{T,N}, b::T) where {T,N} = _mulf(a, b)
+@inline Base.:*(a::_MF{T,N}, b::T) where {T<:Number,N} = _mulf(a, b)
+@inline Base.:*(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T,N} = _mulf(a, b)
+@inline Base.:*(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T<:Number,N} = _mulf(a, b)
+@inline Base.:*(a::T, b::_MF{T,N}) where {T,N} = _mulf(b, a)
+@inline Base.:*(a::T, b::_MF{T,N}) where {T<:Number,N} = _mulf(b, a)
+@inline Base.:*(a::Vec{M,T}, b::_MFV{M,T,N}) where {M,T,N} = _mulf(b, a)
+@inline Base.:*(a::Vec{M,T}, b::_MFV{M,T,N}) where {M,T<:Number,N} = _mulf(b, a)
+@inline Base.:/(a::_MF{T,N}, b::_MF{T,N}) where {T,N} = _div(a, b)
+@inline Base.:/(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} = _div(a, b)
 
 
-@inline Base.:+(a::_MF{T,N}, b::_MF{T,N}) where {T,N} = multifloat_add(a, b)
-@inline Base.:+(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} = multifloat_add(a, b)
-@inline Base.:+(a::_MF{T,N}, b::T) where {T,N} = multifloat_float_add(a, b)
-@inline Base.:+(a::_MF{T,N}, b::T) where {T<:Number,N} = multifloat_float_add(a, b)
-@inline Base.:+(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T,N} = multifloat_float_add(a, b)
-@inline Base.:+(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T<:Number,N} = multifloat_float_add(a, b)
-@inline Base.:+(a::T, b::_MF{T,N}) where {T,N} = multifloat_float_add(b, a)
-@inline Base.:+(a::T, b::_MF{T,N}) where {T<:Number,N} = multifloat_float_add(b, a)
-@inline Base.:+(a::Vec{M,T}, b::_MFV{M,T,N}) where {M,T,N} = multifloat_float_add(b, a)
-@inline Base.:+(a::Vec{M,T}, b::_MFV{M,T,N}) where {M,T<:Number,N} = multifloat_float_add(b, a)
-@inline Base.:-(a::_MF{T,N}, b::_MF{T,N}) where {T,N} = multifloat_sub(a, b)
-@inline Base.:-(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} = multifloat_sub(a, b)
-@inline Base.:-(a::_MF{T,N}, b::T) where {T,N} = multifloat_float_sub(a, b)
-@inline Base.:-(a::_MF{T,N}, b::T) where {T<:Number,N} = multifloat_float_sub(a, b)
-@inline Base.:-(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T,N} = multifloat_float_sub(a, b)
-@inline Base.:-(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T<:Number,N} = multifloat_float_sub(a, b)
-@inline Base.:-(a::T, b::_MF{T,N}) where {T,N} = float_multifloat_sub(a, b)
-@inline Base.:-(a::T, b::_MF{T,N}) where {T<:Number,N} = float_multifloat_sub(a, b)
-@inline Base.:-(a::Vec{M,T}, b::_MFV{M,T,N}) where {M,T,N} = float_multifloat_sub(a, b)
-@inline Base.:-(a::Vec{M,T}, b::_MFV{M,T,N}) where {M,T<:Number,N} = float_multifloat_sub(a, b)
-@inline Base.:*(a::_MF{T,N}, b::_MF{T,N}) where {T,N} = multifloat_mul(a, b)
-@inline Base.:*(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} = multifloat_mul(a, b)
-@inline Base.:*(a::_MF{T,N}, b::T) where {T,N} = multifloat_float_mul(a, b)
-@inline Base.:*(a::_MF{T,N}, b::T) where {T<:Number,N} = multifloat_float_mul(a, b)
-@inline Base.:*(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T,N} = multifloat_float_mul(a, b)
-@inline Base.:*(a::_MFV{M,T,N}, b::Vec{M,T}) where {M,T<:Number,N} = multifloat_float_mul(a, b)
-@inline Base.:*(a::T, b::_MF{T,N}) where {T,N} = multifloat_float_mul(b, a)
-@inline Base.:*(a::T, b::_MF{T,N}) where {T<:Number,N} = multifloat_float_mul(b, a)
-@inline Base.:*(a::Vec{M,T}, b::_MFV{M,T,N}) where {M,T,N} = multifloat_float_mul(b, a)
-@inline Base.:*(a::Vec{M,T}, b::_MFV{M,T,N}) where {M,T<:Number,N} = multifloat_float_mul(b, a)
-@inline Base.:/(a::_MF{T,N}, b::_MF{T,N}) where {T,N} = multifloat_div(a, b)
-@inline Base.:/(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} = multifloat_div(a, b)
-
+#=
 ####################################################### FLOATING-POINT CONSTANTS
 
 # overload Base._precision to support the base keyword in Julia 1.8
