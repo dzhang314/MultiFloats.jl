@@ -411,7 +411,7 @@ end
 
 
 @inline function renormalize(xs::NTuple{N,T}) where {N,T}
-    total = +(xs...)
+    total = +(reverse(xs)...)
     if !isfinite(total)
         return ntuple(_ -> total, Val{N}())
     end
@@ -427,7 +427,7 @@ end
 
 
 @inline function renormalize(xs::NTuple{N,Vec{M,T}}) where {M,T,N}
-    total = +(xs...)
+    total = +(reverse(xs)...)
     mask = isfinite(total)
     xs = ntuple(i -> vifelse(mask, xs[i], zero(Vec{M,T})), Val{N}())
     while true
@@ -520,6 +520,59 @@ _nextfloat(x::_MF{T,N}) where {T,N} = renormalize(_MF{T,N}((ntuple(
 
 Base.BigFloat(x::_MF{T,N}) where {T,N} =
     +(BigFloat.(reverse(renormalize(x)._limbs))...)
+
+
+####################################################################### PRINTING
+
+
+function _call_big(callback, x::_MF{T,N}) where {T,N}
+    x = renormalize(x)
+    total = +(reverse(x._limbs)...)
+    if !isfinite(total)
+        return setprecision(() -> callback(BigFloat(total)), precision(T))
+    end
+    i = N
+    while (i > 0) && iszero(x._limbs[i])
+        i -= 1
+    end
+    if iszero(i)
+        return setprecision(() -> callback(zero(BigFloat)), precision(T))
+    else
+        return setprecision(
+            () -> callback(BigFloat(x)),
+            precision(T) + exponent(x._limbs[1]) - exponent(x._limbs[i])
+        )
+    end
+end
+
+
+function Base.show(io::IO, x::_MF{T,N}) where {T,N}
+    _call_big(y -> show(io, y), x)
+    return nothing
+end
+
+
+function Base.show(io::IO, x::_MFV{M,T,N}) where {M,T,N}
+    write(io, '<')
+    show(io, M)
+    write(io, " x ")
+    show(io, T)
+    write(io, " x ")
+    show(io, N)
+    write(io, ">[")
+    for i = 1:M
+        if i > 1
+            write(io, ", ")
+        end
+        _call_big(y -> show(io, y), x[i])
+    end
+    write(io, ']')
+    return nothing
+end
+
+
+# import Printf: tofloat
+# tofloat(x::MultiFloat{T,N}) where {T,N} = _call_big(BigFloat, x)
 
 
 ##################################################################### COMPARISON
@@ -675,57 +728,6 @@ end
 
 @generated accurate_sum(::Val{N}, xs::T...) where {T,N} =
     accurate_sum_expr(T, length(xs), N)
-
-
-####################################################################### PRINTING
-
-
-function _call_renormalized(callback, x::_MF{T,N}) where {T,N}
-    x = renormalize(x)
-    total = +(reverse(x._limbs)...)
-    if !isfinite(total)
-        return callback(total)
-    end
-    i = N
-    while (i > 0) && iszero(x._limbs[i])
-        i -= 1
-    end
-    if iszero(i)
-        return callback(zero(T))
-    else
-        return setprecision(
-            () -> callback(BigFloat(x)),
-            precision(T) + exponent(x._limbs[1]) - exponent(x._limbs[i])
-        )
-    end
-end
-
-
-Base.show(io::IO, x::_MF{T,N}) where {T,N} =
-    _call_renormalized(y -> show(io, y), x)
-
-
-function Base.show(io::IO, x::_MFV{M,T,N}) where {M,T,N}
-    write(io, '<')
-    show(io, M)
-    write(io, " x ")
-    show(io, T)
-    write(io, " x ")
-    show(io, N)
-    write(io, ">[")
-    for i = 1:M
-        if i > 1
-            write(io, ", ")
-        end
-        _call_renormalized(y -> show(io, y), x[i])
-    end
-    write(io, ']')
-    return nothing
-end
-
-
-# import Printf: tofloat
-# tofloat(x::MultiFloat{T,N}) where {T,N} = call_normalized(BigFloat, x)
 
 
 ########################################### ARITHMETIC METAPROGRAMMING UTILITIES
