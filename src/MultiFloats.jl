@@ -404,8 +404,8 @@ end
 ) where {N,M,T} = all(all.(x .== y))
 
 
-@inline function renormalize(xs::NTuple{N,T}) where {N,T}
-    total = +(reverse(xs)...)
+@inline function renormalize(xs::NTuple{N,T}) where {T,N}
+    total = sum(xs)
     if !isfinite(total)
         return ntuple(_ -> total, Val{N}())
     end
@@ -421,13 +421,13 @@ end
 
 
 @inline function renormalize(xs::NTuple{N,Vec{M,T}}) where {M,T,N}
-    total = +(reverse(xs)...)
+    total = sum(xs)
     mask = isfinite(total)
-    xs = ntuple(i -> vifelse(mask, xs[i], zero(Vec{M,T})), Val{N}())
+    xs = (x -> vifelse(mask, x, zero(Vec{M,T}))).(xs)
     while true
         xs_new = _two_pass_renorm(Val{N}(), xs...)
         if _ntuple_equal(xs, xs_new)
-            return ntuple(i -> vifelse(mask, xs[i], total), Val{N}())
+            return (x -> vifelse(mask, x, total)).(xs)
         else
             xs = xs_new
         end
@@ -585,16 +585,16 @@ _ne_expr(n::Int) = (n == 1) ? :(x._limbs[$n] != y._limbs[$n]) : :(
     $(_ne_expr(n - 1)) | (x._limbs[$n] != y._limbs[$n]))
 _lt_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$i] < y._limbs[$i]) : :(
     (x._limbs[$i] < y._limbs[$i]) |
-    ((x._limbs[$i] == y._limbs[$i]) & $(lt_expr(i + 1, n))))
+    ((x._limbs[$i] == y._limbs[$i]) & $(_lt_expr(i + 1, n))))
 _gt_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$i] > y._limbs[$i]) : :(
     (x._limbs[$i] > y._limbs[$i]) |
-    ((x._limbs[$i] == y._limbs[$i]) & $(gt_expr(i + 1, n))))
+    ((x._limbs[$i] == y._limbs[$i]) & $(_gt_expr(i + 1, n))))
 _le_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$i] <= y._limbs[$i]) : :(
     (x._limbs[$i] < y._limbs[$i]) |
-    ((x._limbs[$i] == y._limbs[$i]) & $(le_expr(i + 1, n))))
+    ((x._limbs[$i] == y._limbs[$i]) & $(_le_expr(i + 1, n))))
 _ge_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$i] >= y._limbs[$i]) : :(
     (x._limbs[$i] > y._limbs[$i]) |
-    ((x._limbs[$i] == y._limbs[$i]) & $(ge_expr(i + 1, n))))
+    ((x._limbs[$i] == y._limbs[$i]) & $(_ge_expr(i + 1, n))))
 
 
 @generated _eq(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _eq_expr(N)
