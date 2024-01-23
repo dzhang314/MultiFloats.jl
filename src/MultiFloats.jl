@@ -466,32 +466,53 @@ end
 @inline Base.isone(x::_MFV{M,T,N}) where {M,T,N} = _isone(renormalize(x))
 
 
-#=
-
-
 @inline _head(x::_MF{T,N}) where {T,N} = renormalize(x)._limbs[1]
-@inline Base.exponent(x::_MF{T,N}) where {T,N} = exponent(_head(x))
-@inline Base.signbit(x::_MF{T,N}) where {T,N} = signbit(_head(x))
+@inline _head(x::_MFV{M,T,N}) where {M,T,N} = renormalize(x)._limbs[1]
+
+
 @inline Base.issubnormal(x::_MF{T,N}) where {T,N} = issubnormal(_head(x))
+@inline Base.issubnormal(x::_MFV{M,T,N}) where {M,T,N} = issubnormal(_head(x))
 @inline Base.isfinite(x::_MF{T,N}) where {T,N} = isfinite(_head(x))
+@inline Base.isfinite(x::_MFV{M,T,N}) where {M,T,N} = isfinite(_head(x))
 @inline Base.isinf(x::_MF{T,N}) where {T,N} = isinf(_head(x))
+@inline Base.isinf(x::_MFV{M,T,N}) where {M,T,N} = isinf(_head(x))
 @inline Base.isnan(x::_MF{T,N}) where {T,N} = isnan(_head(x))
+@inline Base.isnan(x::_MFV{M,T,N}) where {M,T,N} = isnan(_head(x))
+@inline Base.signbit(x::_MF{T,N}) where {T,N} = signbit(_head(x))
+@inline Base.signbit(x::_MFV{M,T,N}) where {M,T,N} = signbit(_head(x))
+
+
+# Note: SIMD.jl does not define Base.exponent or Base.isinteger for vectors.
+@inline Base.exponent(x::_MF{T,N}) where {T,N} = exponent(_head(x))
 @inline Base.isinteger(x::_MF{T,N}) where {T,N} =
     all(isinteger.(renormalize(x)._limbs))
 
-@inline function Base.nextfloat(x::_MF{T,N}) where {T,N}
-    y = renormalize(x)
-    return renormalize(_MF{T,N}((
-        ntuple(i -> y._limbs[i], Val{N - 1}())...,
-        nextfloat(y._limbs[N]))))
-end
 
-@inline function Base.prevfloat(x::_MF{T,N}) where {T,N}
-    y = renormalize(x)
-    return renormalize(_MF{T,N}((
-        ntuple(i -> y._limbs[i], Val{N - 1}())...,
-        prevfloat(y._limbs[N]))))
-end
+# Note: SIMD.jl does not define Base.prevfloat or Base.nextfloat for vectors.
+_prevfloat(x::_MF{T,N}) where {T,N} = renormalize(_MF{T,N}((ntuple(
+        i -> x._limbs[i], Val{N - 1}())..., prevfloat(x._limbs[N]))))
+_nextfloat(x::_MF{T,N}) where {T,N} = renormalize(_MF{T,N}((ntuple(
+        i -> x._limbs[i], Val{N - 1}())..., nextfloat(x._limbs[N]))))
+@inline Base.prevfloat(x::_MF{T,N}) where {T,N} = _prevfloat(renormalize(x))
+@inline Base.nextfloat(x::_MF{T,N}) where {T,N} = _nextfloat(renormalize(x))
+
+
+################################################## CONVERSION TO PRIMITIVE TYPES
+
+
+@inline Base.Float16(x::Float16x{N}) where {N} = _head(x)
+@inline Base.Float32(x::Float32x{N}) where {N} = _head(x)
+@inline Base.Float64(x::Float64x{N}) where {N} = _head(x)
+
+
+@inline Base.Float16(x::Float32x{N}) where {N} = Float16(_head(x))
+@inline Base.Float16(x::Float64x{N}) where {N} = Float16(_head(x))
+@inline Base.Float32(x::Float64x{N}) where {N} = Float32(_head(x))
+
+
+# TODO: Conversion from Float32x{N} to Float64.
+# TODO: Conversion from Float16x{N} to Float32.
+# TODO: Conversion from Float16x{N} to Float64.
 
 
 ######################################################## CONVERSION TO BIG TYPES
@@ -501,21 +522,106 @@ Base.BigFloat(x::_MF{T,N}) where {T,N} =
     +(BigFloat.(reverse(renormalize(x)._limbs))...)
 
 
+##################################################################### COMPARISON
+
+
+_eq_expr(n::Int) = (n == 1) ? :(x._limbs[$n] == y._limbs[$n]) : :(
+    $(_eq_expr(n - 1)) & (x._limbs[$n] == y._limbs[$n]))
+_ne_expr(n::Int) = (n == 1) ? :(x._limbs[$n] != y._limbs[$n]) : :(
+    $(_ne_expr(n - 1)) | (x._limbs[$n] != y._limbs[$n]))
+_lt_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$i] < y._limbs[$i]) : :(
+    (x._limbs[$i] < y._limbs[$i]) |
+    ((x._limbs[$i] == y._limbs[$i]) & $(lt_expr(i + 1, n))))
+_gt_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$i] > y._limbs[$i]) : :(
+    (x._limbs[$i] > y._limbs[$i]) |
+    ((x._limbs[$i] == y._limbs[$i]) & $(gt_expr(i + 1, n))))
+_le_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$i] <= y._limbs[$i]) : :(
+    (x._limbs[$i] < y._limbs[$i]) |
+    ((x._limbs[$i] == y._limbs[$i]) & $(le_expr(i + 1, n))))
+_ge_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$i] >= y._limbs[$i]) : :(
+    (x._limbs[$i] > y._limbs[$i]) |
+    ((x._limbs[$i] == y._limbs[$i]) & $(ge_expr(i + 1, n))))
+
+
+@generated _eq(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _eq_expr(N)
+@generated _eq(x::_MF{T,N}, y::_MFV{M,T,N}) where {M,T,N} = _eq_expr(N)
+@generated _eq(x::_MFV{M,T,N}, y::_MF{T,N}) where {M,T,N} = _eq_expr(N)
+@generated _eq(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _eq_expr(N)
+@generated _ne(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _ne_expr(N)
+@generated _ne(x::_MF{T,N}, y::_MFV{M,T,N}) where {M,T,N} = _ne_expr(N)
+@generated _ne(x::_MFV{M,T,N}, y::_MF{T,N}) where {M,T,N} = _ne_expr(N)
+@generated _ne(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _ne_expr(N)
+@generated _lt(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _lt_expr(1, N)
+@generated _lt(x::_MF{T,N}, y::_MFV{M,T,N}) where {M,T,N} = _lt_expr(1, N)
+@generated _lt(x::_MFV{M,T,N}, y::_MF{T,N}) where {M,T,N} = _lt_expr(1, N)
+@generated _lt(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _lt_expr(1, N)
+@generated _gt(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _gt_expr(1, N)
+@generated _gt(x::_MF{T,N}, y::_MFV{M,T,N}) where {M,T,N} = _gt_expr(1, N)
+@generated _gt(x::_MFV{M,T,N}, y::_MF{T,N}) where {M,T,N} = _gt_expr(1, N)
+@generated _gt(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _gt_expr(1, N)
+@generated _le(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _le_expr(1, N)
+@generated _le(x::_MF{T,N}, y::_MFV{M,T,N}) where {M,T,N} = _le_expr(1, N)
+@generated _le(x::_MFV{M,T,N}, y::_MF{T,N}) where {M,T,N} = _le_expr(1, N)
+@generated _le(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _le_expr(1, N)
+@generated _ge(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _ge_expr(1, N)
+@generated _ge(x::_MF{T,N}, y::_MFV{M,T,N}) where {M,T,N} = _ge_expr(1, N)
+@generated _ge(x::_MFV{M,T,N}, y::_MF{T,N}) where {M,T,N} = _ge_expr(1, N)
+@generated _ge(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _ge_expr(1, N)
+
+
+@inline Base.:(==)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
+    _eq(renormalize(x), renormalize(y))
+@inline Base.:(==)(x::_MF{T,N}, y::_MFV{M,T,N}) where {M,T,N} =
+    _eq(renormalize(x), renormalize(y))
+@inline Base.:(==)(x::_MFV{M,T,N}, y::_MF{T,N}) where {M,T,N} =
+    _eq(renormalize(x), renormalize(y))
+@inline Base.:(==)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
+    _eq(renormalize(x), renormalize(y))
+@inline Base.:(!=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
+    _ne(renormalize(x), renormalize(y))
+@inline Base.:(!=)(x::_MF{T,N}, y::_MFV{M,T,N}) where {M,T,N} =
+    _ne(renormalize(x), renormalize(y))
+@inline Base.:(!=)(x::_MFV{M,T,N}, y::_MF{T,N}) where {M,T,N} =
+    _ne(renormalize(x), renormalize(y))
+@inline Base.:(!=)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
+    _ne(renormalize(x), renormalize(y))
+@inline Base.:(<)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
+    _lt(renormalize(x), renormalize(y))
+@inline Base.:(<)(x::_MF{T,N}, y::_MFV{M,T,N}) where {M,T,N} =
+    _lt(renormalize(x), renormalize(y))
+@inline Base.:(<)(x::_MFV{M,T,N}, y::_MF{T,N}) where {M,T,N} =
+    _lt(renormalize(x), renormalize(y))
+@inline Base.:(<)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
+    _lt(renormalize(x), renormalize(y))
+@inline Base.:(>)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
+    _gt(renormalize(x), renormalize(y))
+@inline Base.:(>)(x::_MF{T,N}, y::_MFV{M,T,N}) where {M,T,N} =
+    _gt(renormalize(x), renormalize(y))
+@inline Base.:(>)(x::_MFV{M,T,N}, y::_MF{T,N}) where {M,T,N} =
+    _gt(renormalize(x), renormalize(y))
+@inline Base.:(>)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
+    _gt(renormalize(x), renormalize(y))
+@inline Base.:(<=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
+    _le(renormalize(x), renormalize(y))
+@inline Base.:(<=)(x::_MF{T,N}, y::_MFV{M,T,N}) where {M,T,N} =
+    _le(renormalize(x), renormalize(y))
+@inline Base.:(<=)(x::_MFV{M,T,N}, y::_MF{T,N}) where {M,T,N} =
+    _le(renormalize(x), renormalize(y))
+@inline Base.:(<=)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
+    _le(renormalize(x), renormalize(y))
+@inline Base.:(>=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
+    _ge(renormalize(x), renormalize(y))
+@inline Base.:(>=)(x::_MF{T,N}, y::_MFV{M,T,N}) where {M,T,N} =
+    _ge(renormalize(x), renormalize(y))
+@inline Base.:(>=)(x::_MFV{M,T,N}, y::_MF{T,N}) where {M,T,N} =
+    _ge(renormalize(x), renormalize(y))
+@inline Base.:(>=)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
+    _ge(renormalize(x), renormalize(y))
+
+
+################################################################################
+
 #=
-
-
-################################################## CONVERSION TO PRIMITIVE TYPES
-
-
-# TODO: normalize here?
-# @inline Base.Float16(x::Float64x{N}) where {N} = Float16(x._limbs[1])
-# @inline Base.Float32(x::Float64x{N}) where {N} = Float32(x._limbs[1])
-
-
-# @inline Base.Float16(x::Float16x{N}) where {N} = x._limbs[1]
-# @inline Base.Float32(x::Float32x{N}) where {N} = x._limbs[1]
-# @inline Base.Float64(x::Float64x{N}) where {N} = x._limbs[1]
-
 
 Base.Rational{BigInt}(x::MultiFloat{T,N}) where {T,N} =
     +(Rational{BigInt}.(x._limbs)...)
@@ -982,8 +1088,6 @@ let precision = isdefined(Base, :_precision) ? (:_precision) : (:precision)
         N * precision(T) + (N - 1) # implicit bits of precision between limbs
 end
 
-@inline Base.zero(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(zero(T))
-@inline Base.one(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(one(T))
 @inline Base.eps(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(eps(T)^N)
 
 # TODO: This is technically not the maximum/minimum representable MultiFloat.
@@ -1069,21 +1173,6 @@ Base.promote_rule(::Type{_MF{T,N}}, ::Type{BigFloat}) where {T,N} = BigFloat
 Base.promote_rule(::Type{Float32x{N}}, ::Type{Float16}) where {N} = Float32x{N}
 Base.promote_rule(::Type{Float64x{N}}, ::Type{Float16}) where {N} = Float64x{N}
 Base.promote_rule(::Type{Float64x{N}}, ::Type{Float32}) where {N} = Float64x{N}
-
-##################################################################### COMPARISON
-
-@inline Base.:(==)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-    multifloat_eq(renormalize(x), renormalize(y))
-@inline Base.:(!=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-    multifloat_ne(renormalize(x), renormalize(y))
-@inline Base.:(<)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-    multifloat_lt(renormalize(x), renormalize(y))
-@inline Base.:(>)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-    multifloat_gt(renormalize(x), renormalize(y))
-@inline Base.:(<=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-    multifloat_le(renormalize(x), renormalize(y))
-@inline Base.:(>=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-    multifloat_ge(renormalize(x), renormalize(y))
 
 ##################################################################### ARITHMETIC
 
@@ -1250,7 +1339,6 @@ end
 
 use_standard_multifloat_arithmetic()
 
-=#
 =#
 
 end # module MultiFloats
