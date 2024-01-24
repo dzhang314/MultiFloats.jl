@@ -1057,19 +1057,29 @@ end
 #################################################################### SQUARE ROOT
 
 
-@inline function _sqrt(x::_MF{T,N}, ::Val{I}) where {T,N,I}
+@inline unsafe_sqrt(x::Float16) = Base.sqrt_llvm(x)
+@inline unsafe_sqrt(x::Float32) = Base.sqrt_llvm(x)
+@inline unsafe_sqrt(x::Float64) = Base.sqrt_llvm(x)
+
+
+@inline rsqrt(x::Float16) = inv(unsafe_sqrt(x))
+@inline rsqrt(x::Float32) = inv(unsafe_sqrt(x))
+@inline rsqrt(x::Float64) = inv(unsafe_sqrt(x))
+
+
+@inline function _rsqrt(x::_MF{T,N}, ::Val{I}) where {T,N,I}
     _one = one(T)
     _half = inv(_one + _one)
-    r = _MF{T,N}(inv(Base.sqrt_llvm(x._limbs[1])))
+    r = _MF{T,N}(inv(unsafe_sqrt(x._limbs[1])))
     h = scale(_half, x)
     for _ = 1:I
         r += r * (_half - h * (r * r))
     end
-    return inv(r)
+    return r
 end
 
 
-@inline function _sqrt(x::_MFV{M,T,N}, ::Val{I}) where {M,T,N,I}
+@inline function _rsqrt(x::_MFV{M,T,N}, ::Val{I}) where {M,T,N,I}
     _one = one(T)
     _half = inv(_one + _one)
     _half_vec = Vec{M,T}(ntuple(_ -> _half, Val{M}()))
@@ -1078,32 +1088,38 @@ end
     for _ = 1:I
         r += r * (_half_vec - h * (r * r))
     end
-    return inv(r)
+    return r
 end
 
 
-@inline _sqrt(x::_MF{Float64,1}) = _sqrt(x, Val{0}())
-@inline _sqrt(x::_MF{Float64,2}) = _sqrt(x, Val{1}())
-@inline _sqrt(x::_MF{Float64,3}) = _sqrt(x, Val{2}())
-@inline _sqrt(x::_MF{Float64,4}) = _sqrt(x, Val{2}())
-@inline _sqrt(x::_MF{Float64,5}) = _sqrt(x, Val{3}())
-@inline _sqrt(x::_MF{Float64,6}) = _sqrt(x, Val{3}())
-@inline _sqrt(x::_MF{Float64,7}) = _sqrt(x, Val{3}())
-@inline _sqrt(x::_MF{Float64,8}) = _sqrt(x, Val{4}())
-@inline _sqrt(x::_MFV{M,Float64,1}) where {M} = _sqrt(x, Val{0}())
-@inline _sqrt(x::_MFV{M,Float64,2}) where {M} = _sqrt(x, Val{1}())
-@inline _sqrt(x::_MFV{M,Float64,3}) where {M} = _sqrt(x, Val{2}())
-@inline _sqrt(x::_MFV{M,Float64,4}) where {M} = _sqrt(x, Val{2}())
-@inline _sqrt(x::_MFV{M,Float64,5}) where {M} = _sqrt(x, Val{3}())
-@inline _sqrt(x::_MFV{M,Float64,6}) where {M} = _sqrt(x, Val{3}())
-@inline _sqrt(x::_MFV{M,Float64,7}) where {M} = _sqrt(x, Val{3}())
-@inline _sqrt(x::_MFV{M,Float64,8}) where {M} = _sqrt(x, Val{4}())
+@inline rsqrt(x::_MF{Float64,1}) = _rsqrt(x, Val{0}())
+@inline rsqrt(x::_MF{Float64,2}) = _rsqrt(x, Val{1}())
+@inline rsqrt(x::_MF{Float64,3}) = _rsqrt(x, Val{2}())
+@inline rsqrt(x::_MF{Float64,4}) = _rsqrt(x, Val{2}())
+@inline rsqrt(x::_MF{Float64,5}) = _rsqrt(x, Val{3}())
+@inline rsqrt(x::_MF{Float64,6}) = _rsqrt(x, Val{3}())
+@inline rsqrt(x::_MF{Float64,7}) = _rsqrt(x, Val{3}())
+@inline rsqrt(x::_MF{Float64,8}) = _rsqrt(x, Val{4}())
+
+
+@inline rsqrt(x::_MFV{M,Float64,1}) where {M} = _rsqrt(x, Val{0}())
+@inline rsqrt(x::_MFV{M,Float64,2}) where {M} = _rsqrt(x, Val{1}())
+@inline rsqrt(x::_MFV{M,Float64,3}) where {M} = _rsqrt(x, Val{2}())
+@inline rsqrt(x::_MFV{M,Float64,4}) where {M} = _rsqrt(x, Val{2}())
+@inline rsqrt(x::_MFV{M,Float64,5}) where {M} = _rsqrt(x, Val{3}())
+@inline rsqrt(x::_MFV{M,Float64,6}) where {M} = _rsqrt(x, Val{3}())
+@inline rsqrt(x::_MFV{M,Float64,7}) where {M} = _rsqrt(x, Val{3}())
+@inline rsqrt(x::_MFV{M,Float64,8}) where {M} = _rsqrt(x, Val{4}())
+
+
+@inline unsafe_sqrt(x::_MF{T,N}) where {T,N} = inv(rsqrt(x))
+@inline unsafe_sqrt(x::_MFV{M,T,N}) where {M,T,N} = inv(rsqrt(x))
 
 
 @inline Base.sqrt(x::_MF{T,N}) where {T,N} =
-    iszero(x) ? zero(_MF{T,N}) : _sqrt(x)
+    iszero(x) ? zero(_MF{T,N}) : unsafe_sqrt(x)
 @inline Base.sqrt(x::_MFV{M,T,N}) where {M,T,N} =
-    _MFV{M,T,N}(_mask_each(!iszero(x), _sqrt(x)._limbs, zero(Vec{M,T})))
+    _MFV{M,T,N}(_mask_each(!iszero(x), unsafe_sqrt(x)._limbs, zero(Vec{M,T})))
 
 
 ################################################################ PROMOTION RULES
