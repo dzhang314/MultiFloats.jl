@@ -451,14 +451,24 @@ end
 ################################################### FLOATING-POINT INTROSPECTION
 
 
-@inline _iszero(x::_MF{T,N}) where {T,N} = (&)(ntuple(
-    i -> iszero(x._limbs[i]), Val{N}())...)
-@inline _iszero(x::_MFV{M,T,N}) where {M,T,N} = (&)(ntuple(
-    i -> iszero(x._limbs[i]), Val{N}())...)
-@inline _isone(x::_MF{T,N}) where {T,N} = isone(x._limbs[1]) & (&)(ntuple(
-    i -> iszero(x._limbs[i+1]), Val{N - 1}())...)
-@inline _isone(x::_MFV{M,T,N}) where {M,T,N} = isone(x._limbs[1]) & (&)(ntuple(
-    i -> iszero(x._limbs[i+1]), Val{N - 1}())...)
+@inline _and(::Tuple{}) = true
+@inline _and(x::NTuple{1,Bool}) = x[1]
+@inline _and(x::NTuple{N,Bool}) where {N} = (&)(x...)
+
+
+@inline _vand(::Val{M}, ::Tuple{}) where {M} = one(Vec{M,Bool})
+@inline _vand(::Val{M}, x::NTuple{1,Vec{M,Bool}}) where {M} = x[1]
+@inline _vand(::Val{M}, x::NTuple{N,Vec{M,Bool}}) where {M,N} = (&)(x...)
+
+
+@inline _iszero(x::_MF{T,N}) where {T,N} = _and(
+    ntuple(i -> iszero(x._limbs[i]), Val{N}()))
+@inline _iszero(x::_MFV{M,T,N}) where {M,T,N} = _vand(
+    Val{M}(), ntuple(i -> iszero(x._limbs[i]), Val{N}()))
+@inline _isone(x::_MF{T,N}) where {T,N} = isone(x._limbs[1]) & _and(
+    ntuple(i -> iszero(x._limbs[i+1]), Val{N - 1}()))
+@inline _isone(x::_MFV{M,T,N}) where {M,T,N} = isone(x._limbs[1]) & _vand(
+    Val{M}(), ntuple(i -> iszero(x._limbs[i+1]), Val{N - 1}()))
 
 
 @inline Base.iszero(x::_MF{T,N}) where {T,N} = _iszero(renormalize(x))
