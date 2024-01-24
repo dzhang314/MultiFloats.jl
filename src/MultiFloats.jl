@@ -508,6 +508,16 @@ _nextfloat(x::_MF{T,N}) where {T,N} = renormalize(_MF{T,N}((ntuple(
 @inline Base.nextfloat(x::_MF{T,N}) where {T,N} = _nextfloat(renormalize(x))
 
 
+# Note: SIMD.jl does not define Base.precision for vectors.
+if isdefined(Base, :_precision)
+    @inline Base._precision(::Type{_MF{T,N}}) where {T,N} =
+        N * precision(T) + (N - 1) # implicit bits of precision between limbs
+else
+    @inline Base.precision(::Type{_MF{T,N}}) where {T,N} =
+        N * precision(T) + (N - 1) # implicit bits of precision between limbs
+end
+
+
 ################################################## CONVERSION TO PRIMITIVE TYPES
 
 
@@ -1010,12 +1020,6 @@ end
 
 #=
 ####################################################### FLOATING-POINT CONSTANTS
-
-# overload Base._precision to support the base keyword in Julia 1.8
-let precision = isdefined(Base, :_precision) ? (:_precision) : (:precision)
-    @eval @inline Base.$precision(::Type{_MF{T,N}}) where {T,N} =
-        N * precision(T) + (N - 1) # implicit bits of precision between limbs
-end
 
 @inline Base.eps(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(eps(T)^N)
 
