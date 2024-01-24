@@ -1,6 +1,6 @@
 module MultiFloats
 
-using SIMD: Vec, vifelse
+using SIMD: Vec, vifelse, vgather
 using SIMD.Intrinsics: extractelement
 
 
@@ -149,11 +149,21 @@ const v8Float64x8 = MultiFloatVec{8,Float64,8}
 ################################################################ VECTOR INDEXING
 
 
+export mfvgather
+
+
 @inline Base.length(::_MFV{M,T,N}) where {M,T,N} = M
 
 
 @inline Base.getindex(x::_MFV{M,T,N}, i::I) where {M,T,N,I} = _MF{T,N}(ntuple(
     j -> extractelement(x._limbs[j].data, i - one(I)), Val{N}()))
+
+
+@inline function mfvgather(ptr::Ptr{_MF{T,N}}, idx::Vec{M,Int}) where {M,T,N}
+    base = reinterpret(Ptr{T}, ptr) + N * sizeof(T) * idx
+    return _MFV{M,T,N}(ntuple(
+        i -> vgather(base + (i - 1) * sizeof(T)), Val{M}()))
+end
 
 
 ################################################ CONVERSION FROM PRIMITIVE TYPES
