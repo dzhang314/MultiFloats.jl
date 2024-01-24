@@ -149,6 +149,9 @@ const v8Float64x8 = MultiFloatVec{8,Float64,8}
 ################################################################ VECTOR INDEXING
 
 
+@inline Base.length(::_MFV{M,T,N}) where {M,T,N} = M
+
+
 @inline Base.getindex(x::_MFV{M,T,N}, i::I) where {M,T,N,I} = _MF{T,N}(ntuple(
     j -> extractelement(x._limbs[j].data, i - one(I)), Val{N}()))
 
@@ -936,6 +939,65 @@ end
 @inline Base.:/(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} = _div(a, b)
 
 
+########################################################### ARITHMETIC OVERLOADS
+
+
+@inline Base.inv(x::_MF{T,N}) where {T,N} = one(_MF{T,N}) / x
+@inline Base.inv(x::_MFV{M,T,N}) where {M,T,N} = one(_MFV{M,T,N}) / x
+
+
+#################################################################### SQUARE ROOT
+
+
+@inline function _sqrt(x::_MF{T,N}, ::Val{I}) where {T,N,I}
+    _one = one(T)
+    _half = inv(_one + _one)
+    r = _MF{T,N}(inv(Base.sqrt_llvm(x._limbs[1])))
+    h = scale(_half, x)
+    for _ = 1:I
+        r += r * (_half - h * (r * r))
+    end
+    return inv(r)
+end
+
+
+@inline function _sqrt(x::MultiFloatVec{M,T,N}, ::Val{I}) where {M,T,N,I}
+    _one = one(T)
+    _half = inv(_one + _one)
+    _half_vec = Vec{M,T}(ntuple(_ -> _half, Val{M}()))
+    r = _MFV{M,T,N}(inv(sqrt(x._limbs[1])))
+    h = scale(_half, x)
+    for _ = 1:I
+        r += r * (_half_vec - h * (r * r))
+    end
+    return inv(r)
+end
+
+
+@inline _sqrt(x::_MF{Float64,1}) = _sqrt(x, Val{0}())
+@inline _sqrt(x::_MF{Float64,2}) = _sqrt(x, Val{1}())
+@inline _sqrt(x::_MF{Float64,3}) = _sqrt(x, Val{2}())
+@inline _sqrt(x::_MF{Float64,4}) = _sqrt(x, Val{2}())
+@inline _sqrt(x::_MF{Float64,5}) = _sqrt(x, Val{3}())
+@inline _sqrt(x::_MF{Float64,6}) = _sqrt(x, Val{3}())
+@inline _sqrt(x::_MF{Float64,7}) = _sqrt(x, Val{3}())
+@inline _sqrt(x::_MF{Float64,8}) = _sqrt(x, Val{4}())
+@inline _sqrt(x::_MFV{M,Float64,1}) where {M} = _sqrt(x, Val{0}())
+@inline _sqrt(x::_MFV{M,Float64,2}) where {M} = _sqrt(x, Val{1}())
+@inline _sqrt(x::_MFV{M,Float64,3}) where {M} = _sqrt(x, Val{2}())
+@inline _sqrt(x::_MFV{M,Float64,4}) where {M} = _sqrt(x, Val{2}())
+@inline _sqrt(x::_MFV{M,Float64,5}) where {M} = _sqrt(x, Val{3}())
+@inline _sqrt(x::_MFV{M,Float64,6}) where {M} = _sqrt(x, Val{3}())
+@inline _sqrt(x::_MFV{M,Float64,7}) where {M} = _sqrt(x, Val{3}())
+@inline _sqrt(x::_MFV{M,Float64,8}) where {M} = _sqrt(x, Val{4}())
+
+
+@inline Base.sqrt(x::_MF{T,N}) where {T,N} =
+    iszero(x) ? zero(_MF{T,N}) : _sqrt(x)
+@inline Base.sqrt(x::_MFV{M,T,N}) where {M,T,N} =
+    _MFV{M,T,N}(_mask_each(_sqrt(x)._limbs, !iszero(x), zero(Vec{M,T})))
+
+
 #=
 ####################################################### FLOATING-POINT CONSTANTS
 
@@ -1038,8 +1100,6 @@ Base.promote_rule(::Type{Float64x{N}}, ::Type{Float32}) where {N} = Float64x{N}
 @inline Base.:-(x::_MF{T,N}) where {T,N} =
     _MF{T,N}(ntuple(i -> -x._limbs[i], Val{N}()))
 
-@inline Base.inv(x::_MF{T,N}) where {T,N} = one(_MF{T,N}) / x
-
 @inline function Base.abs(x::_MF{T,N}) where {T,N}
     x = renormalize(x)
     ifelse(signbit(x._limbs[1]), -x, x)
@@ -1048,19 +1108,6 @@ end
 @inline function Base.abs2(x::_MF{T,N}) where {T,N}
     x = renormalize(x)
     renormalize(x * x)
-end
-
-@inline unsafe_sqrt(x::Float32) = Base.sqrt_llvm(x)
-@inline unsafe_sqrt(x::Float64) = Base.sqrt_llvm(x)
-@inline unsafe_sqrt(x::T) where {T<:Real} = sqrt(x)
-
-@inline function Base.sqrt(x::_MF{T,N}) where {T,N}
-    x = renormalize(x)
-    if iszero(x)
-        return x
-    else
-        return multifloat_sqrt(x)
-    end
 end
 
 ######################################################## EXPONENTIATION (BASE 2)
@@ -1154,47 +1201,6 @@ function multifloat_rand_func(n::Int)
         )
     )
 end
-
-################################################################ PRECISION MODES
-
-function use_clean_multifloat_arithmetic(n::Integer=8)
-    for i = 2:n+1
-        eval(two_pass_renorm_func(i, sloppy=false))
-        eval(multifloat_add_func(i, sloppy=false))
-        eval(multifloat_mul_func(i, sloppy=false))
-        eval(multifloat_div_func(i, sloppy=false))
-        eval(multifloat_float_add_func(i, sloppy=false))
-        eval(multifloat_float_mul_func(i, sloppy=false))
-        eval(multifloat_sqrt_func(i, sloppy=false))
-    end
-end
-
-function use_standard_multifloat_arithmetic(n::Integer=8)
-    for i = 2:n
-        eval(two_pass_renorm_func(i, sloppy=true))
-        eval(two_pass_renorm_func(i, sloppy=false))
-        eval(multifloat_add_func(i, sloppy=false))
-        eval(multifloat_mul_func(i, sloppy=true))
-        eval(multifloat_div_func(i, sloppy=true))
-        eval(multifloat_float_add_func(i, sloppy=false))
-        eval(multifloat_float_mul_func(i, sloppy=true))
-        eval(multifloat_sqrt_func(i, sloppy=true))
-    end
-end
-
-function use_sloppy_multifloat_arithmetic(n::Integer=8)
-    for i = 2:n
-        eval(one_pass_renorm_func(i, sloppy=true))
-        eval(multifloat_add_func(i, sloppy=true))
-        eval(multifloat_mul_func(i, sloppy=true))
-        eval(multifloat_div_func(i, sloppy=true))
-        eval(multifloat_float_add_func(i, sloppy=true))
-        eval(multifloat_float_mul_func(i, sloppy=true))
-        eval(multifloat_sqrt_func(i, sloppy=true))
-    end
-end
-
-use_standard_multifloat_arithmetic()
 
 =#
 
