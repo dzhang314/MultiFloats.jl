@@ -439,18 +439,22 @@ end
 end
 
 
-@inline _mask_each(x::NTuple{N,Vec{M,T}}, mask::Vec{M,Bool}, y::Vec{M,T}
+@inline _mask_each(
+    mask::Vec{M,Bool}, x::NTuple{N,Vec{M,T}}, y::Vec{M,T}
 ) where {M,T,N} = ntuple(i -> vifelse(mask, x[i], y), Val{N}())
+@inline _mask_each(
+    mask::Vec{M,Bool}, x::NTuple{N,Vec{M,T}}, y::NTuple{N,Vec{M,T}}
+) where {M,T,N} = ntuple(i -> vifelse(mask, x[i], y[i]), Val{N}())
 
 
 @inline function renormalize(xs::NTuple{N,Vec{M,T}}) where {M,T,N}
     total = sum(xs)
     mask = isfinite(total)
-    xs = _mask_each(xs, mask, zero(Vec{M,T}))
+    xs = _mask_each(mask, xs, zero(Vec{M,T}))
     while true
         xs_new = _two_pass_renorm(Val{N}(), xs...)
         if _ntuple_equal(xs, xs_new)
-            return _mask_each(xs, mask, total)
+            return _mask_each(mask, xs, total)
         else
             xs = xs_new
         end
@@ -1008,6 +1012,20 @@ end
     _MFV{M,T,N}(ntuple(i -> -x._limbs[i], Val{N}()))
 
 
+@inline _abs(x::_MF{T,N}) where {T,N} =
+    ifelse(signbit(x._limbs[1]), -x, x)
+@inline _abs(x::_MFV{M,T,N}) where {M,T,N} =
+    _MFV{M,T,N}(_mask_each(signbit(x._limbs[1]), (-x)._limbs, x._limbs))
+
+
+@inline Base.abs(x::_MF{T,N}) where {T,N} = _abs(renormalize(x))
+@inline Base.abs(x::_MFV{M,T,N}) where {M,T,N} = _abs(renormalize(x))
+
+
+@inline Base.abs2(x::_MF{T,N}) where {T,N} = x * x
+@inline Base.abs2(x::_MFV{M,T,N}) where {M,T,N} = x * x
+
+
 @inline Base.inv(x::_MF{T,N}) where {T,N} = one(_MF{T,N}) / x
 @inline Base.inv(x::_MFV{M,T,N}) where {M,T,N} = one(_MFV{M,T,N}) / x
 
@@ -1061,7 +1079,7 @@ end
 @inline Base.sqrt(x::_MF{T,N}) where {T,N} =
     iszero(x) ? zero(_MF{T,N}) : _sqrt(x)
 @inline Base.sqrt(x::_MFV{M,T,N}) where {M,T,N} =
-    _MFV{M,T,N}(_mask_each(_sqrt(x)._limbs, !iszero(x), zero(Vec{M,T})))
+    _MFV{M,T,N}(_mask_each(!iszero(x), _sqrt(x)._limbs, zero(Vec{M,T})))
 
 
 ################################################################ PROMOTION RULES
@@ -1139,18 +1157,6 @@ MultiFloat{T,N}(x::AbstractString) where {T,N} =
 Base.promote_rule(::Type{Float32x{N}}, ::Type{Float16}) where {N} = Float32x{N}
 Base.promote_rule(::Type{Float64x{N}}, ::Type{Float16}) where {N} = Float64x{N}
 Base.promote_rule(::Type{Float64x{N}}, ::Type{Float32}) where {N} = Float64x{N}
-
-##################################################################### ARITHMETIC
-
-@inline function Base.abs(x::_MF{T,N}) where {T,N}
-    x = renormalize(x)
-    ifelse(signbit(x._limbs[1]), -x, x)
-end
-
-@inline function Base.abs2(x::_MF{T,N}) where {T,N}
-    x = renormalize(x)
-    renormalize(x * x)
-end
 
 ############################################## BIGFLOAT TRANSCENDENTAL STOP-GAPS
 
