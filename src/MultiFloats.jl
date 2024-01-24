@@ -420,14 +420,18 @@ end
 end
 
 
+@inline _mask_each(x::NTuple{N,Vec{M,T}}, mask::Vec{M,Bool}, y::Vec{M,T}
+) where {M,T,N} = ntuple(i -> vifelse(mask, x[i], y), Val{N}())
+
+
 @inline function renormalize(xs::NTuple{N,Vec{M,T}}) where {M,T,N}
     total = sum(xs)
     mask = isfinite(total)
-    xs = (x -> vifelse(mask, x, zero(Vec{M,T}))).(xs)
+    xs = _mask_each(xs, mask, zero(Vec{M,T}))
     while true
         xs_new = _two_pass_renorm(Val{N}(), xs...)
         if _ntuple_equal(xs, xs_new)
-            return (x -> vifelse(mask, x, total)).(xs)
+            return _mask_each(xs, mask, total)
         else
             xs = xs_new
         end
