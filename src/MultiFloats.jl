@@ -165,12 +165,12 @@ const v8Float64x8 = MultiFloatVec{8,Float64,8}
 
 @inline Float64x{N}(x::Bool) where {N} = Float64x{N}(Float64(x))
 @inline Float64x{N}(x::Int8) where {N} = Float64x{N}(Float64(x))
-@inline Float64x{N}(x::UInt8) where {N} = Float64x{N}(Float64(x))
 @inline Float64x{N}(x::Int16) where {N} = Float64x{N}(Float64(x))
-@inline Float64x{N}(x::UInt16) where {N} = Float64x{N}(Float64(x))
-@inline Float64x{N}(x::Float16) where {N} = Float64x{N}(Float64(x))
 @inline Float64x{N}(x::Int32) where {N} = Float64x{N}(Float64(x))
+@inline Float64x{N}(x::UInt8) where {N} = Float64x{N}(Float64(x))
+@inline Float64x{N}(x::UInt16) where {N} = Float64x{N}(Float64(x))
 @inline Float64x{N}(x::UInt32) where {N} = Float64x{N}(Float64(x))
+@inline Float64x{N}(x::Float16) where {N} = Float64x{N}(Float64(x))
 @inline Float64x{N}(x::Float32) where {N} = Float64x{N}(Float64(x))
 
 
@@ -228,6 +228,22 @@ end
     x2 = Float64(r1 - Int128(x1))
     return Float64x{N}((x0, x1, x2, ntuple(_ -> 0.0, Val{N - 3}())...))
 end
+
+
+@inline _MFV{M,T,N}(x::Bool) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
+@inline _MFV{M,T,N}(x::Int8) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
+@inline _MFV{M,T,N}(x::Int16) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
+@inline _MFV{M,T,N}(x::Int32) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
+@inline _MFV{M,T,N}(x::Int64) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
+@inline _MFV{M,T,N}(x::Int128) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
+@inline _MFV{M,T,N}(x::UInt8) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
+@inline _MFV{M,T,N}(x::UInt16) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
+@inline _MFV{M,T,N}(x::UInt32) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
+@inline _MFV{M,T,N}(x::UInt64) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
+@inline _MFV{M,T,N}(x::UInt128) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
+@inline _MFV{M,T,N}(x::Float16) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
+@inline _MFV{M,T,N}(x::Float32) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
+@inline _MFV{M,T,N}(x::Float64) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
 
 
 ######################################################################## SCALING
@@ -499,6 +515,13 @@ end
     all(isinteger.(renormalize(x)._limbs))
 
 
+# Note: SIMD.jl does not define Base.ldexp for vectors.
+@inline function Base.ldexp(x::_MF{T,N}, n::I) where {T,N,I}
+    x = renormalize(x)
+    return _MF{T,N}(ntuple(i -> ldexp(x._limbs[i], n), Val{N}()))
+end
+
+
 # Note: SIMD.jl does not define Base.prevfloat or Base.nextfloat for vectors.
 _prevfloat(x::_MF{T,N}) where {T,N} = renormalize(_MF{T,N}((ntuple(
         i -> x._limbs[i], Val{N - 1}())..., prevfloat(x._limbs[N]))))
@@ -516,6 +539,23 @@ else
     @inline Base.precision(::Type{_MF{T,N}}) where {T,N} =
         N * precision(T) + (N - 1) # implicit bits of precision between limbs
 end
+
+
+# Note: SIMD.jl does not define Base.eps for vectors.
+@inline Base.eps(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(eps(T)^N)
+
+
+# Note: SIMD.jl does not define Base.floatmin or Base.floatmax for vectors.
+@inline Base.floatmin(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(floatmin(T))
+@inline Base.floatmax(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(floatmax(T))
+# TODO: This is technically not the maximum/minimum representable MultiFloat.
+
+
+# Note: SIMD.jl does not define Base.typemin or Base.typemax for vectors.
+@inline Base.typemin(::Type{_MF{T,N}}) where {T,N} =
+    _MF{T,N}(ntuple(_ -> typemin(T), Val{N}()))
+@inline Base.typemax(::Type{_MF{T,N}}) where {T,N} =
+    _MF{T,N}(ntuple(_ -> typemax(T), Val{N}()))
 
 
 ################################################## CONVERSION TO PRIMITIVE TYPES
@@ -962,6 +1002,12 @@ end
 ########################################################### ARITHMETIC OVERLOADS
 
 
+@inline Base.:-(x::_MF{T,N}) where {T,N} =
+    _MF{T,N}(ntuple(i -> -x._limbs[i], Val{N}()))
+@inline Base.:-(x::_MFV{M,T,N}) where {M,T,N} =
+    _MFV{M,T,N}(ntuple(i -> -x._limbs[i], Val{N}()))
+
+
 @inline Base.inv(x::_MF{T,N}) where {T,N} = one(_MF{T,N}) / x
 @inline Base.inv(x::_MFV{M,T,N}) where {M,T,N} = one(_MFV{M,T,N}) / x
 
@@ -981,7 +1027,7 @@ end
 end
 
 
-@inline function _sqrt(x::MultiFloatVec{M,T,N}, ::Val{I}) where {M,T,N,I}
+@inline function _sqrt(x::_MFV{M,T,N}, ::Val{I}) where {M,T,N,I}
     _one = one(T)
     _half = inv(_one + _one)
     _half_vec = Vec{M,T}(ntuple(_ -> _half, Val{M}()))
@@ -1018,20 +1064,24 @@ end
     _MFV{M,T,N}(_mask_each(_sqrt(x)._limbs, !iszero(x), zero(Vec{M,T})))
 
 
+################################################################ PROMOTION RULES
+
+
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{Bool}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{Int8}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{Int16}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{Int32}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{Int64}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{Int128}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{UInt8}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{UInt16}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{UInt32}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{UInt64}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{UInt128}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{BigFloat}) where {T,N} = BigFloat
+
+
 #=
-####################################################### FLOATING-POINT CONSTANTS
-
-@inline Base.eps(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(eps(T)^N)
-
-# TODO: This is technically not the maximum/minimum representable MultiFloat.
-@inline Base.floatmin(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(floatmin(T))
-@inline Base.floatmax(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(floatmax(T))
-
-@inline Base.typemin(::Type{_MF{T,N}}) where {T,N} =
-    _MF{T,N}(ntuple(_ -> typemin(T), Val{N}()))
-@inline Base.typemax(::Type{_MF{T,N}}) where {T,N} =
-    _MF{T,N}(ntuple(_ -> typemax(T), Val{N}()))
-
 #################################################### CONSTRUCTION FROM BIG TYPES
 
 tuple_from_collection(collection, ::Val{n}) where {n} =
@@ -1086,33 +1136,11 @@ MultiFloat{T,N}(x::AbstractString) where {T,N} =
         precision(T) + exponent(floatmax(T)) - exponent(floatmin(T))
     )))
 
-################################################################ PROMOTION RULES
-
-Base.promote_rule(::Type{_MF{T,N}}, ::Type{T}) where {T,N} = _MF{T,N}
-Base.promote_rule(::Type{_MF{T,N}}, ::Type{Int8}) where {T,N} = _MF{T,N}
-Base.promote_rule(::Type{_MF{T,N}}, ::Type{Int16}) where {T,N} = _MF{T,N}
-Base.promote_rule(::Type{_MF{T,N}}, ::Type{Int32}) where {T,N} = _MF{T,N}
-Base.promote_rule(::Type{_MF{T,N}}, ::Type{Int64}) where {T,N} = _MF{T,N}
-Base.promote_rule(::Type{_MF{T,N}}, ::Type{Int128}) where {T,N} = _MF{T,N}
-Base.promote_rule(::Type{_MF{T,N}}, ::Type{Bool}) where {T,N} = _MF{T,N}
-Base.promote_rule(::Type{_MF{T,N}}, ::Type{UInt8}) where {T,N} = _MF{T,N}
-Base.promote_rule(::Type{_MF{T,N}}, ::Type{UInt16}) where {T,N} = _MF{T,N}
-Base.promote_rule(::Type{_MF{T,N}}, ::Type{UInt32}) where {T,N} = _MF{T,N}
-Base.promote_rule(::Type{_MF{T,N}}, ::Type{UInt64}) where {T,N} = _MF{T,N}
-Base.promote_rule(::Type{_MF{T,N}}, ::Type{UInt128}) where {T,N} = _MF{T,N}
-
-Base.promote_rule(::Type{_MF{T,N}}, ::Type{BigFloat}) where {T,N} = BigFloat
-
 Base.promote_rule(::Type{Float32x{N}}, ::Type{Float16}) where {N} = Float32x{N}
 Base.promote_rule(::Type{Float64x{N}}, ::Type{Float16}) where {N} = Float64x{N}
 Base.promote_rule(::Type{Float64x{N}}, ::Type{Float32}) where {N} = Float64x{N}
 
 ##################################################################### ARITHMETIC
-
-@inline Base.:/(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = multifloat_div(x, y)
-
-@inline Base.:-(x::_MF{T,N}) where {T,N} =
-    _MF{T,N}(ntuple(i -> -x._limbs[i], Val{N}()))
 
 @inline function Base.abs(x::_MF{T,N}) where {T,N}
     x = renormalize(x)
@@ -1122,13 +1150,6 @@ end
 @inline function Base.abs2(x::_MF{T,N}) where {T,N}
     x = renormalize(x)
     renormalize(x * x)
-end
-
-######################################################## EXPONENTIATION (BASE 2)
-
-@inline function Base.ldexp(x::_MF{T,N}, n::U) where {T,N,U<:Integer}
-    x = renormalize(x)
-    return MultiFloat{T,N}(ntuple(i -> ldexp(x._limbs[i], n), Val{N}()))
 end
 
 ############################################## BIGFLOAT TRANSCENDENTAL STOP-GAPS
