@@ -682,18 +682,30 @@ _ge_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$i] >= y._limbs[$i]) : :(
 @generated _ge(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _ge_expr(1, N)
 
 
-@inline Base.:(==)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _eq(renormalize(x), renormalize(y))
-@inline Base.:(==)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _eq(renormalize(x), renormalize(y))
-@inline Base.:(!=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _ne(renormalize(x), renormalize(y))
-@inline Base.:(!=)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _ne(renormalize(x), renormalize(y))
-@inline Base.:(<)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _lt(renormalize(x), renormalize(y))
-@inline Base.:(<)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _lt(renormalize(x), renormalize(y))
-@inline Base.:(>)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _gt(renormalize(x), renormalize(y))
-@inline Base.:(>)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _gt(renormalize(x), renormalize(y))
-@inline Base.:(<=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _le(renormalize(x), renormalize(y))
-@inline Base.:(<=)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _le(renormalize(x), renormalize(y))
-@inline Base.:(>=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _ge(renormalize(x), renormalize(y))
-@inline Base.:(>=)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _ge(renormalize(x), renormalize(y))
+@inline Base.:(==)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
+    _eq(renormalize(x), renormalize(y))
+@inline Base.:(==)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
+    _eq(renormalize(x), renormalize(y))
+@inline Base.:(!=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
+    _ne(renormalize(x), renormalize(y))
+@inline Base.:(!=)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
+    _ne(renormalize(x), renormalize(y))
+@inline Base.:(<)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
+    _lt(renormalize(x), renormalize(y))
+@inline Base.:(<)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
+    _lt(renormalize(x), renormalize(y))
+@inline Base.:(>)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
+    _gt(renormalize(x), renormalize(y))
+@inline Base.:(>)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
+    _gt(renormalize(x), renormalize(y))
+@inline Base.:(<=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
+    _le(renormalize(x), renormalize(y))
+@inline Base.:(<=)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
+    _le(renormalize(x), renormalize(y))
+@inline Base.:(>=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
+    _ge(renormalize(x), renormalize(y))
+@inline Base.:(>=)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
+    _ge(renormalize(x), renormalize(y))
 
 
 ########################################################### ARITHMETIC UTILITIES
@@ -723,7 +735,8 @@ function _accurate_sum_expr(T::DataType, num_inputs::Int, num_outputs::Int)
             count += 1
             sum_term = Symbol('s', count)
             err_term = Symbol('e', count)
-            push!(code, _meta_two_sum(sum_term, err_term, curr_terms[1], curr_terms[2]))
+            push!(code, _meta_two_sum(sum_term, err_term,
+                curr_terms[1], curr_terms[2]))
             deleteat!(curr_terms, 1:2)
             push!(curr_terms, sum_term)
             push!(next_terms, err_term)
@@ -755,7 +768,8 @@ function _push_accumulation_code!(
             count += 1
             push!(lhs, Symbol('t', count))
         end
-        push!(code, _meta_unpack(lhs, Expr(:call, :_accurate_sum, Val(num_spill), terms[i]...)))
+        push!(code, _meta_unpack(lhs, Expr(:call, :_accurate_sum,
+            Val(num_spill), terms[i]...)))
         for j = 2:num_spill
             push!(terms[i+j-1], lhs[j])
         end
@@ -764,7 +778,7 @@ function _push_accumulation_code!(
 end
 
 
-function _meta_multifloat(vec_width::Int, T::DataType, num_limbs::Int)
+function _meta_type(vec_width::Int, T::DataType, num_limbs::Int)
     if vec_width == -1
         return Expr(:curly, :MultiFloat, T, num_limbs)
     else
@@ -773,14 +787,14 @@ function _meta_multifloat(vec_width::Int, T::DataType, num_limbs::Int)
 end
 
 
-function _meta_return_multifloat(
+function _meta_mf(
     vec_width::Int, T::DataType, num_limbs::Int,
     code::Vector{Expr}, terms::Vector{Vector{Symbol}}, renorm_func::Symbol
 )
     results = [Symbol('x', i) for i = 1:length(terms)]
     _push_accumulation_code!(code, results, terms)
     push!(code, Expr(:return, Expr(:call,
-        _meta_multifloat(vec_width, T, num_limbs),
+        _meta_type(vec_width, T, num_limbs),
         Expr(:call, renorm_func, Val(num_limbs), results...))))
     return Expr(:block, code...)
 end
@@ -799,11 +813,12 @@ function _add_expr(vec_width::Int, T::DataType, num_limbs::Int)
     for i = 1:num_limbs
         sum_term = Symbol('s', i)
         err_term = Symbol('e', i)
-        push!(code, _meta_two_sum(sum_term, err_term, a_limbs[i], b_limbs[i]))
+        push!(code, _meta_two_sum(sum_term, err_term,
+            a_limbs[i], b_limbs[i]))
         push!(terms[i], sum_term)
         push!(terms[i+1], err_term)
     end
-    return _meta_return_multifloat(vec_width, T, num_limbs, code, terms, :_two_pass_renorm)
+    return _meta_mf(vec_width, T, num_limbs, code, terms, :_two_pass_renorm)
 end
 
 
@@ -816,12 +831,13 @@ function _addf_expr(vec_width::Int, T::DataType, num_limbs::Int)
     for i = 1:num_limbs
         sum_term = Symbol('s', i)
         err_term = Symbol('e', i)
-        push!(code, _meta_two_sum(sum_term, err_term, a_limbs[i], last_term))
+        push!(code, _meta_two_sum(sum_term, err_term,
+            a_limbs[i], last_term))
         push!(terms[i], sum_term)
         last_term = err_term
     end
     push!(terms[num_limbs+1], last_term)
-    return _meta_return_multifloat(vec_width, T, num_limbs, code, terms, :_two_pass_renorm)
+    return _meta_mf(vec_width, T, num_limbs, code, terms, :_two_pass_renorm)
 end
 
 
@@ -835,11 +851,12 @@ function _sub_expr(vec_width::Int, T::DataType, num_limbs::Int)
     for i = 1:num_limbs
         diff_term = Symbol('d', i)
         err_term = Symbol('e', i)
-        push!(code, _meta_two_diff(diff_term, err_term, a_limbs[i], b_limbs[i]))
+        push!(code, _meta_two_diff(diff_term, err_term,
+            a_limbs[i], b_limbs[i]))
         push!(terms[i], diff_term)
         push!(terms[i+1], err_term)
     end
-    return _meta_return_multifloat(vec_width, T, num_limbs, code, terms, :_two_pass_renorm)
+    return _meta_mf(vec_width, T, num_limbs, code, terms, :_two_pass_renorm)
 end
 
 
@@ -851,12 +868,14 @@ function _subf_expr(vec_width::Int, T::DataType, num_limbs::Int)
     if num_limbs > 0
         diff_term = Symbol('d', 1)
         last_term = Symbol('e', 1)
-        push!(code, _meta_two_diff(diff_term, last_term, a_limbs[1], :b))
+        push!(code, _meta_two_diff(diff_term, last_term,
+            a_limbs[1], :b))
         push!(terms[1], diff_term)
         for i = 2:num_limbs
             diff_term = Symbol('d', i)
             err_term = Symbol('e', i)
-            push!(code, _meta_two_sum(diff_term, err_term, a_limbs[i], last_term))
+            push!(code, _meta_two_sum(diff_term, err_term,
+                a_limbs[i], last_term))
             push!(terms[i], diff_term)
             last_term = err_term
         end
@@ -865,7 +884,7 @@ function _subf_expr(vec_width::Int, T::DataType, num_limbs::Int)
         push!(code, :(d1 = -b))
         push!(terms[1], :d1)
     end
-    return _meta_return_multifloat(vec_width, T, num_limbs, code, terms, :_two_pass_renorm)
+    return _meta_mf(vec_width, T, num_limbs, code, terms, :_two_pass_renorm)
 end
 
 
@@ -878,12 +897,13 @@ function _fsub_expr(vec_width::Int, T::DataType, num_limbs::Int)
     for i = 1:num_limbs
         diff_term = Symbol('d', i)
         err_term = Symbol('e', i)
-        push!(code, _meta_two_diff(diff_term, err_term, last_term, b_limbs[i]))
+        push!(code, _meta_two_diff(diff_term, err_term,
+            last_term, b_limbs[i]))
         push!(terms[i], diff_term)
         last_term = err_term
     end
     push!(terms[num_limbs+1], last_term)
-    return _meta_return_multifloat(vec_width, T, num_limbs, code, terms, :_two_pass_renorm)
+    return _meta_mf(vec_width, T, num_limbs, code, terms, :_two_pass_renorm)
 end
 
 
@@ -900,7 +920,8 @@ function _mul_expr(vec_width::Int, T::DataType, num_limbs::Int)
             count += 1
             prod_term = Symbol('p', count)
             err_term = Symbol('e', count)
-            push!(code, _meta_two_prod(prod_term, err_term, a_limbs[j], b_limbs[i-j+1]))
+            push!(code, _meta_two_prod(prod_term, err_term,
+                a_limbs[j], b_limbs[i-j+1]))
             push!(terms[i], prod_term)
             push!(terms[i+1], err_term)
         end
@@ -908,10 +929,11 @@ function _mul_expr(vec_width::Int, T::DataType, num_limbs::Int)
     for j = 1:num_limbs
         count += 1
         prod_term = Symbol('p', count)
-        push!(code, _meta_prod(prod_term, a_limbs[j], b_limbs[num_limbs-j+1]))
+        push!(code, _meta_prod(prod_term,
+            a_limbs[j], b_limbs[num_limbs-j+1]))
         push!(terms[num_limbs], prod_term)
     end
-    return _meta_return_multifloat(vec_width, T, num_limbs, code, terms, :_two_pass_renorm)
+    return _meta_mf(vec_width, T, num_limbs, code, terms, :_two_pass_renorm)
 end
 
 
@@ -923,16 +945,18 @@ function _mulf_expr(vec_width::Int, T::DataType, num_limbs::Int)
     for i = 1:num_limbs-1
         prod_term = Symbol('p', i)
         err_term = Symbol('e', i)
-        push!(code, _meta_two_prod(prod_term, err_term, a_limbs[i], :b))
+        push!(code, _meta_two_prod(prod_term, err_term,
+            a_limbs[i], :b))
         push!(terms[i], prod_term)
         push!(terms[i+1], err_term)
     end
     if num_limbs > 0
         prod_term = Symbol('p', num_limbs)
-        push!(code, _meta_prod(prod_term, a_limbs[num_limbs], :b))
+        push!(code, _meta_prod(prod_term,
+            a_limbs[num_limbs], :b))
         push!(terms[num_limbs], prod_term)
     end
-    return _meta_return_multifloat(vec_width, T, num_limbs, code, terms, :_two_pass_renorm)
+    return _meta_mf(vec_width, T, num_limbs, code, terms, :_two_pass_renorm)
 end
 
 
@@ -947,7 +971,7 @@ function _div_expr(vec_width::Int, T::DataType, num_limbs::Int)
         end
         push!(code, :($(only(terms[i])) = r._limbs[1] / b._limbs[1]))
     end
-    return _meta_return_multifloat(vec_width, T, num_limbs, code, terms, :_two_pass_renorm)
+    return _meta_mf(vec_width, T, num_limbs, code, terms, :_two_pass_renorm)
 end
 
 
