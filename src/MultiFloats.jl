@@ -162,7 +162,7 @@ export mfvgather
 @inline function mfvgather(ptr::Ptr{_MF{T,N}}, idx::Vec{M,Int}) where {M,T,N}
     base = reinterpret(Ptr{T}, ptr) + N * sizeof(T) * idx
     return _MFV{M,T,N}(ntuple(
-        i -> vgather(base + (i - 1) * sizeof(T)), Val{M}()))
+        i -> vgather(base + (i - 1) * sizeof(T)), Val{N}()))
 end
 
 
@@ -1062,6 +1062,10 @@ end
 
 @inline Base.inv(x::_MF{T,N}) where {T,N} = one(_MF{T,N}) / x
 @inline Base.inv(x::_MFV{M,T,N}) where {M,T,N} = one(_MFV{M,T,N}) / x
+
+
+@inline Base.sum(x::_MFV{M,T,N}) where {M,T,N} =
+    +(ntuple(i -> x[i], Val{M}())...)
 
 
 #################################################################### SQUARE ROOT
