@@ -1141,18 +1141,49 @@ end
 ################################################################ PROMOTION RULES
 
 
+Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{T}) where {M,T,N} = _MFV{M,T,N}
+Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{Vec{M,T}}) where {M,T,N} = _MFV{M,T,N}
+Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{_MF{T,N}}) where {M,T,N} = _MFV{M,T,N}
+
+
 Base.promote_rule(::Type{_MF{T,N}}, ::Type{Bool}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{Bool}) where {M,T,N} = _MFV{M,T,N}
 Base.promote_rule(::Type{_MF{T,N}}, ::Type{Int8}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{Int8}) where {M,T,N} = _MFV{M,T,N}
 Base.promote_rule(::Type{_MF{T,N}}, ::Type{Int16}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{Int16}) where {M,T,N} = _MFV{M,T,N}
 Base.promote_rule(::Type{_MF{T,N}}, ::Type{Int32}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{Int32}) where {M,T,N} = _MFV{M,T,N}
 Base.promote_rule(::Type{_MF{T,N}}, ::Type{Int64}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{Int64}) where {M,T,N} = _MFV{M,T,N}
 Base.promote_rule(::Type{_MF{T,N}}, ::Type{Int128}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{Int128}) where {M,T,N} = _MFV{M,T,N}
 Base.promote_rule(::Type{_MF{T,N}}, ::Type{UInt8}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{UInt8}) where {M,T,N} = _MFV{M,T,N}
 Base.promote_rule(::Type{_MF{T,N}}, ::Type{UInt16}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{UInt16}) where {M,T,N} = _MFV{M,T,N}
 Base.promote_rule(::Type{_MF{T,N}}, ::Type{UInt32}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{UInt32}) where {M,T,N} = _MFV{M,T,N}
 Base.promote_rule(::Type{_MF{T,N}}, ::Type{UInt64}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{UInt64}) where {M,T,N} = _MFV{M,T,N}
 Base.promote_rule(::Type{_MF{T,N}}, ::Type{UInt128}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{UInt128}) where {M,T,N} = _MFV{M,T,N}
+
+
 Base.promote_rule(::Type{_MF{T,N}}, ::Type{BigFloat}) where {T,N} = BigFloat
+
+
+@inline Base.:+(x::_MFV{M,T,N}, y::Number) where {M,T,N} = +(promote(x, y)...)
+@inline Base.:+(x::Number, y::_MFV{M,T,N}) where {M,T,N} = +(promote(x, y)...)
+@inline Base.:-(x::_MFV{M,T,N}, y::Number) where {M,T,N} = -(promote(x, y)...)
+@inline Base.:-(x::Number, y::_MFV{M,T,N}) where {M,T,N} = -(promote(x, y)...)
+@inline Base.:*(x::_MFV{M,T,N}, y::Number) where {M,T,N} = *(promote(x, y)...)
+@inline Base.:*(x::Number, y::_MFV{M,T,N}) where {M,T,N} = *(promote(x, y)...)
+@inline Base.:/(x::_MFV{M,T,N}, y::Number) where {M,T,N} = /(promote(x, y)...)
+@inline Base.:/(x::Number, y::_MFV{M,T,N}) where {M,T,N} = /(promote(x, y)...)
+
+
+@inline Base.convert(::Type{_MFV{M,T,N}}, x::Number) where {M,T,N} = _MFV{M,T,N}(x)
 
 
 #=
