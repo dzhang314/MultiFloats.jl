@@ -1074,11 +1074,13 @@ end
 @inline unsafe_sqrt(x::Float16) = Base.sqrt_llvm(x)
 @inline unsafe_sqrt(x::Float32) = Base.sqrt_llvm(x)
 @inline unsafe_sqrt(x::Float64) = Base.sqrt_llvm(x)
+@inline unsafe_sqrt(x::BigFloat) = sqrt(x)
 
 
 @inline rsqrt(x::Float16) = inv(unsafe_sqrt(x))
 @inline rsqrt(x::Float32) = inv(unsafe_sqrt(x))
 @inline rsqrt(x::Float64) = inv(unsafe_sqrt(x))
+@inline rsqrt(x::BigFloat) = inv(sqrt(x))
 
 
 @inline function _rsqrt(x::_MF{T,N}, ::Val{I}) where {T,N,I}
