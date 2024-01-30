@@ -67,20 +67,20 @@ We use [two linear algebra tasks](https://github.com/dzhang314/MultiFloats.jl/bl
 * QR factorization of a random 400×400 matrix
 * Pseudoinverse of a random 400×250 matrix using [GenericLinearAlgebra.jl][1]
 
-The timings reported below are averages of 10 single-threaded runs performed on an Intel Core i9-11900KF processor.
+The timings reported below are averages of 10 single-threaded runs performed on an Intel Core i9-11900KF processor using Julia 1.10.0.
 
-|                          | MultiFloats `Float64x2`   | Julia Base `BigFloat`        | ArbNumerics `ArbFloat`        | DecFP `Dec128`              | DoubleFloats `Double64`    | Quadmath `Float128`        |
-|--------------------------|---------------------------|------------------------------|-------------------------------|-----------------------------|----------------------------|----------------------------|
-| 400×400 `qr`&nbsp;time   | 0.257 sec                 | 10.303 sec (40x&nbsp;slower) | 17.871 sec (69x&nbsp;slower)  | 9.448 sec (36x&nbsp;slower) | 0.535 sec (2x&nbsp;slower) | 2.403 sec (9x&nbsp;slower) |
-| accurate digits          | 26.2                      | 25.9                         | 25.9                          | 27.7                        | 26.1                       | 27.9                       |
-| 400×250 `pinv`&nbsp;time | 1.709 sec                 | 96.655 sec (56x&nbsp;slower) | ❌ Error                      | ❌ Error                   | 3.668 sec (2x&nbsp;slower) | 15.576 sec (9x&nbsp;slower) |
-| accurate digits          | 26.0                      | 25.8                         | ❌ Error                      | ❌ Error                   | 25.4                       | 27.9                        |
-| user-selectable precision                              | ✔️ | ✔️ | ✔️ | ❌ | ❌ | ❌ |
-| avoids dynamic allocation                              | ✔️ | ❌ | ❌ | ✔️ | ✔️ | ✔️ |
-| basic arithmetic<br>`+`, `-`, `*`, `/`, `sqrt`         | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ |
-| transcendental functions<br>`sin`, `cos`, `exp`, `log` | ⚠️ | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ |
-| compatible with<br>[GenericLinearAlgebra.jl][1]        | ✔️ | ✔️ | ✔️ | ❌ | ✔️ | ✔️ |
-| floating-point introspection<br>`minfloat`, `eps`      | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ |
+|                | MultiFloats<br>`Float64x2` | Julia Base<br>`BigFloat` | ArbNumerics<br>`ArbFloat`     | DecFP<br>`Dec128`             | DoubleFloats<br>`Double64`    | Quadmath<br>`Float128`      |
+|----------------|----------------------------|--------------------------|-------------------------------|-------------------------------|-------------------------------|-----------------------------|
+| 400×400 `qr`   | 0.276 sec                  | 7.311 sec<br>27× slower  | 13.259 sec<br>48×&nbsp;slower | 11.963 sec<br>43×&nbsp;slower | 0.384 sec<br>1.4×&nbsp;slower | 1.399 sec<br>5×&nbsp;slower |
+| correct digits | 26.2                       | 25.9                     | 25.9                          | 27.7                          | 26.1                          | 27.9                        |
+| 400×250 `pinv` | 1.236 sec                  | 49.581 sec<br>40× slower | ❌ Error                      | ❌ Error                     | 1.899 sec<br>1.5×&nbsp;slower | 7.551 sec<br>6×&nbsp;slower |
+| correct digits | 26.0                       | 25.8                     | ❌ Error                      | ❌ Error                     | 25.9                          | 27.9                        |
+| selectable precision                            | ✔️ | ✔️ | ✔️ | ❌ | ❌ | ❌ |
+| avoids allocation                               | ✔️ | ❌ | ❌ | ✔️ | ✔️ | ✔️ |
+| arithmetic<br>`+`, `-`, `*`, `/`, `sqrt`        | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ |
+| transcendentals<br>`sin`, `cos`, `exp`, `log`   | ⚠️ | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ |
+| compatible with<br>[GenericLinearAlgebra.jl][1] | ✔️ | ✔️ | ✔️ | ❌ | ✔️ | ✔️ |
+| float introspection<br>`minfloat`, `eps`        | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ |
 
 [1]: https://github.com/JuliaLinearAlgebra/GenericLinearAlgebra.jl
 
