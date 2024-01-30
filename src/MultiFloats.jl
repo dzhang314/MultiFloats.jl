@@ -256,6 +256,89 @@ end
 @inline _MFV{M,T,N}(x::Float64) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
 
 
+###################################################### CONVERSION FROM BIG TYPES
+
+
+@inline _extract_limbs(::Type{T}, x::BigFloat, ::Val{0}) where {T} = ()
+@inline _extract_limbs(::Type{T}, x::BigFloat, ::Val{1}) where {T} = (T(x),)
+@inline function _extract_limbs(::Type{T}, x::BigFloat, ::Val{N}) where {T,N}
+    head = T(x)
+    tail = _extract_limbs(T, x - head, Val{N - 1}())
+    return (head, tail...)
+end
+
+
+@inline function _MF{T,N}(x::BigFloat) where {T,N}
+    if !isfinite(x)
+        value = T(x)
+        return _MF{T,N}(ntuple(_ -> value, Val{N}()))
+    elseif x > +floatmax(T)
+        value = T(+Inf)
+        return _MF{T,N}(ntuple(_ -> value, Val{N}()))
+    elseif x < -floatmax(T)
+        value = T(-Inf)
+        return _MF{T,N}(ntuple(_ -> value, Val{N}()))
+    else
+        setprecision(BigFloat, precision(x)) do
+            setrounding(BigFloat, RoundNearest) do
+                return _MF{T,N}(_extract_limbs(T, x, Val{N}()))
+            end
+        end
+    end
+end
+
+
+@inline _extract_limbs(::Type{T}, x::BigInt, ::Val{0}) where {T} = ()
+@inline _extract_limbs(::Type{T}, x::BigInt, ::Val{1}) where {T} = (T(x),)
+@inline function _extract_limbs(::Type{T}, x::BigInt, ::Val{N}) where {T,N}
+    head = T(x)
+    tail = _extract_limbs(T, x - BigInt(head), Val{N - 1}())
+    return (head, tail...)
+end
+
+
+@inline function _MF{T,N}(x::BigInt) where {T,N}
+    if x > +floatmax(T)
+        value = T(+Inf)
+        return _MF{T,N}(ntuple(_ -> value, Val{N}()))
+    elseif x < -floatmax(T)
+        value = T(-Inf)
+        return _MF{T,N}(ntuple(_ -> value, Val{N}()))
+    else
+        return _MF{T,N}(_extract_limbs(T, x, Val{N}()))
+    end
+end
+
+
+@inline function _MF{T,N}(x::Rational{U}) where {T,N,U}
+    setrounding(BigFloat, RoundNearest) do
+        return _MF{T,N}(BigFloat(x; precision=_full_precision(T)))
+    end
+end
+
+
+@inline _MFV{M,T,N}(x::BigFloat) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
+@inline _MFV{M,T,N}(x::BigInt) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
+@inline _MFV{M,T,N}(x::Rational{U}) where {M,T,N,U} = _MFV{M,T,N}(_MF{T,N}(x))
+
+
+######################################################### CONVERSION FROM STRING
+
+
+@inline _full_precision(::Type{T}) where {T} =
+    exponent(floatmax(T)) - exponent(floatmin(T)) + precision(T)
+
+
+@inline function _MF{T,N}(s::AbstractString) where {T,N}
+    setrounding(BigFloat, RoundNearest) do
+        return _MF{T,N}(BigFloat(s; precision=_full_precision(T)))
+    end
+end
+
+
+@inline _MFV{M,T,N}(s::AbstractString) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(s))
+
+
 ######################################################################## SCALING
 
 
@@ -1173,6 +1256,11 @@ Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{UInt128}) where {M,T,N} = _MFV{M,T
 Base.promote_rule(::Type{_MF{T,N}}, ::Type{BigFloat}) where {T,N} = BigFloat
 
 
+Base.promote_rule(::Type{Float32x{N}}, ::Type{Float16}) where {N} = Float32x{N}
+Base.promote_rule(::Type{Float64x{N}}, ::Type{Float16}) where {N} = Float64x{N}
+Base.promote_rule(::Type{Float64x{N}}, ::Type{Float32}) where {N} = Float64x{N}
+
+
 @inline Base.:+(x::_MFV{M,T,N}, y::Number) where {M,T,N} = +(promote(x, y)...)
 @inline Base.:+(x::Number, y::_MFV{M,T,N}) where {M,T,N} = +(promote(x, y)...)
 @inline Base.:-(x::_MFV{M,T,N}, y::Number) where {M,T,N} = -(promote(x, y)...)
@@ -1188,62 +1276,6 @@ Base.promote_rule(::Type{_MF{T,N}}, ::Type{BigFloat}) where {T,N} = BigFloat
 
 #=
 #################################################### CONSTRUCTION FROM BIG TYPES
-
-tuple_from_collection(collection, ::Val{n}) where {n} =
-    ntuple(
-        let c = collection
-            i -> c[begin-1+i]
-        end,
-        Val{n}())
-
-function constructed_from_big(::Type{T}, ::Val{N}, x::Src) where
-{T<:Real,N,Src<:Union{BigInt,BigFloat}}
-    y = Vector{T}(undef, N)
-    y[1] = T(x)
-    for i = 2:N
-        x -= y[i-1]
-        y[i] = T(x)
-    end
-    MultiFloat{T,N}(tuple_from_collection(y, Val{N}()))
-end
-
-function MultiFloat{T,N}(x::BigFloat) where {T,N}
-    if x > floatmax(T)
-        return typemax(MultiFloat{T,N})
-    elseif x < -floatmax(T)
-        return typemin(MultiFloat{T,N})
-    elseif -floatmin(T) < x < floatmin(T)
-        return zero(MultiFloat{T,N})
-    elseif isnan(x)
-        return _MF{T,N}(ntuple(_ -> T(NaN), Val{N}()))
-    end
-    setrounding(
-        let x = x
-            () -> setprecision(
-                let x = x
-                    () -> constructed_from_big(T, Val{N}(), x)
-                end,
-                BigFloat,
-                precision(x))
-        end,
-        BigFloat,
-        RoundNearest)
-end
-
-MultiFloat{T,N}(x::BigInt) where {T,N} =
-    constructed_from_big(T, Val{N}(), x)
-
-MultiFloat{T,N}(x::Rational{U}) where {T,N,U} =
-    MultiFloat{T,N}(numerator(x)) / MultiFloat{T,N}(denominator(x))
-
-MultiFloat{T,N}(x::AbstractString) where {T,N} =
-    MultiFloat{T,N}(BigFloat(x, precision=(
-        precision(T) + exponent(floatmax(T)) - exponent(floatmin(T))
-    )))
-
-Base.promote_rule(::Type{Float32x{N}}, ::Type{Float16}) where {N} = Float32x{N}
-Base.promote_rule(::Type{Float64x{N}}, ::Type{Float16}) where {N} = Float64x{N}
-Base.promote_rule(::Type{Float64x{N}}, ::Type{Float32}) where {N} = Float64x{N}
 
 ############################################## BIGFLOAT TRANSCENDENTAL STOP-GAPS
 
