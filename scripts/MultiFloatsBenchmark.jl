@@ -28,8 +28,8 @@ function test_pinv(::Type{T}, m::Int, n::Int) where {T}
     println(rpad(T, 30), " | pinv | ", round(num_correct_digits, digits=1), " | ", elapsed_time)
 end
 
-const N = 40
-const M = 25
+const N = 400
+const M = 250
 
 function main()
     while true
@@ -45,7 +45,7 @@ function main()
         test_pinv(Float128, N, M)
         # test_pinv(Dec128, N, M)
         test_pinv(BigFloat, N, M)
-        test_pinv(ArbFloat, N, M)
+        # test_pinv(ArbFloat, N, M)
     end
 end
 
