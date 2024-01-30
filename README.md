@@ -80,7 +80,7 @@ The timings reported below are averages of 10 single-threaded runs performed on 
 | selectable precision                            | ✔️ | ✔️ | ✔️ | ❌ | ❌ | ❌ |
 | avoids allocation                               | ✔️ | ❌ | ❌ | ✔️ | ✔️ | ✔️ |
 | arithmetic<br>`+`, `-`, `*`, `/`, `sqrt`        | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ |
-| transcendentals<br>`sin`, `cos`, `exp`, `log`   | ⚠️ | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ |
+| transcendentals<br>`sin`, `exp`, `log`          | ⚠️ | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ |
 | compatible with<br>[GenericLinearAlgebra.jl][1] | ✔️ | ✔️ | ✔️ | ❌ | ✔️ | ✔️ |
 | float introspection<br>`minfloat`, `eps`        | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ |
 
