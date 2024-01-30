@@ -38,9 +38,8 @@ end
 
 for T in [
     Float64x1, Float64x2, Float64x3, Float64x4,
-    Float64x5, Float64x6, Float64x8, #= Float64x7, =#
+    Float64x5, Float64x6, Float64x7, Float64x8,
 ]
-    # TODO: Why does this test fail for Float64x7?
     setprecision(BigFloat, 500) do
         x = T(2)
         y = sqrt(x)
