@@ -1,18 +1,18 @@
 # MultiFloats.jl
 
-#### Copyright © 2019-2024 by David K. Zhang. Released under the [MIT License](https://github.com/dzhang314/MultiFloats.jl/blob/master/LICENSE).
+#### Copyright © 2019-2024 by David K. Zhang. Released under the [MIT License][4].
 
-**MultiFloats.jl** is a Julia package for extended-precision arithmetic using 100–400 bits (≈30–120 decimal digits). In this range, it is the fastest extended-precision library that I am aware of. At 100-bit precision, **MultiFloats.jl** is roughly **15x faster than [`BigFloat`](https://docs.julialang.org/en/v1/manual/integers-and-floating-point-numbers/#Arbitrary-Precision-Arithmetic)** and **1.5x faster than [DoubleFloats.jl](https://github.com/JuliaMath/DoubleFloats.jl)**.
+**MultiFloats.jl** is a Julia package for extended-precision arithmetic using 100–400 bits (≈30–120 decimal digits). In this range, it is the fastest extended-precision library that I am aware of. At 100-bit precision, **MultiFloats.jl** is roughly **40× faster than [`BigFloat`][2]**, **5× faster than [Quadmath.jl][7]**, and **1.5× faster than [DoubleFloats.jl][6]**.
 
-**MultiFloats.jl** is fast because it uses static data structures that do not dynamically allocate memory. In contrast, [`BigFloat`](https://docs.julialang.org/en/v1/manual/integers-and-floating-point-numbers/#Arbitrary-Precision-Arithmetic) allocates memory for every individual arithmetic operation, requiring frequent pauses for garbage collection. In addition, **MultiFloats.jl** uses branch-free algorithms that can be vectorized for even faster execution on [SIMD](https://github.com/eschnett/SIMD.jl) processors.
+**MultiFloats.jl** is fast because it uses static data structures that do not dynamically allocate memory. In contrast, [`BigFloat`][2] allocates memory for every individual arithmetic operation, requiring frequent pauses for garbage collection. In addition, **MultiFloats.jl** uses branch-free algorithms that can be vectorized for even faster execution on [SIMD][3] processors.
 
-**MultiFloats.jl** provides fast, pure-Julia implementations of the basic arithmetic operations (`+`, `-`, `*`, `/`, `sqrt`), comparison operators (`==`, `!=`, `<`, `>`, `<=`, `>=`), `exp`, `log`, and floating-point introspection methods (`isfinite`, `eps`, `minfloat`, etc.). Transcendental functions (`exp`, `log`, `sin`, `cos`, etc.) are supported through [MPFR](https://www.mpfr.org/).
+**MultiFloats.jl** provides fast, pure-Julia implementations of the basic arithmetic operations (`+`, `-`, `*`, `/`, `sqrt`), comparison operators (`==`, `!=`, `<`, `>`, `<=`, `>=`), `exp`, `log`, and floating-point introspection methods (`isfinite`, `eps`, `minfloat`, etc.). Transcendental functions (`exp`, `log`, `sin`, `cos`, etc.) are supported through [MPFR][12].
 
-**MultiFloats.jl** stores extended-precision numbers in a **multi-limb representation** that generalizes the idea of [double-double arithmetic](https://en.wikipedia.org/wiki/Quadruple-precision_floating-point_format#Double-double_arithmetic) to an arbitrary number of components. This idea takes inspiration from Jonathan Shewchuk's work on [adaptive-precision floating-point arithmetic](http://dx.doi.org/10.1007/pl00009321) and Yozo Hida, Xiaoye Li, and David Bailey's [algorithms for quad-double arithmetic](https://doi.org/10.1109/ARITH.2001.930115), combined in a novel fashion with Julia's unique JIT architecture and metaprogramming capabilities.
+**MultiFloats.jl** stores extended-precision numbers in a **multi-limb representation** that generalizes the idea of [double-double arithmetic][9] to an arbitrary number of components. This idea takes inspiration from Jonathan Shewchuk's work on [adaptive-precision floating-point arithmetic][10] and Yozo Hida, Xiaoye Li, and David Bailey's [algorithms for quad-double arithmetic][11], combined in a novel fashion with Julia's unique JIT architecture and metaprogramming capabilities.
 
 ## New Features in v2.0
 
-**MultiFloats.jl v2.0** now supports explicit SIMD vector programming using [SIMD.jl](https://github.com/eschnett/SIMD.jl). In addition to the basic scalar types `Float64x2`, `Float64x3`, ..., `Float64x8`, **MultiFloats.jl v2.0** also provides the vector types `v2Float64x2`, `v4Float64x2`, `v8Float64x2`, ..., `v2Float64x8`, `v4Float64x8`, `v8Float64x8`, allowing users to operate on two, four, or eight extended-precision values at a time. These are all instances of the generic type `MultiFloatVec{M,T,N}`, which represents a vector of `M` values, each represented by `N` limbs of type `T`.
+**MultiFloats.jl v2.0** now supports explicit SIMD vector programming using [SIMD.jl][3]. In addition to the basic scalar types `Float64x2`, `Float64x3`, ..., `Float64x8`, **MultiFloats.jl v2.0** also provides the vector types `v2Float64x2`, `v4Float64x2`, `v8Float64x2`, ..., `v2Float64x8`, `v4Float64x8`, `v8Float64x8`, allowing users to operate on two, four, or eight extended-precision values at a time. These are all instances of the generic type `MultiFloatVec{M,T,N}`, which represents a vector of `M` values, each represented by `N` limbs of type `T`.
 
 **MultiFloats.jl v2.0** also provides the functions `mfvgather(array, indices)` and `mfvscatter(array, indices)` to simultaneously load/store multiple values from/to a dense array of type `Array{MultiFloat{T,N},D}`.
 
@@ -42,7 +42,7 @@ My experience has shown that `sloppy` mode causes serious problems in every nont
 
 ## Usage
 
-**MultiFloats.jl** provides the types `Float64x2`, `Float64x3`, ..., `Float64x8`, which represent extended-precision numbers with 2x, 3x, ..., 8x the precision of `Float64`. These are all subtypes of the parametric type `MultiFloat{T,N}`, where `T = Float64` and <code>N&nbsp;=&nbsp;2,&nbsp;3,&nbsp;...,&nbsp;8</code>.
+**MultiFloats.jl** provides the types `Float64x2`, `Float64x3`, ..., `Float64x8`, which represent extended-precision numbers with 2×, 3×, ..., 8× the precision of `Float64`. These are all subtypes of the parametric type `MultiFloat{T,N}`, where `T = Float64` and <code>N&nbsp;=&nbsp;2,&nbsp;3,&nbsp;...,&nbsp;8</code>.
 
 Instances of `Float64x2`, `Float64x3`, ..., `Float64x8` are convertible to and from `Float64` and `BigFloat`, as shown in the following example.
 
@@ -64,27 +64,25 @@ A comparison with `sqrt(BigFloat(2))` reveals that all displayed digits are corr
 
 ## Features and Benchmarks
 
-We use [two linear algebra tasks](https://github.com/dzhang314/MultiFloats.jl/blob/master/scripts/MultiFloatsBenchmark.jl) to compare the performance of extended-precision floating-point libraries:
+We use [two linear algebra tasks][8] to compare the performance of extended-precision floating-point libraries:
 
 * QR factorization of a random 400×400 matrix
 * Pseudoinverse of a random 400×250 matrix using [GenericLinearAlgebra.jl][1]
 
-The timings reported below are averages of 10 single-threaded runs performed on an Intel Core i9-11900KF processor.
+The timings reported below are averages of 10 single-threaded runs performed on an Intel Core i9-11900KF processor using Julia 1.10.0.
 
-|                          | MultiFloats `Float64x2`   | Julia Base `BigFloat`        | ArbNumerics `ArbFloat`        | DecFP `Dec128`              | DoubleFloats `Double64`    | Quadmath `Float128`        |
-|--------------------------|---------------------------|------------------------------|-------------------------------|-----------------------------|----------------------------|----------------------------|
-| 400×400 `qr`&nbsp;time   | 0.257 sec                 | 10.303 sec (40x&nbsp;slower) | 17.871 sec (69x&nbsp;slower)  | 9.448 sec (36x&nbsp;slower) | 0.535 sec (2x&nbsp;slower) | 2.403 sec (9x&nbsp;slower) |
-| accurate digits          | 26.2                      | 25.9                         | 25.9                          | 27.7                        | 26.1                       | 27.9                       |
-| 400×250 `pinv`&nbsp;time | 1.709 sec                 | 96.655 sec (56x&nbsp;slower) | ❌ Error                      | ❌ Error                   | 3.668 sec (2x&nbsp;slower) | 15.576 sec (9x&nbsp;slower) |
-| accurate digits          | 26.0                      | 25.8                         | ❌ Error                      | ❌ Error                   | 25.4                       | 27.9                        |
-| user-selectable precision                              | ✔️ | ✔️ | ✔️ | ❌ | ❌ | ❌ |
-| avoids dynamic allocation                              | ✔️ | ❌ | ❌ | ✔️ | ✔️ | ✔️ |
-| basic arithmetic<br>`+`, `-`, `*`, `/`, `sqrt`         | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ |
-| transcendental functions<br>`sin`, `cos`, `exp`, `log` | ⚠️ | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ |
-| compatible with<br>[GenericLinearAlgebra.jl][1]        | ✔️ | ✔️ | ✔️ | ❌ | ✔️ | ✔️ |
-| floating-point introspection<br>`minfloat`, `eps`      | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ |
-
-[1]: https://github.com/JuliaLinearAlgebra/GenericLinearAlgebra.jl
+|                | MultiFloats<br>`Float64x2` | Julia Base<br>`BigFloat` | ArbNumerics<br>`ArbFloat`     | DecFP<br>`Dec128`             | DoubleFloats<br>`Double64`    | Quadmath<br>`Float128`      |
+|----------------|----------------------------|--------------------------|-------------------------------|-------------------------------|-------------------------------|-----------------------------|
+| 400×400 `qr`   | 0.276 sec                  | 7.311 sec<br>27× slower  | 13.259 sec<br>48×&nbsp;slower | 11.963 sec<br>43×&nbsp;slower | 0.384 sec<br>1.4×&nbsp;slower | 1.399 sec<br>5×&nbsp;slower |
+| correct digits | 26.2                       | 25.9                     | 25.9                          | 27.7                          | 26.1                          | 27.9                        |
+| 400×250 `pinv` | 1.236 sec                  | 49.581 sec<br>40× slower | ❌ Error                      | ❌ Error                     | 1.899 sec<br>1.5×&nbsp;slower | 7.551 sec<br>6×&nbsp;slower |
+| correct digits | 26.0                       | 25.8                     | ❌ Error                      | ❌ Error                     | 25.9                          | 27.9                        |
+| selectable precision                            | ✔️ | ✔️ | ✔️ | ❌ | ❌ | ❌ |
+| avoids allocation                               | ✔️ | ❌ | ❌ | ✔️ | ✔️ | ✔️ |
+| arithmetic<br>`+`, `-`, `*`, `/`, `sqrt`        | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ |
+| transcendentals<br>`sin`, `cos`, `exp`, `log`   | ⚠️ | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ |
+| compatible with<br>[GenericLinearAlgebra.jl][1] | ✔️ | ✔️ | ✔️ | ❌ | ✔️ | ✔️ |
+| float introspection<br>`minfloat`, `eps`        | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ |
 
 ## Precision and Performance
 
@@ -167,4 +165,17 @@ The following tables compare the precision (in bits) and performance (in FLOPs) 
 
 **MultiFloats.jl** requires an underlying implementation of `Float64` with IEEE round-to-nearest semantics. It works out-of-the-box on x86 and ARM but may fail on more exotic architectures.
 
-**MultiFloats.jl** does not attempt to propagate IEEE `Inf` and `NaN` values through arithmetic operations, as this [could cause significant performance losses](https://github.com/dzhang314/MultiFloats.jl/issues/12#issuecomment-751151737). You can pass these values through the `Float64x{N}` container types, and introspection functions (`isinf`, `isnan`, etc.) will work, but arithmetic operations will typically produce `NaN` on all non-finite inputs.
+**MultiFloats.jl** does not attempt to propagate IEEE `Inf` and `NaN` values through arithmetic operations, as this [could cause significant performance losses][5]. You can pass these values through the `Float64x{N}` container types, and introspection functions (`isinf`, `isnan`, etc.) will work, but arithmetic operations will typically produce `NaN` on all non-finite inputs.
+
+[1]: https://github.com/JuliaLinearAlgebra/GenericLinearAlgebra.jl
+[2]: https://docs.julialang.org/en/v1/manual/integers-and-floating-point-numbers/#Arbitrary-Precision-Arithmetic
+[3]: https://github.com/eschnett/SIMD.jl
+[4]: https://github.com/dzhang314/MultiFloats.jl/blob/master/LICENSE
+[5]: https://github.com/dzhang314/MultiFloats.jl/issues/12#issuecomment-751151737
+[6]: https://github.com/JuliaMath/DoubleFloats.jl
+[7]: https://github.com/JuliaMath/Quadmath.jl
+[8]: https://github.com/dzhang314/MultiFloats.jl/blob/master/scripts/MultiFloatsBenchmark.jl
+[9]: https://en.wikipedia.org/wiki/Quadruple-precision_floating-point_format#Double-double_arithmetic
+[10]: http://dx.doi.org/10.1007/pl00009321
+[11]: https://doi.org/10.1109/ARITH.2001.930115
+[12]: https://www.mpfr.org/
