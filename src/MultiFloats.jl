@@ -342,7 +342,8 @@ end
 ######################################################################## SCALING
 
 
-export scale
+# Note: MultiFloats.scale is not exported because it is only useful for
+# MultiFloats. Users are expected to call it as MultiFloats.scale(a, x).
 
 
 @inline scale(a, x) = a * x
@@ -452,7 +453,9 @@ end
 ################################################################ RENORMALIZATION
 
 
-export renormalize
+# Note: MultiFloats.renormalize is not exported because it is a
+# MultiFloat-specific operation. Users are expected to call it as
+# MultiFloats.renormalize(x).
 
 
 function _one_pass_renorm_expr(T::DataType, num_inputs::Int, num_outputs::Int)
@@ -772,13 +775,18 @@ function Base.show(io::IO, x::_MFV{M,T,N}) where {M,T,N}
 end
 
 
-######################################################################### PRINTF
+################################################# STANDARD LIBRARY COMPATIBILITY
 
 
+import LinearAlgebra: floatmin2
 import Printf: tofloat
 
 
-tofloat(x::_MF{T,N}) where {T,N} = _call_big(BigFloat, x)
+@inline floatmin2(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(ldexp(one(T),
+    div(exponent(floatmin(T)) - N * exponent(eps(T)), 2)))
+
+
+@inline tofloat(x::_MF{T,N}) where {T,N} = _call_big(BigFloat, x)
 
 
 ##################################################################### COMPARISON
@@ -1276,6 +1284,7 @@ end
 ################################################################ PROMOTION RULES
 
 
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{T}) where {T,N} = _MF{T,N}
 Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{T}) where {M,T,N} = _MFV{M,T,N}
 Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{Vec{M,T}}) where {M,T,N} = _MFV{M,T,N}
 Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{_MF{T,N}}) where {M,T,N} = _MFV{M,T,N}

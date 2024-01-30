@@ -1,13 +1,12 @@
 using Random
 using LinearAlgebra
-using GenericSVD
+using GenericLinearAlgebra
 
-using ArbNumerics  # ArbFloat
-using Decimals     # Decimal
-using DecFP        # Decimal128
+using MultiFloats  # Float64x2
 using DoubleFloats # Double64
 using Quadmath     # Float128
-using MultiFloats  # Float64x2
+using DecFP        # Dec128
+using ArbNumerics  # ArbFloat
 
 setextrabits(0)
 setprecision(BigFloat, 106)
@@ -35,16 +34,18 @@ const M = 25
 function main()
     while true
         test_qr(Float64x2, N)
-        test_qr(BigFloat, N)
-        test_qr(ArbFloat, N)
-        test_qr(Dec128, N)
         test_qr(Double64, N)
         test_qr(Float128, N)
+        test_qr(Dec128, N)
+        test_qr(BigFloat, N)
+        test_qr(ArbFloat, N)
+
         test_pinv(Float64x2, N, M)
-        test_pinv(BigFloat, N, M)
-        test_pinv(ArbFloat, N, M)
         test_pinv(Double64, N, M)
         test_pinv(Float128, N, M)
+        # test_pinv(Dec128, N, M)
+        test_pinv(BigFloat, N, M)
+        test_pinv(ArbFloat, N, M)
     end
 end
 
