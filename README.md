@@ -14,7 +14,7 @@
 
 **MultiFloats.jl v2.0** now supports explicit SIMD vector programming using [SIMD.jl](https://github.com/eschnett/SIMD.jl). In addition to the basic scalar types `Float64x2`, `Float64x3`, ..., `Float64x8`, **MultiFloats.jl v2.0** also provides the vector types `v2Float64x2`, `v4Float64x2`, `v8Float64x2`, ..., `v2Float64x8`, `v4Float64x8`, `v8Float64x8`, allowing users to operate on two, four, or eight extended-precision values at a time. These are all instances of the generic type `MultiFloatVec{M,T,N}`, which represents a vector of `M` values, each represented by `N` limbs of type `T`.
 
-**MultiFloats.jl v2.0** also provides the function `mfvgather(array, indices)` to simultaneously load multiple values from a dense array of type `Array{MultiFloat{T,N},D}`.
+**MultiFloats.jl v2.0** also provides the functions `mfvgather(array, indices)` and `mfvscatter(array, indices)` to simultaneously load/store multiple values from/to a dense array of type `Array{MultiFloat{T,N},D}`.
 
 **MultiFloats.jl v2.0** uses Julia's `@generated function` mechanism to automatically generate code on-demand for arithmetic and comparison operations on `MultiFloat` and `MultiFloatVec` values. Thus, it is no longer necessary to call `MultiFloats.use_standard_multifloat_arithmetic(9)` in order to compute with `Float64x{9}`. Thanks to the magic of metaprogramming, it will just work!
 
@@ -29,6 +29,8 @@ MultiFloats.use_standard_multifloat_arithmetic()
 MultiFloats.use_sloppy_multifloat_arithmetic()
 ```
 My experience has shown that `sloppy` mode causes serious problems in every nontrivial , while `clean` mode has poor performance tradeoffs. Instead of using, say, `Float64x3` in `clean` mode, it almost always makes more sense to use `Float64x4` in `standard` mode. Therefore, I made the decision to streamline development by focusing only on `standard` mode. If you have an application where `sloppy` or `clean` mode is demonstrably useful, please open an issue for discussion!
+
+**MultiFloats.jl v2.0** no longer provides a pure-MultiFloat implementation of `exp` and `log`. The implementation provided in v1.0 was flawed and performed only marginally better than MPFR. A new implementation, based on economized rational approximations to `exp2` and `log2`, is being developed for a future v2.x release.
 
 ## Installation
 

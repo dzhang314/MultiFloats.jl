@@ -1,6 +1,6 @@
 module MultiFloats
 
-using SIMD: Vec, vifelse, vgather
+using SIMD: Vec, vifelse, vgather, vscatter
 using SIMD.Intrinsics: extractelement
 
 
@@ -149,7 +149,7 @@ const v8Float64x8 = MultiFloatVec{8,Float64,8}
 ################################################################ VECTOR INDEXING
 
 
-export mfvgather
+export mfvgather, mfvscatter
 
 
 @inline Base.length(::_MFV{M,T,N}) where {M,T,N} = M
@@ -159,11 +159,32 @@ export mfvgather
     j -> extractelement(x._limbs[j].data, i - one(I)), Val{N}()))
 
 
-@inline function mfvgather(ptr::Ptr{_MF{T,N}}, idx::Vec{M,Int}) where {M,T,N}
-    base = reinterpret(Ptr{T}, ptr) + N * sizeof(T) * idx
+@inline function mfvgather(
+    pointer::Ptr{_MF{T,N}}, index::Vec{M,I}
+) where {M,T,N,I<:Integer}
+    base = reinterpret(Ptr{T}, pointer) + N * sizeof(T) * index
     return _MFV{M,T,N}(ntuple(
         i -> vgather(base + (i - 1) * sizeof(T)), Val{N}()))
 end
+
+
+@inline function mfvscatter(
+    x::_MFV{M,T,N}, pointer::Ptr{_MF{T,N}}, index::Vec{M,I}
+) where {M,T,N,I<:Integer}
+    base = reinterpret(Ptr{T}, pointer) + N * sizeof(T) * index
+    for i = 1:N
+        vscatter(x._limbs[i], base + (i - 1) * sizeof(T), nothing)
+    end
+    return nothing
+end
+
+
+@inline mfvgather(array::Array{_MF{T,N},D}, index::Vec{M,I}
+) where {M,T,N,D,I<:Integer} = mfvgather(pointer(array), index - one(I))
+
+
+@inline mfvscatter(x::_MFV{M,T,N}, array::Array{_MF{T,N},D}, index::Vec{M,I}
+) where {M,T,N,D,I<:Integer} = mfvscatter(x, pointer(array), index - one(I))
 
 
 ################################################ CONVERSION FROM PRIMITIVE TYPES
