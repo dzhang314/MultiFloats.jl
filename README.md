@@ -71,12 +71,12 @@ We use [two linear algebra tasks][8] to compare the performance of extended-prec
 
 The timings reported below are averages of 10 single-threaded runs performed on an Intel Core i9-11900KF processor using Julia 1.10.0.
 
-|                | MultiFloats<br>`Float64x2` | Julia Base<br>`BigFloat` | ArbNumerics<br>`ArbFloat`     | DecFP<br>`Dec128`             | DoubleFloats<br>`Double64`    | Quadmath<br>`Float128`      |
-|----------------|----------------------------|--------------------------|-------------------------------|-------------------------------|-------------------------------|-----------------------------|
-| 400×400 `qr`   | 0.276 sec                  | 7.311 sec<br>27× slower  | 13.259 sec<br>48×&nbsp;slower | 11.963 sec<br>43×&nbsp;slower | 0.384 sec<br>1.4×&nbsp;slower | 1.399 sec<br>5×&nbsp;slower |
-| correct digits | 26.2                       | 25.9                     | 25.9                          | 27.7                          | 26.1                          | 27.9                        |
-| 400×250 `pinv` | 1.236 sec                  | 49.581 sec<br>40× slower | ❌ Error                      | ❌ Error                     | 1.899 sec<br>1.5×&nbsp;slower | 7.551 sec<br>6×&nbsp;slower |
-| correct digits | 26.0                       | 25.8                     | ❌ Error                      | ❌ Error                     | 25.9                          | 27.9                        |
+|                | MultiFloats<br>`Float64x2` | [`BigFloat`][2]          | [`ArbFloat`][13]         | [`Dec128`][14]           | [`Double64`][15]         | [`Float128`][16]       |
+|----------------|----------------------------|--------------------------|--------------------------|--------------------------|--------------------------|------------------------|
+| 400×400 `qr`   | 0.276 sec                  | 7.311 sec<br>27× slower  | 13.259 sec<br>48× slower | 11.963 sec<br>43× slower | 0.384 sec<br>1.4× slower | 1.399 sec<br>5× slower |
+| correct digits | 26.2                       | 25.9                     | 25.9                     | 27.7                     | 26.1                     | 27.9                   |
+| 400×250 `pinv` | 1.236 sec                  | 49.581 sec<br>40× slower | ❌ Error                 | ❌ Error                | 1.899 sec<br>1.5× slower | 7.551 sec<br>6× slower |
+| correct digits | 26.0                       | 25.8                     | ❌ Error                 | ❌ Error                | 25.9                     | 27.9                   |
 | selectable precision                            | ✔️ | ✔️ | ✔️ | ❌ | ❌ | ❌ |
 | avoids allocation                               | ✔️ | ❌ | ❌ | ✔️ | ✔️ | ✔️ |
 | arithmetic<br>`+`, `-`, `*`, `/`, `sqrt`        | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ |
@@ -179,3 +179,7 @@ The following tables compare the precision (in bits) and performance (in FLOPs) 
 [10]: http://dx.doi.org/10.1007/pl00009321
 [11]: https://doi.org/10.1109/ARITH.2001.930115
 [12]: https://www.mpfr.org/
+[13]: https://github.com/JeffreySarnoff/ArbNumerics.jl
+[14]: https://github.com/JuliaMath/DecFP.jl
+[15]: https://github.com/JuliaMath/DoubleFloats.jl
+[16]: https://github.com/JuliaMath/Quadmath.jl
