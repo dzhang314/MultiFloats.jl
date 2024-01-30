@@ -1278,7 +1278,7 @@ end
 @inline rsqrt(x::_MF{Float64,4}) = _rsqrt(x, Val{2}())
 @inline rsqrt(x::_MF{Float64,5}) = _rsqrt(x, Val{3}())
 @inline rsqrt(x::_MF{Float64,6}) = _rsqrt(x, Val{3}())
-@inline rsqrt(x::_MF{Float64,7}) = _rsqrt(x, Val{3}())
+@inline rsqrt(x::_MF{Float64,7}) = _rsqrt(x, Val{4}())
 @inline rsqrt(x::_MF{Float64,8}) = _rsqrt(x, Val{4}())
 
 
@@ -1288,7 +1288,7 @@ end
 @inline rsqrt(x::_MFV{M,Float64,4}) where {M} = _rsqrt(x, Val{2}())
 @inline rsqrt(x::_MFV{M,Float64,5}) where {M} = _rsqrt(x, Val{3}())
 @inline rsqrt(x::_MFV{M,Float64,6}) where {M} = _rsqrt(x, Val{3}())
-@inline rsqrt(x::_MFV{M,Float64,7}) where {M} = _rsqrt(x, Val{3}())
+@inline rsqrt(x::_MFV{M,Float64,7}) where {M} = _rsqrt(x, Val{4}())
 @inline rsqrt(x::_MFV{M,Float64,8}) where {M} = _rsqrt(x, Val{4}())
 
 
