@@ -279,9 +279,9 @@ end
         value = T(-Inf)
         return _MF{T,N}(ntuple(_ -> value, Val{N}()))
     else
-        setprecision(BigFloat, precision(x)) do
+        return setprecision(BigFloat, precision(x)) do
             setrounding(BigFloat, RoundNearest) do
-                return _MF{T,N}(_extract_limbs(T, x, Val{N}()))
+                _MF{T,N}(_extract_limbs(T, x, Val{N}()))
             end
         end
     end
@@ -311,8 +311,8 @@ end
 
 
 @inline function _MF{T,N}(x::Rational{U}) where {T,N,U}
-    setrounding(BigFloat, RoundNearest) do
-        return _MF{T,N}(BigFloat(x; precision=_full_precision(T)))
+    return setrounding(BigFloat, RoundNearest) do
+        _MF{T,N}(BigFloat(x; precision=_full_precision(T)))
     end
 end
 
@@ -330,8 +330,8 @@ end
 
 
 @inline function _MF{T,N}(s::AbstractString) where {T,N}
-    setrounding(BigFloat, RoundNearest) do
-        return _MF{T,N}(BigFloat(s; precision=_full_precision(T)))
+    return setrounding(BigFloat, RoundNearest) do
+        _MF{T,N}(BigFloat(s; precision=_full_precision(T)))
     end
 end
 
@@ -645,7 +645,6 @@ end
 # Note: SIMD.jl does not define Base.floatmin or Base.floatmax for vectors.
 @inline Base.floatmin(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(floatmin(T))
 @inline Base.floatmax(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(floatmax(T))
-# TODO: This is technically not the maximum/minimum representable MultiFloat.
 
 
 # Note: SIMD.jl does not define Base.typemin or Base.typemax for vectors.
@@ -677,33 +676,73 @@ end
 
 
 Base.BigFloat(x::_MF{T,N}) where {T,N} =
-    +(BigFloat.(reverse(renormalize(x)._limbs))...)
+    +(BigFloat.(renormalize(x)._limbs)...)
 
 
 Base.Rational{BigInt}(x::_MF{T,N}) where {T,N} =
-    +(Rational{BigInt}.(reverse(renormalize(x)._limbs))...)
+    +(Rational{BigInt}.(renormalize(x)._limbs)...)
 
 
 ####################################################################### PRINTING
 
 
-function _call_big(callback, x::_MF{T,N}) where {T,N}
+function _call_big(f::Function, x::_MF{T,N}) where {T,N}
     x = renormalize(x)
-    total = +(reverse(x._limbs)...)
+    total = +(x._limbs...)
     if !isfinite(total)
-        return setprecision(() -> callback(BigFloat(total)), precision(T))
+        return setprecision(BigFloat, precision(T)) do
+            setrounding(BigFloat, RoundNearest) do
+                f(BigFloat(total))
+            end
+        end
     end
     i = N
     while (i > 0) && iszero(x._limbs[i])
         i -= 1
     end
     if iszero(i)
-        return setprecision(() -> callback(zero(BigFloat)), precision(T))
+        return setprecision(BigFloat, precision(T)) do
+            setrounding(BigFloat, RoundNearest) do
+                f(zero(BigFloat))
+            end
+        end
     else
-        return setprecision(
-            () -> callback(BigFloat(x)),
-            precision(T) + exponent(x._limbs[1]) - exponent(x._limbs[i])
-        )
+        p = precision(T) + exponent(x._limbs[1]) - exponent(x._limbs[i])
+        return setprecision(BigFloat, p) do
+            setrounding(BigFloat, RoundNearest) do
+                f(BigFloat(x))
+            end
+        end
+    end
+end
+
+
+function _call_big(f::Function, x::_MF{T,N}, p::Int) where {T,N}
+    x = renormalize(x)
+    total = +(x._limbs...)
+    if !isfinite(total)
+        return setprecision(BigFloat, p) do
+            setrounding(BigFloat, RoundNearest) do
+                f(BigFloat(total))
+            end
+        end
+    end
+    i = N
+    while (i > 0) && iszero(x._limbs[i])
+        i -= 1
+    end
+    if iszero(i)
+        return setprecision(BigFloat, p) do
+            setrounding(BigFloat, RoundNearest) do
+                f(zero(BigFloat))
+            end
+        end
+    else
+        return setprecision(BigFloat, p) do
+            setrounding(BigFloat, RoundNearest) do
+                f(BigFloat(x))
+            end
+        end
     end
 end
 
@@ -733,14 +772,20 @@ function Base.show(io::IO, x::_MFV{M,T,N}) where {M,T,N}
 end
 
 
-# import Printf: tofloat
-# tofloat(x::_MF{T,N}) where {T,N} = _call_big(BigFloat, x)
+######################################################################### PRINTF
+
+
+import Printf: tofloat
+
+
+tofloat(x::_MF{T,N}) where {T,N} = _call_big(BigFloat, x)
 
 
 ##################################################################### COMPARISON
 
 
 # TODO: MultiFloat-to-Float comparison.
+# TODO: Implement Base.cmp.
 
 
 _eq_expr(n::Int) = (n == 1) ? :(x._limbs[$n] == y._limbs[$n]) : :(
@@ -1120,6 +1165,9 @@ end
 @inline Base.:/(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} = _div(a, b)
 
 
+# TODO: MultiFloat-Int arithmetic operators.
+
+
 ########################################################### ARITHMETIC OVERLOADS
 
 
@@ -1152,6 +1200,10 @@ end
 
 
 #################################################################### SQUARE ROOT
+
+
+# Note: MultiFloats.unsafe_sqrt and MultiFloats.rsqrt are not exported to avoid
+# potential name conflicts, but they are intended for external use by end users.
 
 
 @inline unsafe_sqrt(x::Float16) = Base.sqrt_llvm(x)
@@ -1253,6 +1305,7 @@ Base.promote_rule(::Type{_MF{T,N}}, ::Type{UInt128}) where {T,N} = _MF{T,N}
 Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{UInt128}) where {M,T,N} = _MFV{M,T,N}
 
 
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{BigInt}) where {T,N} = BigFloat
 Base.promote_rule(::Type{_MF{T,N}}, ::Type{BigFloat}) where {T,N} = BigFloat
 
 
@@ -1274,24 +1327,24 @@ Base.promote_rule(::Type{Float64x{N}}, ::Type{Float32}) where {N} = Float64x{N}
 @inline Base.convert(::Type{_MFV{M,T,N}}, x::Number) where {M,T,N} = _MFV{M,T,N}(x)
 
 
-#=
-#################################################### CONSTRUCTION FROM BIG TYPES
+####################################################### TRANSCENDENTAL FUNCTIONS
 
-############################################## BIGFLOAT TRANSCENDENTAL STOP-GAPS
 
-BASE_TRANSCENDENTAL_FUNCTIONS = [
-    :exp2, :exp10, :log2, :log10,
+# TODO: sincos, sincosd, sincospi, frexp, modf, isqrt
+const _BASE_TRANSCENDENTAL_FUNCTIONS = Symbol[
+    :cbrt, :exp, :exp2, :exp10, :expm1, :log, :log2, :log10, :log1p,
     :sin, :cos, :tan, :sec, :csc, :cot,
-    :sinpi, :cospi,
-    :sinh, :cosh, :tanh, :sech, :csch, :coth,
     :sind, :cosd, :tand, :secd, :cscd, :cotd,
     :asin, :acos, :atan, :asec, :acsc, :acot,
+    :asind, :acosd, :atand, :asecd, :acscd, :acotd,
+    :sinh, :cosh, :tanh, :sech, :csch, :coth,
     :asinh, :acosh, :atanh, :asech, :acsch, :acoth,
-    :asind, :acosd, :atand, :asecd, :acscd, :acotd
+    :sinpi, :cospi, :sinc, :cosc, :deg2rad, :rad2deg,
 ]
 
-for name in BASE_TRANSCENDENTAL_FUNCTIONS
-    eval(:(Base.$name(x::MultiFloat{T,N}) where {T,N} = error($(
+
+for name in _BASE_TRANSCENDENTAL_FUNCTIONS
+    eval(:(Base.$name(::MultiFloat{T,N}) where {T,N} = error($(
         "$name(MultiFloat) is not yet implemented. For a temporary workaround,\n" *
         "call MultiFloats.use_bigfloat_transcendentals() immediately after\n" *
         "importing MultiFloats. This will use the BigFloat implementation of\n" *
@@ -1299,32 +1352,29 @@ for name in BASE_TRANSCENDENTAL_FUNCTIONS
     ))))
 end
 
-eval_bigfloat(f::Function, x::MultiFloat{T,N}, k::Int) where {T,N} =
-    setprecision(
-        () -> MultiFloat{T,N}(f(BigFloat(x))),
-        BigFloat, precision(MultiFloat{T,N}) + k
-    )
 
-function use_bigfloat_transcendentals(k::Int=20)
-    for name in BASE_TRANSCENDENTAL_FUNCTIONS
-        eval(:(
-            Base.$name(x::MultiFloat{T,N}) where {T,N} =
-                eval_bigfloat($name, x, $k)
-        ))
+function use_bigfloat_transcendentals(num_extra_bits::Int=20)
+    for name in _BASE_TRANSCENDENTAL_FUNCTIONS
+        eval(:(Base.$name(x::MultiFloat{T,N}) where {T,N} = MultiFloat{T,N}(
+            _call_big($name, x, precision(MultiFloat{T,N}) + $num_extra_bits))))
     end
 end
 
-####################################################### RANDOM NUMBER GENERATION
 
-import Random
-using Random: AbstractRNG, SamplerTrivial, CloseOpen01
+################################################################# RANDOM NUMBERS
+
+
+using Random: AbstractRNG, CloseOpen01, SamplerTrivial, UInt52
+import Random: rand
+
 
 @inline function _rand_f64(rng::AbstractRNG, k::Int)
     expnt = reinterpret(UInt64,
         exponent(floatmax(Float64)) + k) << (precision(Float64) - 1)
-    mntsa = rand(rng, Random.UInt52())
+    mntsa = rand(rng, UInt52())
     return reinterpret(Float64, expnt | mntsa)
 end
+
 
 @inline function _rand_sf64(rng::AbstractRNG, k::Int)
     expnt = reinterpret(UInt64,
@@ -1333,35 +1383,25 @@ end
     return reinterpret(Float64, expnt | mntsa)
 end
 
+
 @inline function _rand_mf64(
     rng::AbstractRNG, offset::Int, padding::NTuple{N,Int}
 ) where {N}
-    exponents = (
-        cumsum(padding) .+
-        (precision(Float64) + 1) .* ntuple(identity, Val{N}())
-    )
+    exponents = cumsum(padding) .+ (precision(Float64) + 1) .* ntuple(identity, Val{N}())
     return Float64x{N + 1}((
         _rand_f64(rng, offset),
         _rand_sf64.(rng, offset .- exponents)...
     ))
 end
 
-function multifloat_rand_func(n::Int)
-    return :(
-        Random.rand(
-            rng::AbstractRNG,
-            ::SamplerTrivial{CloseOpen01{Float64x{$n}}}
-        ) = _rand_mf64(
-            rng,
-            -leading_zeros(rand(rng, UInt64)) - 1,
-            $(Expr(:tuple, ntuple(
-                _ -> :(leading_zeros(rand(rng, UInt64))),
-                Val{n - 1}()
-            )...))
-        )
-    )
+
+@inline function rand(
+    rng::AbstractRNG, ::SamplerTrivial{CloseOpen01{Float64x{N}}}
+) where {N}
+    offset = -leading_zeros(rand(rng, UInt64)) - 1
+    padding = ntuple(_ -> leading_zeros(rand(rng, UInt64)), Val{N - 1}())
+    return _rand_mf64(rng, offset, padding)
 end
 
-=#
 
 end # module MultiFloats
