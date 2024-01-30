@@ -14,7 +14,7 @@
 
 **MultiFloats.jl v2.0** now supports explicit SIMD vector programming using [SIMD.jl][3]. In addition to the basic scalar types `Float64x2`, `Float64x3`, ..., `Float64x8`, **MultiFloats.jl v2.0** also provides the vector types `v2Float64x2`, `v4Float64x2`, `v8Float64x2`, ..., `v2Float64x8`, `v4Float64x8`, `v8Float64x8`, allowing users to operate on two, four, or eight extended-precision values at a time. These are all instances of the generic type `MultiFloatVec{M,T,N}`, which represents a vector of `M` values, each represented by `N` limbs of type `T`.
 
-**MultiFloats.jl v2.0** also provides the functions `mfvgather(array, indices)` and `mfvscatter(array, indices)` to simultaneously load/store multiple values from/to a dense array of type `Array{MultiFloat{T,N},D}`.
+**MultiFloats.jl v2.0** also provides the functions `mfvgather(array, indices)` and `mfvscatter(vector, array, indices)` to simultaneously load/store multiple values from/to a dense array of type `Array{MultiFloat{T,N},D}`.
 
 **MultiFloats.jl v2.0** uses Julia's `@generated function` mechanism to automatically generate code on-demand for arithmetic and comparison operations on `MultiFloat` and `MultiFloatVec` values. Thus, it is no longer necessary to call `MultiFloats.use_standard_multifloat_arithmetic(9)` in order to compute with `Float64x{9}`. Thanks to the magic of metaprogramming, it will just work!
 
