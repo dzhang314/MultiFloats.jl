@@ -710,7 +710,7 @@ Base.Rational{BigInt}(x::_MF{T,N}) where {T,N} =
 ####################################################################### PRINTING
 
 
-function _call_big(f::Function, x::_MF{T,N}) where {T,N}
+function _call_big(f::F, x::_MF{T,N}) where {F,T,N}
     x = renormalize(x)
     total = +(x._limbs...)
     if !isfinite(total)
@@ -741,7 +741,7 @@ function _call_big(f::Function, x::_MF{T,N}) where {T,N}
 end
 
 
-function _call_big(f::Function, x::_MF{T,N}, p::Int) where {T,N}
+function _call_big(f::F, x::_MF{T,N}, p::Int) where {F,T,N}
     x = renormalize(x)
     total = +(x._limbs...)
     if !isfinite(total)
