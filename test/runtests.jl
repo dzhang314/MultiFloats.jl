@@ -29,6 +29,7 @@ for T in [
     @test isbitstype(T)
 end
 
+# Base.iszero and Base.isone should renormalize their argument.
 @test iszero(Float64x4((0.0, 0.5, -0.25, -0.25)))
 @test isone(Float64x4((1.0, 0.5, -0.25, -0.25)))
 @test all(iszero(v2Float64x4((
@@ -36,6 +37,7 @@ end
 @test all(isone(v2Float64x4((
     Vec(1.0, 1.0), Vec(0.5, 0.0), Vec(-0.25, 0.0), Vec(-0.25, 0.0)))))
 
+# Test accuracy of sqrt(2) and sqrt(sqrt(2)).
 for T in [
     Float64x1, Float64x2, Float64x3, Float64x4,
     Float64x5, Float64x6, Float64x7, Float64x8,
@@ -52,6 +54,7 @@ for T in [
     end
 end
 
+# Test round-trip string conversion on random numbers.
 for T in [
     Float64x1, Float64x2, Float64x3, Float64x4,
     Float64x5, Float64x6, Float64x7, Float64x8,
@@ -64,6 +67,7 @@ for T in [
     end
 end
 
+# Test round-trip string conversion when limbs have very different magnitudes.
 let
     x = Float64x2((-floatmax(Float64), floatmin(Float64)))
     y = Float64x2(string(x))
