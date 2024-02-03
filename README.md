@@ -32,7 +32,7 @@ MultiFloats.use_clean_multifloat_arithmetic()
 MultiFloats.use_standard_multifloat_arithmetic()
 MultiFloats.use_sloppy_multifloat_arithmetic()
 ```
-My experience has shown that `sloppy` mode causes serious problems in every nontrivial , while `clean` mode has poor performance tradeoffs. Instead of using, say, `Float64x3` in `clean` mode, it almost always makes more sense to use `Float64x4` in `standard` mode. Therefore, I made the decision to streamline development by focusing only on `standard` mode. If you have an application where `sloppy` or `clean` mode is demonstrably useful, please open an issue for discussion!
+My experience has shown that `sloppy` mode causes serious problems in every nontrivial program, while `clean` mode has poor performance tradeoffs. Instead of using, say, `Float64x3` in `clean` mode, it almost always makes more sense to use `Float64x4` in `standard` mode. Therefore, I made the decision to streamline development by focusing only on `standard` mode. If you have an application where `sloppy` or `clean` mode is demonstrably useful, please open an issue for discussion!
 
 **MultiFloats.jl v2.0** no longer provides a pure-MultiFloat implementation of `exp` and `log`. The implementation provided in v1.0 was flawed and performed only marginally better than MPFR. A new implementation, based on economized rational approximations to `exp2` and `log2`, is being developed for a future v2.x release.
 
