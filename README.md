@@ -81,7 +81,7 @@ We use [two linear algebra tasks][11] to compare the performance of extended-pre
 
 The timings reported below are averages of 10 single-threaded runs performed on an Intel Core i9-11900KF processor using Julia 1.10.0.
 
-|                | MultiFloats<br>`Float64x2` | [`BigFloat`][2]          | [`ArbFloat`][13]         | [`Dec128`][14]           | [`Double64`][4]         | [`Float128`][3]       |
+|                | MultiFloats<br>`Float64x2` | MPFR<br>[`BigFloat`][2]  | Arb<br>[`ArbFloat`][13]  | Intel<br>[`Dec128`][14]  | Julia<br>[`Double64`][4] | libquadmath<br>[`Float128`][3] |
 |----------------|----------------------------|--------------------------|--------------------------|--------------------------|--------------------------|------------------------|
 | 400×400 `qr`   | 0.276 sec                  | 7.311 sec<br>27× slower  | 13.259 sec<br>48× slower | 11.963 sec<br>43× slower | 0.384 sec<br>1.4× slower | 1.399 sec<br>5× slower |
 | correct digits | 26.2                       | 25.9                     | 25.9                     | 27.7                     | 26.1                     | 27.9                   |
