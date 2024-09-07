@@ -771,13 +771,60 @@ function _call_big(f::F, x::_MF{T,N}, p::Int) where {F,T,N}
 end
 
 
-function Base.show(io::IO, x::_MF{T,N}) where {T,N}
+function Base.print(io::IO, x::_MF{T,N}) where {T,N}
+    _call_big(y -> print(io, y), x)
+    return nothing
+end
+
+
+function Base.print(io::IO, x::_MFV{M,T,N}) where {M,T,N}
+    write(io, '<')
+    print(io, M)
+    write(io, " x ")
+    print(io, T)
+    write(io, " x ")
+    print(io, N)
+    write(io, ">[")
+    for i = 1:M
+        if i > 1
+            write(io, ", ")
+        end
+        _call_big(y -> print(io, y), x[i])
+    end
+    write(io, ']')
+    return nothing
+end
+
+
+function Base.show(io::IO, ::MIME"text/plain", x::_MF{T,N}) where {T,N}
     _call_big(y -> show(io, y), x)
     return nothing
 end
 
 
 function Base.show(io::IO, x::_MFV{M,T,N}) where {M,T,N}
+    show(io, _MFV{M,T,N})
+    write(io, "((")
+    for i = 1:N
+        if i > 1
+            write(io, ", ")
+        end
+        show(io, Vec{M,T})
+        write(io, "((")
+        for j = 1:M
+            if j > 1
+                write(io, ", ")
+            end
+            show(io, x._limbs[i][j])
+        end
+        write(io, "))")
+    end
+    write(io, "))")
+    return nothing
+end
+
+
+function Base.show(io::IO, ::MIME"text/plain", x::_MFV{M,T,N}) where {M,T,N}
     write(io, '<')
     show(io, M)
     write(io, " x ")
@@ -1272,24 +1319,10 @@ end
 end
 
 
-@inline rsqrt(x::_MF{Float64,1}) = _rsqrt(x, Val{0}())
-@inline rsqrt(x::_MF{Float64,2}) = _rsqrt(x, Val{1}())
-@inline rsqrt(x::_MF{Float64,3}) = _rsqrt(x, Val{2}())
-@inline rsqrt(x::_MF{Float64,4}) = _rsqrt(x, Val{2}())
-@inline rsqrt(x::_MF{Float64,5}) = _rsqrt(x, Val{3}())
-@inline rsqrt(x::_MF{Float64,6}) = _rsqrt(x, Val{3}())
-@inline rsqrt(x::_MF{Float64,7}) = _rsqrt(x, Val{4}())
-@inline rsqrt(x::_MF{Float64,8}) = _rsqrt(x, Val{4}())
-
-
-@inline rsqrt(x::_MFV{M,Float64,1}) where {M} = _rsqrt(x, Val{0}())
-@inline rsqrt(x::_MFV{M,Float64,2}) where {M} = _rsqrt(x, Val{1}())
-@inline rsqrt(x::_MFV{M,Float64,3}) where {M} = _rsqrt(x, Val{2}())
-@inline rsqrt(x::_MFV{M,Float64,4}) where {M} = _rsqrt(x, Val{2}())
-@inline rsqrt(x::_MFV{M,Float64,5}) where {M} = _rsqrt(x, Val{3}())
-@inline rsqrt(x::_MFV{M,Float64,6}) where {M} = _rsqrt(x, Val{3}())
-@inline rsqrt(x::_MFV{M,Float64,7}) where {M} = _rsqrt(x, Val{4}())
-@inline rsqrt(x::_MFV{M,Float64,8}) where {M} = _rsqrt(x, Val{4}())
+@inline rsqrt(x::_MF{T,1}) where {T} = _rsqrt(x, Val{0}())
+@inline rsqrt(x::_MF{T,N}) where {T,N} = _rsqrt(x, Val{(N + 1) >> 1}())
+@inline rsqrt(x::_MFV{M,T,1}) where {M,T} = _rsqrt(x, Val{0}())
+@inline rsqrt(x::_MFV{M,T,N}) where {M,T,N} = _rsqrt(x, Val{(N + 1) >> 1}())
 
 
 @inline unsafe_sqrt(x::_MF{T,N}) where {T,N} = inv(rsqrt(x))
