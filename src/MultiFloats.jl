@@ -343,7 +343,7 @@ end
 @inline _MFV{M,T,N}(x::Rational{U}) where {M,T,N,U} = _MFV{M,T,N}(_MF{T,N}(x))
 
 
-######################################################### CONVERSION FROM STRING
+########################################## CONVERSION FROM STRING AND IRRATIONAL
 
 
 @inline _full_precision(::Type{T}) where {T} =
@@ -358,6 +358,16 @@ end
 
 
 @inline _MFV{M,T,N}(s::AbstractString) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(s))
+
+
+@inline function _MF{T,N}(x::Irrational) where {T,N}
+    return setrounding(BigFloat, RoundNearest) do
+        _MF{T,N}(BigFloat(x; precision=_full_precision(T)))
+    end
+end
+
+
+@inline _MFV{M,T,N}(x::Irrational) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
 
 
 ######################################################################## SCALING
@@ -1438,6 +1448,7 @@ import Random: rand
 
 
 @inline function _rand_f64(rng::AbstractRNG, k::Int)
+    # Subnormal numbers are intentionally not generated.
     if k < exponent(floatmin(Float64))
         return zero(Float64)
     end
@@ -1449,6 +1460,7 @@ end
 
 
 @inline function _rand_sf64(rng::AbstractRNG, k::Int)
+    # Subnormal numbers are intentionally not generated.
     if k < exponent(floatmin(Float64))
         return zero(Float64)
     end
