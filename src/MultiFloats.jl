@@ -583,6 +583,7 @@ end
     _MF{T,N}(renormalize(x._limbs))
 @inline renormalize(x::_MFV{M,T,N}) where {M,T,N} =
     _MFV{M,T,N}(renormalize(x._limbs))
+@inline renormalize(x::T) where {T<:Real} = x
 
 
 ################################################### FLOATING-POINT INTROSPECTION
@@ -855,6 +856,11 @@ import Printf: tofloat
 
 
 @inline tofloat(x::_MF{T,N}) where {T,N} = _call_big(BigFloat, x)
+
+
+@inline MultiFloat{T,N}(z::Complex) where {T,N} =
+    isreal(z) ? MultiFloat{T,N}(real(z)) :
+    throw(InexactError(nameof(MultiFloat{T,N}), MultiFloat{T,N}, z))
 
 
 ##################################################################### COMPARISON
