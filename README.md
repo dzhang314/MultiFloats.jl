@@ -2,19 +2,19 @@
 
 **Copyright © 2019-2024 by David K. Zhang. Released under the [MIT License][1].**
 
-**MultiFloats.jl** is a Julia package for extended-precision arithmetic using 100–400 bits (≈30–120 decimal digits). In this range, it is the fastest extended-precision library that I am aware of. At 100-bit precision, **MultiFloats.jl** is roughly **40× faster than [`BigFloat`][2]**, **5× faster than [Quadmath.jl][3]**, and **1.5× faster than [DoubleFloats.jl][4]**.
+**MultiFloats.jl** is a Julia package for extended-precision arithmetic using 100–400 bits (30–120 decimal digits). In this range, it is the fastest library that I am aware of. At 100-bit precision, **MultiFloats.jl** is roughly **40× faster than [`BigFloat`][2]**, **5× faster than [Quadmath.jl][3]**, and **1.5× faster than [DoubleFloats.jl][4]**.
 
 **MultiFloats.jl** is fast because it uses native `Float64` operations on static data structures that do not dynamically allocate memory. In contrast, [`BigFloat`][2] allocates memory for every single arithmetic operation, requiring frequent pauses for garbage collection. In addition, **MultiFloats.jl** uses branch-free algorithms that can be vectorized for even faster execution on [SIMD][5] processors.
 
-**MultiFloats.jl** provides pure-Julia implementations of the basic arithmetic operations (`+`, `-`, `*`, `/`, `sqrt`), comparison operators (`==`, `!=`, `<`, `>`, `<=`, `>=`), `exp`, `log`, and floating-point introspection methods (`isfinite`, `eps`, `minfloat`, etc.). Transcendental functions (`exp`, `log`, `sin`, `cos`, etc.) are supported through [MPFR][6].
+**MultiFloats.jl** provides pure-Julia implementations of the basic arithmetic operations (`+`, `-`, `*`, `/`, `sqrt`), comparison operators (`==`, `!=`, `<`, `>`, `<=`, `>=`), and floating-point introspection methods (`isfinite`, `eps`, `minfloat`, etc.). Transcendental functions (`exp`, `log`, `sin`, `cos`, etc.) are supported through [MPFR][6].
 
-**MultiFloats.jl** stores extended-precision numbers in a **multi-limb representation** that generalizes the idea of [double-double arithmetic][7] to an arbitrary number of components. This idea takes inspiration from Jonathan Shewchuk's work on [adaptive-precision floating-point arithmetic][8] and Yozo Hida, Xiaoye Li, and David Bailey's [algorithms for quad-double arithmetic][9], combined in a novel fashion with Julia's unique JIT architecture and metaprogramming capabilities.
+**MultiFloats.jl** stores extended-precision numbers in a **multi-limb representation** that generalizes the idea of [double-double arithmetic][7] to an arbitrary number of components. This idea takes inspiration from Jonathan Shewchuk's work on [adaptive-precision floating-point arithmetic][8] and Yozo Hida, Xiaoye Li, and David Bailey's [algorithms for quad-double arithmetic][9], combined with Julia's metaprogramming capabilities.
 
 
 
 ## New Features in v2.0
 
-**MultiFloats.jl v2.0** now supports explicit SIMD vector programming using [SIMD.jl][5]. In addition to the basic scalar types `Float64x2`, `Float64x3`, ..., `Float64x8`, **MultiFloats.jl v2.0** also provides the vector types `v2Float64x2`, `v4Float64x2`, `v8Float64x2`, ..., `v2Float64x8`, `v4Float64x8`, `v8Float64x8`, allowing users to operate on two, four, or eight extended-precision values at a time. These are all instances of the generic type `MultiFloatVec{M,T,N}`, which represents a vector of `M` values, each represented by `N` limbs of type `T`.
+**MultiFloats.jl v2.0** now supports explicit SIMD vector programming using [SIMD.jl][5]. In addition to the basic scalar types `Float64x2`, `Float64x3`, ..., `Float64x8`, **MultiFloats.jl v2.0** also provides the vector types `v2Float64x2`, `v4Float64x2`, `v8Float64x2`, ..., `v2Float64x8`, `v4Float64x8`, `v8Float64x8`, allowing users to operate on two, four, or eight extended-precision values at a time. These are all instances of the generic type `MultiFloatVec{M,T,N}`, which represents a vector of `M` values, each consisting of `N` limbs of type `T`.
 
 **MultiFloats.jl v2.0** also provides the functions `mfvgather(array, indices)` and `mfvscatter(vector, array, indices)` to simultaneously load/store multiple values from/to a dense array of type `Array{MultiFloat{T,N},D}`.
 
@@ -40,11 +40,13 @@ My experience has shown that `sloppy` mode causes serious problems in every nont
 
 ## Installation
 
-**MultiFloats.jl** is a [registered Julia package][10], so all you need to do is run the following line in your Julia REPL:
+**MultiFloats.jl** is a [registered Julia package][10], so it can be installed by typing
 
 ```
 ]add MultiFloats
 ```
+
+into the Julia REPL.
 
 
 
