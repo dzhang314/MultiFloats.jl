@@ -350,24 +350,24 @@ end
     exponent(floatmax(T)) - exponent(floatmin(T)) + precision(T)
 
 
-@inline function _MF{T,N}(s::AbstractString) where {T,N}
+function _MF{T,N}(s::AbstractString) where {T,N}
     return setrounding(BigFloat, RoundNearest) do
         _MF{T,N}(BigFloat(s; precision=_full_precision(T)))
     end
 end
 
 
-@inline _MFV{M,T,N}(s::AbstractString) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(s))
+_MFV{M,T,N}(s::AbstractString) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(s))
 
 
-@inline function _MF{T,N}(x::Irrational) where {T,N}
+function _MF{T,N}(x::Irrational) where {T,N}
     return setrounding(BigFloat, RoundNearest) do
         _MF{T,N}(BigFloat(x; precision=_full_precision(T)))
     end
 end
 
 
-@inline _MFV{M,T,N}(x::Irrational) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
+_MFV{M,T,N}(x::Irrational) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
 
 
 ######################################################################## SCALING
@@ -714,6 +714,10 @@ Base.BigFloat(x::_MF{T,N}) where {T,N} =
     +(BigFloat.(renormalize(x)._limbs)...)
 
 
+Base.BigFloat(x::_MF{T,N}; precision::Integer) where {T,N} =
+    +(BigFloat.(renormalize(x)._limbs; precision)...)
+
+
 Base.Rational{BigInt}(x::_MF{T,N}) where {T,N} =
     +(Rational{BigInt}.(renormalize(x)._limbs)...)
 
@@ -857,20 +861,24 @@ end
 ################################################# STANDARD LIBRARY COMPATIBILITY
 
 
+(::Type{I})(x::_MF{T,N}) where {I<:Integer,T,N} =
+    setrounding(BigFloat, RoundNearest) do
+        I(BigFloat(x; precision=_full_precision(T)))
+    end
+
+
+MultiFloat{T,N}(z::Complex) where {T,N} =
+    isreal(z) ? MultiFloat{T,N}(real(z)) :
+    throw(InexactError(nameof(MultiFloat{T,N}), MultiFloat{T,N}, z))
+
+
 import LinearAlgebra: floatmin2
-import Printf: tofloat
-
-
 @inline floatmin2(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(ldexp(one(T),
     div(exponent(floatmin(T)) - N * exponent(eps(T)), 2)))
 
 
+import Printf: tofloat
 @inline tofloat(x::_MF{T,N}) where {T,N} = _call_big(BigFloat, x)
-
-
-@inline MultiFloat{T,N}(z::Complex) where {T,N} =
-    isreal(z) ? MultiFloat{T,N}(real(z)) :
-    throw(InexactError(nameof(MultiFloat{T,N}), MultiFloat{T,N}, z))
 
 
 ##################################################################### COMPARISON
