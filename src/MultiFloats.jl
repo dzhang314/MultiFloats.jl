@@ -1432,6 +1432,9 @@ import Random: rand
 
 
 @inline function _rand_f64(rng::AbstractRNG, k::Int)
+    if k < exponent(floatmin(Float64))
+        return zero(Float64)
+    end
     expnt = reinterpret(UInt64,
         exponent(floatmax(Float64)) + k) << (precision(Float64) - 1)
     mntsa = rand(rng, UInt52())
@@ -1440,6 +1443,9 @@ end
 
 
 @inline function _rand_sf64(rng::AbstractRNG, k::Int)
+    if k < exponent(floatmin(Float64))
+        return zero(Float64)
+    end
     expnt = reinterpret(UInt64,
         exponent(floatmax(Float64)) + k) << (precision(Float64) - 1)
     mntsa = rand(rng, UInt64) & 0x800FFFFFFFFFFFFF
