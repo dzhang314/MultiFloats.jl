@@ -713,7 +713,7 @@ end
 Base.BigFloat(x::_MF{T,N}; precision::Integer=precision(BigFloat)) where {T,N} =
     setprecision(BigFloat, precision) do
         setrounding(BigFloat, RoundNearest) do
-            BigFloat(+(renormalize(x)._limbs...))
+            +(BigFloat.(renormalize(x)._limbs)...)
         end
     end
 
