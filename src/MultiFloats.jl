@@ -1267,6 +1267,13 @@ end
 
 # TODO: MultiFloat-Int arithmetic operators.
 
+function Base.:(^)(x::_MF{T,N}, p::Integer) where {T,N}
+    if p >= 0
+        Base.power_by_squaring(x,p)
+    else
+        Base.power_by_squaring(inv(x),-p)
+    end
+end
 
 ########################################################### ARITHMETIC OVERLOADS
 
