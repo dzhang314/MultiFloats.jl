@@ -1579,7 +1579,7 @@ end
 @inline Base.inv(x::_MF{T,N}) where {T,N} = one(_MF{T,N}) / x
 @inline Base.inv(x::_MFV{M,T,N}) where {M,T,N} = one(_MFV{M,T,N}) / x
 @inline Base.inv(x::_MF{T,2}) where {T} = _inv(x)
-@inline Base.inv(x::_MFV{M,T,2}) where {M,N} = _inv(x)
+@inline Base.inv(x::_MFV{M,T,2}) where {M,T} = _inv(x)
 
 
 @inline Base.:^(x::_MF{T,N}, p::Integer) where {T,N} =
