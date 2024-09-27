@@ -1038,7 +1038,214 @@ function _meta_mf(
 end
 
 
-##################################################################### ARITHMETIC
+######################################################### DOUBLE-LIMB ARITHMETIC
+
+
+# The functions below are based on the algorithms from the following paper:
+# "Tight and Rigorous Error Bounds for Basic Building Blocks of Double-Word
+# Arithmetic" by Mioara Joldes, Jean-Michel Muller, and Valentina Popescu.
+# https://doi.org/10.1145/3121432
+
+
+@inline function _addf(x::_MF{T,2}, y::T) where {T}
+    # This function implements Algorithm 4 (DWPlusFP).
+    x0, x1 = x._limbs
+    s0, s1 = two_sum(x0, y)
+    z0, z1 = fast_two_sum(s0, x1 + s1)
+    return _MF{T,2}((z0, z1))
+end
+
+
+@inline function _addf(x::_MFV{M,T,2}, y::Vec{M,T}) where {M,T}
+    # This function implements Algorithm 4 (DWPlusFP).
+    x0, x1 = x._limbs
+    s0, s1 = two_sum(x0, y)
+    z0, z1 = fast_two_sum(s0, x1 + s1)
+    return _MFV{M,T,2}((z0, z1))
+end
+
+
+@inline function _add(x::_MF{T,2}, y::_MF{T,2}) where {T}
+    # This function implements Algorithm 6 (AccurateDWPlusDW).
+    x0, x1 = x._limbs
+    y0, y1 = y._limbs
+    s0, s1 = two_sum(x0, y0)
+    t1, t2 = two_sum(x1, y1)
+    v0, v1 = fast_two_sum(s0, s1 + t1)
+    z0, z1 = fast_two_sum(v0, v1 + t2)
+    return _MF{T,2}((z0, z1))
+end
+
+
+@inline function _add(x::_MFV{M,T,2}, y::_MFV{M,T,2}) where {M,T}
+    # This function implements Algorithm 6 (AccurateDWPlusDW).
+    x0, x1 = x._limbs
+    y0, y1 = y._limbs
+    s0, s1 = two_sum(x0, y0)
+    t1, t2 = two_sum(x1, y1)
+    v0, v1 = fast_two_sum(s0, s1 + t1)
+    z0, z1 = fast_two_sum(v0, v1 + t2)
+    return _MFV{M,T,2}((z0, z1))
+end
+
+
+@inline function _subf(x::_MF{T,2}, y::T) where {T}
+    # This function implements a modified version of Algorithm 4.
+    x0, x1 = x._limbs
+    d0, d1 = two_diff(x0, y)
+    z0, z1 = fast_two_sum(d0, x1 + d1)
+    return _MF{T,2}((z0, z1))
+end
+
+
+@inline function _subf(x::_MFV{M,T,2}, y::Vec{M,T}) where {M,T}
+    # This function implements a modified version of Algorithm 4.
+    x0, x1 = x._limbs
+    d0, d1 = two_diff(x0, y)
+    z0, z1 = fast_two_sum(d0, x1 + d1)
+    return _MFV{M,T,2}((z0, z1))
+end
+
+
+@inline function _fsub(x::T, y::_MF{T,2}) where {T}
+    # This function implements a modified version of Algorithm 4.
+    y0, y1 = y._limbs
+    d0, d1 = two_diff(x, y0)
+    z0, z1 = fast_two_sum(d0, d1 - y1)
+    return _MF{T,2}((z0, z1))
+end
+
+
+@inline function _fsub(x::Vec{M,T}, y::_MFV{M,T,2}) where {M,T}
+    # This function implements a modified version of Algorithm 4.
+    y0, y1 = y._limbs
+    d0, d1 = two_diff(x, y0)
+    z0, z1 = fast_two_sum(d0, d1 - y1)
+    return _MFV{M,T,2}((z0, z1))
+end
+
+
+@inline function _sub(x::_MF{T,2}, y::_MF{T,2}) where {T}
+    # This function implements a modified version of Algorithm 6.
+    x0, x1 = x._limbs
+    y0, y1 = y._limbs
+    d0, d1 = two_diff(x0, y0)
+    e1, e2 = two_diff(x1, y1)
+    v0, v1 = fast_two_sum(d0, d1 + e1)
+    z0, z1 = fast_two_sum(v0, v1 + e2)
+    return _MF{T,2}((z0, z1))
+end
+
+
+@inline function _sub(x::_MFV{M,T,2}, y::_MFV{M,T,2}) where {M,T}
+    # This function implements a modified version of Algorithm 6.
+    x0, x1 = x._limbs
+    y0, y1 = y._limbs
+    d0, d1 = two_diff(x0, y0)
+    e1, e2 = two_diff(x1, y1)
+    v0, v1 = fast_two_sum(d0, d1 + e1)
+    z0, z1 = fast_two_sum(v0, v1 + e2)
+    return _MFV{M,T,2}((z0, z1))
+end
+
+
+@inline function _mulf(x::_MF{T,2}, y::T) where {T}
+    # This function implements Algorithm 9 (DWTimesFP3).
+    x0, x1 = x._limbs
+    p0, p1 = two_prod(x0, y)
+    t1 = fma(x1, y, p1)
+    z0, z1 = fast_two_sum(p0, t1)
+    return _MF{T,2}((z0, z1))
+end
+
+
+@inline function _mulf(x::_MFV{M,T,2}, y::Vec{M,T}) where {M,T}
+    # This function implements Algorithm 9 (DWTimesFP3).
+    x0, x1 = x._limbs
+    p0, p1 = two_prod(x0, y)
+    t1 = fma(x1, y, p1)
+    z0, z1 = fast_two_sum(p0, t1)
+    return _MFV{M,T,2}((z0, z1))
+end
+
+
+@inline function _mul(x::_MF{T,2}, y::_MF{T,2}) where {T}
+    # This function implements Algorithm 11 (DWTimesDW2).
+    x0, x1 = x._limbs
+    y0, y1 = y._limbs
+    p0, p1 = two_prod(x0, y0)
+    t1 = fma(x1, y0, x0 * y1)
+    z0, z1 = fast_two_sum(p0, p1 + t1)
+    return _MF{T,2}((z0, z1))
+end
+
+
+@inline function _mul(x::_MFV{M,T,2}, y::_MFV{M,T,2}) where {M,T}
+    # This function implements Algorithm 11 (DWTimesDW2).
+    x0, x1 = x._limbs
+    y0, y1 = y._limbs
+    p0, p1 = two_prod(x0, y0)
+    t1 = fma(x1, y0, x0 * y1)
+    z0, z1 = fast_two_sum(p0, p1 + t1)
+    return _MFV{M,T,2}((z0, z1))
+end
+
+
+@inline function _divf(x::_MF{T,2}, y::T) where {T}
+    # This function implements Algorithm 15 (DWDivFP).
+    x0, x1 = x._limbs
+    q0 = x0 / y
+    p0, p1 = two_prod(y, q0)
+    r1 = x0 - p0
+    s1 = r1 - p1
+    q1 = (s1 + x1) / y
+    z0, z1 = fast_two_sum(q0, q1)
+    return _MF{T,2}((z0, z1))
+end
+
+
+@inline function _divf(x::_MFV{M,T,2}, y::Vec{M,T}) where {M,T}
+    # This function implements Algorithm 15 (DWDivFP).
+    x0, x1 = x._limbs
+    q0 = x0 / y
+    p0, p1 = two_prod(y, q0)
+    r1 = x0 - p0
+    s1 = r1 - p1
+    q1 = (s1 + x1) / y
+    z0, z1 = fast_two_sum(q0, q1)
+    return _MFV{M,T,2}((z0, z1))
+end
+
+
+@inline function _div(x::_MF{T,2}, y::_MF{T,2}) where {T}
+    # This function implements Algorithm 17 (DWDivDW).
+    x0, x1 = x._limbs
+    y0, _ = y._limbs
+    q0 = x0 / y0
+    p0, p1 = (y * q0)._limbs
+    r1 = x0 - p0
+    r2 = x1 - p1
+    q1 = (r1 + r2) / y0
+    z0, z1 = fast_two_sum(q0, q1)
+    return _MF{T,2}((z0, z1))
+end
+
+
+@inline function _div(x::_MFV{M,T,2}, y::_MFV{M,T,2}) where {M,T}
+    # This function implements Algorithm 17 (DWDivDW).
+    x0, x1 = x._limbs
+    y0, _ = y._limbs
+    q0 = x0 / y0
+    p0, p1 = (y * q0)._limbs
+    r1 = x0 - p0
+    r2 = x1 - p1
+    q1 = (r1 + r2) / y0
+    z0, z1 = fast_two_sum(q0, q1)
+    return _MFV{M,T,2}((z0, z1))
+end
+
+
+########################################################## MULTI-LIMB ARITHMETIC
 
 
 function _add_expr(vec_width::Int, T::DataType, num_limbs::Int)
@@ -1263,9 +1470,14 @@ end
 @inline Base.:*(a::Vec{M,T}, b::_MFV{M,T,N}) where {M,T<:Number,N} = _mulf(b, a)
 @inline Base.:/(a::_MF{T,N}, b::_MF{T,N}) where {T,N} = _div(a, b)
 @inline Base.:/(a::_MFV{M,T,N}, b::_MFV{M,T,N}) where {M,T,N} = _div(a, b)
+@inline Base.:/(a::_MF{T,2}, b::T) where {T} = _divf(a, b)
+@inline Base.:/(a::_MF{T,2}, b::T) where {T<:Number} = _divf(a, b)
+@inline Base.:/(a::_MFV{M,T,2}, b::Vec{M,T}) where {M,T} = _divf(a, b)
+@inline Base.:/(a::_MFV{M,T,2}, b::Vec{M,T}) where {M,T<:Number} = _divf(a, b)
 
 
 # TODO: MultiFloat-Int arithmetic operators.
+
 
 ########################################################### ARITHMETIC OVERLOADS
 
