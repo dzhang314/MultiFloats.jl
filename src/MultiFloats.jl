@@ -946,6 +946,20 @@ _ge_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$i] >= y._limbs[$i]) : :(
     _ge(renormalize(x), renormalize(y))
 
 
+@inline Base.:(==)(x::_MF{T,2}, y::_MF{T,2}) where {T} = _eq(x, y)
+@inline Base.:(==)(x::_MFV{M,T,2}, y::_MFV{M,T,2}) where {M,T} = _eq(x, y)
+@inline Base.:(!=)(x::_MF{T,2}, y::_MF{T,2}) where {T} = _ne(x, y)
+@inline Base.:(!=)(x::_MFV{M,T,2}, y::_MFV{M,T,2}) where {M,T} = _ne(x, y)
+@inline Base.:(<)(x::_MF{T,2}, y::_MF{T,2}) where {T} = _lt(x, y)
+@inline Base.:(<)(x::_MFV{M,T,2}, y::_MFV{M,T,2}) where {M,T} = _lt(x, y)
+@inline Base.:(>)(x::_MF{T,2}, y::_MF{T,2}) where {T} = _gt(x, y)
+@inline Base.:(>)(x::_MFV{M,T,2}, y::_MFV{M,T,2}) where {M,T} = _gt(x, y)
+@inline Base.:(<=)(x::_MF{T,2}, y::_MF{T,2}) where {T} = _le(x, y)
+@inline Base.:(<=)(x::_MFV{M,T,2}, y::_MFV{M,T,2}) where {M,T} = _le(x, y)
+@inline Base.:(>=)(x::_MF{T,2}, y::_MF{T,2}) where {T} = _ge(x, y)
+@inline Base.:(>=)(x::_MFV{M,T,2}, y::_MFV{M,T,2}) where {M,T} = _ge(x, y)
+
+
 ########################################################### ARITHMETIC UTILITIES
 
 
