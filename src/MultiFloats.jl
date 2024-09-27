@@ -1211,6 +1211,28 @@ end
 end
 
 
+@inline function _abs2(x::_MF{T,2}) where {T}
+    # This function implements a modified version of Algorithm 11.
+    x0, x1 = x._limbs
+    p0, p1 = two_prod(x0, x0)
+    t1 = x0 * x1
+    t1 += t1
+    z0, z1 = fast_two_sum(p0, p1 + t1)
+    return _MF{T,2}((z0, z1))
+end
+
+
+@inline function _abs2(x::_MFV{M,T,2}) where {M,T}
+    # This function implements a modified version of Algorithm 11.
+    x0, x1 = x._limbs
+    p0, p1 = two_prod(x0, x0)
+    t1 = x0 * x1
+    t1 += t1
+    z0, z1 = fast_two_sum(p0, p1 + t1)
+    return _MFV{M,T,2}((z0, z1))
+end
+
+
 @inline function _divf(x::_MF{T,2}, y::T) where {T}
     # This function implements Algorithm 15 (DWDivFP).
     x0, x1 = x._limbs
@@ -1574,6 +1596,8 @@ end
 
 @inline Base.abs2(x::_MF{T,N}) where {T,N} = x * x
 @inline Base.abs2(x::_MFV{M,T,N}) where {M,T,N} = x * x
+@inline Base.abs2(x::_MF{T,2}) where {T} = _abs2(x)
+@inline Base.abs2(x::_MFV{M,T,2}) where {M,T} = _abs2(x)
 
 
 @inline Base.inv(x::_MF{T,N}) where {T,N} = one(_MF{T,N}) / x
