@@ -623,10 +623,16 @@ end
 @inline Base.iszero(x::_MFV{M,T,N}) where {M,T,N} = _iszero(renormalize(x))
 @inline Base.isone(x::_MF{T,N}) where {T,N} = _isone(renormalize(x))
 @inline Base.isone(x::_MFV{M,T,N}) where {M,T,N} = _isone(renormalize(x))
+@inline Base.iszero(x::_MF{T,2}) where {T} = _iszero(x)
+@inline Base.iszero(x::_MFV{M,T,2}) where {M,T} = _iszero(x)
+@inline Base.isone(x::_MF{T,2}) where {T} = _isone(x)
+@inline Base.isone(x::_MFV{M,T,2}) where {M,T} = _isone(x)
 
 
 @inline _head(x::_MF{T,N}) where {T,N} = renormalize(x)._limbs[1]
 @inline _head(x::_MFV{M,T,N}) where {M,T,N} = renormalize(x)._limbs[1]
+@inline _head(x::_MF{T,2}) where {T} = x._limbs[1]
+@inline _head(x::_MFV{M,T,2}) where {M,T} = x._limbs[1]
 
 
 @inline Base.issubnormal(x::_MF{T,N}) where {T,N} = issubnormal(_head(x))
@@ -1055,7 +1061,7 @@ end
 ######################################################### DOUBLE-LIMB ARITHMETIC
 
 
-# The functions below are based on the algorithms from the following paper:
+# The functions in this section are based on the algorithms from the paper
 # "Tight and Rigorous Error Bounds for Basic Building Blocks of Double-Word
 # Arithmetic" by Mioara Joldes, Jean-Michel Muller, and Valentina Popescu.
 # https://doi.org/10.1145/3121432
@@ -1231,6 +1237,30 @@ end
 end
 
 
+@inline function _fdiv(x::T, y::_MF{T,2}) where {T}
+    # This function implements a modified version of Algorithm 17.
+    y0, _ = y._limbs
+    q0 = x / y0
+    p0, p1 = (y * q0)._limbs
+    r1 = x - p0
+    q1 = (r1 - p1) / y0
+    z0, z1 = fast_two_sum(q0, q1)
+    return _MF{T,2}((z0, z1))
+end
+
+
+@inline function _fdiv(x::Vec{M,T}, y::_MFV{M,T,2}) where {M,T}
+    # This function implements a modified version of Algorithm 17.
+    y0, _ = y._limbs
+    q0 = x / y0
+    p0, p1 = (y * q0)._limbs
+    r1 = x - p0
+    q1 = (r1 - p1) / y0
+    z0, z1 = fast_two_sum(q0, q1)
+    return _MFV{M,T,2}((z0, z1))
+end
+
+
 @inline function _div(x::_MF{T,2}, y::_MF{T,2}) where {T}
     # This function implements Algorithm 17 (DWDivDW).
     x0, x1 = x._limbs
@@ -1254,6 +1284,30 @@ end
     r1 = x0 - p0
     r2 = x1 - p1
     q1 = (r1 + r2) / y0
+    z0, z1 = fast_two_sum(q0, q1)
+    return _MFV{M,T,2}((z0, z1))
+end
+
+
+@inline function _inv(y::_MF{T,2}) where {T}
+    # This function implements a modified version of Algorithm 17.
+    y0, _ = y._limbs
+    q0 = inv(y0)
+    p0, p1 = (y * q0)._limbs
+    r1 = one(T) - p0
+    q1 = (r1 - p1) / y0
+    z0, z1 = fast_two_sum(q0, q1)
+    return _MF{T,2}((z0, z1))
+end
+
+
+@inline function _inv(y::_MFV{M,T,2}) where {M,T}
+    # This function implements a modified version of Algorithm 17.
+    y0, _ = y._limbs
+    q0 = inv(y0)
+    p0, p1 = (y * q0)._limbs
+    r1 = one(Vec{M,T}) - p0
+    q1 = (r1 - p1) / y0
     z0, z1 = fast_two_sum(q0, q1)
     return _MFV{M,T,2}((z0, z1))
 end
@@ -1488,6 +1542,10 @@ end
 @inline Base.:/(a::_MF{T,2}, b::T) where {T<:Number} = _divf(a, b)
 @inline Base.:/(a::_MFV{M,T,2}, b::Vec{M,T}) where {M,T} = _divf(a, b)
 @inline Base.:/(a::_MFV{M,T,2}, b::Vec{M,T}) where {M,T<:Number} = _divf(a, b)
+@inline Base.:/(a::T, b::_MF{T,2}) where {T} = _fdiv(a, b)
+@inline Base.:/(a::T, b::_MF{T,2}) where {T<:Number} = _fdiv(a, b)
+@inline Base.:/(a::Vec{M,T}, b::_MFV{M,T,2}) where {M,T} = _fdiv(a, b)
+@inline Base.:/(a::Vec{M,T}, b::_MFV{M,T,2}) where {M,T<:Number} = _fdiv(a, b)
 
 
 # TODO: MultiFloat-Int arithmetic operators.
@@ -1510,6 +1568,8 @@ end
 
 @inline Base.abs(x::_MF{T,N}) where {T,N} = _abs(renormalize(x))
 @inline Base.abs(x::_MFV{M,T,N}) where {M,T,N} = _abs(renormalize(x))
+@inline Base.abs(x::_MF{T,2}) where {T} = _abs(x)
+@inline Base.abs(x::_MFV{M,T,2}) where {M,T} = _abs(x)
 
 
 @inline Base.abs2(x::_MF{T,N}) where {T,N} = x * x
@@ -1518,6 +1578,8 @@ end
 
 @inline Base.inv(x::_MF{T,N}) where {T,N} = one(_MF{T,N}) / x
 @inline Base.inv(x::_MFV{M,T,N}) where {M,T,N} = one(_MFV{M,T,N}) / x
+@inline Base.inv(x::_MF{T,2}) where {T} = _inv(x)
+@inline Base.inv(x::_MFV{M,T,2}) where {M,N} = _inv(x)
 
 
 @inline Base.:^(x::_MF{T,N}, p::Integer) where {T,N} =
