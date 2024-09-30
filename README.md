@@ -81,14 +81,14 @@ We use [two linear algebra tasks][11] to compare the performance of extended-pre
 * QR factorization of a random 400×400 matrix
 * Pseudoinverse of a random 400×250 matrix using [GenericLinearAlgebra.jl][12]
 
-The timings reported below are averages of 10 single-threaded runs performed on an Intel Core i9-11900KF processor using Julia 1.10.0.
+The timings reported below are minima of 3 single-threaded runs performed on an Intel Core i9-11900KF processor using Julia 1.10.5.
 
-|                | MultiFloats<br>`Float64x2` | MPFR<br>[`BigFloat`][2]  | Arb<br>[`ArbFloat`][13]  | Intel<br>[`Dec128`][14]  | Julia<br>[`Double64`][4] | libquadmath<br>[`Float128`][3] |
-|----------------|----------------------------|--------------------------|--------------------------|--------------------------|--------------------------|------------------------|
-| 400×400 `qr`   | 0.276 sec                  | 7.311 sec<br>27× slower  | 13.259 sec<br>48× slower | 11.963 sec<br>43× slower | 0.384 sec<br>1.4× slower | 1.399 sec<br>5× slower |
-| correct digits | 26.2                       | 25.9                     | 25.9                     | 27.7                     | 26.1                     | 27.9                   |
-| 400×250 `pinv` | 1.236 sec                  | 49.581 sec<br>40× slower | ❌ Error                 | ❌ Error                  | 1.899 sec<br>1.5× slower | 7.551 sec<br>6× slower |
-| correct digits | 26.0                       | 25.8                     | ❌ Error                 | ❌ Error                  | 25.9                     | 27.9                   |
+|                | MultiFloats<br>`Float64x2` | MPFR<br>[`BigFloat`][2] | Arb<br>[`ArbFloat`][13] | Intel<br>[`Dec128`][14] | Julia<br>[`Double64`][4] | GNU<br>[`Float128`][3] |
+|----------------|----------------------------|-------------------------|-------------------------|-------------------------|--------------------------|------------------------|
+| 400×400 `qr`   | 0.213 sec                  | 3.74 sec<br>18× slower  | ❌ Error                | ❌ Error                 | 0.408 sec<br>1.9× slower | 1.19 sec<br>5.6× slower |
+| correct digits | 26.3                       | 26.1                    | ❌ Error                | ❌ Error                 | 26.3                     | 27.9                    |
+| 400×250 `pinv` | 0.872 sec                  | 29.3 sec<br>34× slower  | ❌ Error                | ❌ Error                 | 1.95 sec<br>2.2× slower  | 6.37 sec<br>7.3× slower |
+| correct digits | 26.0                       | 25.9                    | ❌ Error                | ❌ Error                 | 26.0                     | 27.9                    |
 | selectable precision                             | ✔️ | ✔️ | ✔️ | ❌ | ❌ | ❌ |
 | avoids allocation                                | ✔️ | ❌ | ❌ | ✔️ | ✔️ | ✔️ |
 | arithmetic<br>`+`, `-`, `*`, `/`, `sqrt`         | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ |
