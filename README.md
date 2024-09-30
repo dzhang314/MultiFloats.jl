@@ -2,9 +2,9 @@
 
 **Copyright © 2019-2024 by David K. Zhang. Released under the [MIT License][1].**
 
-**MultiFloats.jl** is a Julia package for extended-precision arithmetic using 100–400 bits (30–120 decimal digits). In this range, it is the fastest library that I am aware of. At 100-bit precision, **MultiFloats.jl** is roughly **40× faster than [`BigFloat`][2]**, **5× faster than [Quadmath.jl][3]**, and **1.5× faster than [DoubleFloats.jl][4]**.
+**MultiFloats.jl** is a Julia package for extended-precision arithmetic using 100–400 bits (30–120 decimal digits). In this range, it is the fastest library that I am aware of. At 100-bit precision, **MultiFloats.jl** is roughly **30× faster than [`BigFloat`][2]**, **6× faster than [Quadmath.jl][3]**, and **2× faster than [DoubleFloats.jl][4]**.
 
-**MultiFloats.jl** is fast because it uses native `Float64` operations on static data structures that do not dynamically allocate memory. In contrast, [`BigFloat`][2] allocates memory for every single arithmetic operation, requiring frequent pauses for garbage collection. In addition, **MultiFloats.jl** uses branch-free algorithms that can be vectorized for even faster execution on [SIMD][5] processors.
+**MultiFloats.jl** is fast because it uses native `Float64` operations on static data structures that do not dynamically allocate memory. In contrast, [`BigFloat`][2] allocates memory for every single arithmetic operation, requiring frequent pauses for garbage collection. In addition, **MultiFloats.jl** uses branch-free vectorized algorithms for even faster execution on [SIMD][5] processors.
 
 **MultiFloats.jl** provides pure-Julia implementations of the basic arithmetic operations (`+`, `-`, `*`, `/`, `sqrt`), comparison operators (`==`, `!=`, `<`, `>`, `<=`, `>=`), and floating-point introspection methods (`isfinite`, `eps`, `minfloat`, etc.). Transcendental functions (`exp`, `log`, `sin`, `cos`, etc.) are supported through [MPFR][6].
 
