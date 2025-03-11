@@ -12,6 +12,14 @@
 
 
 
+## ⚠️ WARNING: Please use Julia LTS (v1.10)!
+
+There is a [serious regression in Julia v1.11](https://github.com/JuliaLang/julia/issues/57713) relating to vector memory alignment that causes segfaults in [SIMD.jl](https://github.com/eschnett/SIMD.jl) and all packages that use SIMD datatypes, including **MultiFloats.jl**. The issue is internal to the Julia interpreter/compiler and is unfortunately [still present as of Julia v1.11.4](https://github.com/JuliaLang/julia/issues/57713#issuecomment-2713353099); it is expected to be fixed in v1.11.5.
+
+For the time being, please use **MultiFloats.jl** with Julia LTS (v1.10). I will update **MultiFloats.jl** to v1.11 as soon as possible once a fix for this issue is released.
+
+
+
 ## New Features in v2.0
 
 **MultiFloats.jl v2.0** now supports explicit SIMD vector programming using [SIMD.jl][5]. In addition to the basic scalar types `Float64x2`, `Float64x3`, ..., `Float64x8`, **MultiFloats.jl v2.0** also provides the vector types `v2Float64x2`, `v4Float64x2`, `v8Float64x2`, ..., `v2Float64x8`, `v4Float64x8`, `v8Float64x8`, allowing users to operate on two, four, or eight extended-precision values at a time. These are all instances of the generic type `MultiFloatVec{M,T,N}`, which represents a vector of `M` values, each consisting of `N` limbs of type `T`.
