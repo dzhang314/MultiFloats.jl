@@ -1,6 +1,7 @@
 module MultiFloatsV3
 
-using Base.MPFR: libmpfr, MPFRRoundingMode, MPFRRoundNearest, CdoubleMax
+using Base.MPFR: libmpfr, CdoubleMax,
+    MPFRRoundingMode, MPFRRoundNearest, MPFRRoundFaithful
 using SIMD: Vec
 
 ################################################################################
@@ -178,7 +179,7 @@ function mfadd_exact(
     z = BigFloat(precision=q)
     ccall((:mpfr_add, libmpfr), Cint,
         (Ref{BigFloat}, Ref{BigFloat}, Ref{BigFloat}, MPFRRoundingMode),
-        z, x, y, MPFRRoundNearest)
+        z, BigFloat(x), BigFloat(y), MPFRRoundNearest)
     return MultiFloat{T,Z}(split!(z, T, Val{Z}()))
 end
 
@@ -191,7 +192,7 @@ function mfmul_exact(
     z = BigFloat(precision=q)
     ccall((:mpfr_mul, libmpfr), Cint,
         (Ref{BigFloat}, Ref{BigFloat}, Ref{BigFloat}, MPFRRoundingMode),
-        z, x, y, MPFRRoundNearest)
+        z, BigFloat(x), BigFloat(y), MPFRRoundNearest)
     return MultiFloat{T,Z}(split!(z, T, Val{Z}()))
 end
 
@@ -202,7 +203,7 @@ function mfinv_exact(::Val{Z}, x::MultiFloat{T,X}) where {Z,T,X}
     z = BigFloat(precision=q)
     ccall((:mpfr_ui_div, libmpfr), Cint,
         (Ref{BigFloat}, Culong, Ref{BigFloat}, MPFRRoundingMode),
-        z, 1, x, MPFRRoundNearest)
+        z, 1, BigFloat(x), MPFRRoundNearest)
     return MultiFloat{T,Z}(split!(z, T, Val{Z}()))
 end
 
@@ -215,7 +216,7 @@ function mfdiv_exact(
     z = BigFloat(precision=q)
     ccall((:mpfr_div, libmpfr), Cint,
         (Ref{BigFloat}, Ref{BigFloat}, Ref{BigFloat}, MPFRRoundingMode),
-        z, x, y, MPFRRoundNearest)
+        z, BigFloat(x), BigFloat(y), MPFRRoundNearest)
     return MultiFloat{T,Z}(split!(z, T, Val{Z}()))
 end
 
@@ -229,7 +230,7 @@ function mfrsqrt_exact(::Val{Z}, x::MultiFloat{T,X}) where {Z,T,X}
     z = BigFloat(precision=q)
     ccall((:mpfr_rec_sqrt, libmpfr), Cint,
         (Ref{BigFloat}, Ref{BigFloat}, MPFRRoundingMode),
-        z, x, MPFRRoundNearest)
+        z, BigFloat(x), MPFRRoundNearest)
     return MultiFloat{T,Z}(split!(z, T, Val{Z}()))
 end
 
@@ -240,7 +241,34 @@ function mfsqrt_exact(::Val{Z}, x::MultiFloat{T,X}) where {Z,T,X}
     z = BigFloat(precision=q)
     ccall((:mpfr_sqrt, libmpfr), Cint,
         (Ref{BigFloat}, Ref{BigFloat}, MPFRRoundingMode),
-        z, x, MPFRRoundNearest)
+        z, BigFloat(x), MPFRRoundNearest)
+    return MultiFloat{T,Z}(split!(z, T, Val{Z}()))
+end
+
+
+################################################################################
+
+
+function mfadd_rounded(
+    ::Val{Z}, x::MultiFloat{T,X}, y::MultiFloat{T,Y},
+) where {Z,T,X,Y}
+    q = Z * (precision(T) - 1)
+    z = BigFloat(precision=q)
+    ccall((:mpfr_add, libmpfr), Cint,
+        (Ref{BigFloat}, Ref{BigFloat}, Ref{BigFloat}, MPFRRoundingMode),
+        z, BigFloat(x), BigFloat(y), MPFRRoundFaithful)
+    return MultiFloat{T,Z}(split!(z, T, Val{Z}()))
+end
+
+
+function mfmul_rounded(
+    ::Val{Z}, x::MultiFloat{T,X}, y::MultiFloat{T,Y},
+) where {Z,T,X,Y}
+    q = Z * (precision(T) - 1)
+    z = BigFloat(precision=q)
+    ccall((:mpfr_mul, libmpfr), Cint,
+        (Ref{BigFloat}, Ref{BigFloat}, Ref{BigFloat}, MPFRRoundingMode),
+        z, BigFloat(x), BigFloat(y), MPFRRoundFaithful)
     return MultiFloat{T,Z}(split!(z, T, Val{Z}()))
 end
 
@@ -263,7 +291,7 @@ export mfadd, mfmul, mfinv, mfdiv, mfrsqrt, mfsqrt
         (BigFloat) operations will be used instead.
         """
     )
-    return :(mfadd_exact(Val{Z}(), x, y))
+    return :(mfadd_rounded(Val{Z}(), x, y))
 end
 
 
@@ -287,7 +315,7 @@ end
         (BigFloat) operations will be used instead.
         """
     )
-    return :(mfmul_exact(Val{Z}(), x, y))
+    return :(mfmul_rounded(Val{Z}(), x, y))
 end
 
 
