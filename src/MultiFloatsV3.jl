@@ -22,6 +22,85 @@ end
 ################################################################################
 
 
+export Float16x, Float32x, Float64x,
+    Float64x1, Float64x2, Float64x3, Float64x4,
+    Vec1Float64x1, Vec1Float64x2, Vec1Float64x3, Vec1Float64x4,
+    Vec2Float64x1, Vec2Float64x2, Vec2Float64x3, Vec2Float64x4,
+    Vec4Float64x1, Vec4Float64x2, Vec4Float64x3, Vec4Float64x4,
+    Vec8Float64x1, Vec8Float64x2, Vec8Float64x3, Vec8Float64x4,
+    Vec16Float64x1, Vec16Float64x2, Vec16Float64x3, Vec16Float64x4
+
+
+const Float16x{N} = MultiFloat{Float16,N}
+const Float32x{N} = MultiFloat{Float32,N}
+const Float64x{N} = MultiFloat{Float64,N}
+
+
+const Float64x1 = MultiFloat{Float64,1}
+const Float64x2 = MultiFloat{Float64,2}
+const Float64x3 = MultiFloat{Float64,3}
+const Float64x4 = MultiFloat{Float64,4}
+
+
+const Vec1Float64x1 = MultiFloatVec{1,Float64,1}
+const Vec1Float64x2 = MultiFloatVec{1,Float64,2}
+const Vec1Float64x3 = MultiFloatVec{1,Float64,3}
+const Vec1Float64x4 = MultiFloatVec{1,Float64,4}
+
+
+const Vec2Float64x1 = MultiFloatVec{2,Float64,1}
+const Vec2Float64x2 = MultiFloatVec{2,Float64,2}
+const Vec2Float64x3 = MultiFloatVec{2,Float64,3}
+const Vec2Float64x4 = MultiFloatVec{2,Float64,4}
+
+
+const Vec4Float64x1 = MultiFloatVec{4,Float64,1}
+const Vec4Float64x2 = MultiFloatVec{4,Float64,2}
+const Vec4Float64x3 = MultiFloatVec{4,Float64,3}
+const Vec4Float64x4 = MultiFloatVec{4,Float64,4}
+
+
+const Vec8Float64x1 = MultiFloatVec{8,Float64,1}
+const Vec8Float64x2 = MultiFloatVec{8,Float64,2}
+const Vec8Float64x3 = MultiFloatVec{8,Float64,3}
+const Vec8Float64x4 = MultiFloatVec{8,Float64,4}
+
+
+const Vec16Float64x1 = MultiFloatVec{16,Float64,1}
+const Vec16Float64x2 = MultiFloatVec{16,Float64,2}
+const Vec16Float64x3 = MultiFloatVec{16,Float64,3}
+const Vec16Float64x4 = MultiFloatVec{16,Float64,4}
+
+
+
+################################################################################
+
+
+@inline Base.zero(::Type{MultiFloat{T,N}}) where {T,N} =
+    MultiFloat{T,N}(ntuple(_ -> zero(T), Val{N}()))
+
+@inline Base.zero(::MultiFloat{T,N}) where {T,N} = zero(MultiFloat{T,N})
+
+@inline Base.zero(::Type{MultiFloatVec{M,T,N}}) where {M,T,N} =
+    MultiFloatVec{M,T,N}(ntuple(_ -> zero(Vec{M,T}), Val{N}()))
+
+@inline Base.zero(::MultiFloatVec{M,T,N}) where {M,T,N} =
+    zero(MultiFloatVec{M,T,N})
+
+
+@inline Base.one(::Type{MultiFloat{T,N}}) where {T,N} =
+    MultiFloat{T,N}(ntuple(i -> (i == 1) ? one(T) : zero(T), Val{N}()))
+
+@inline Base.one(::MultiFloat{T,N}) where {T,N} = one(MultiFloat{T,N})
+
+@inline Base.one(::Type{MultiFloatVec{M,T,N}}) where {M,T,N} =
+    MultiFloatVec{M,T,N}(ntuple(
+        i -> (i == 1) ? one(Vec{M,T}) : zero(Vec{M,T}), Val{N}()))
+
+@inline Base.one(::MultiFloatVec{M,T,N}) where {M,T,N} =
+    one(MultiFloatVec{M,T,N})
+
+
 @inline Base.:-(x::MultiFloat{T,N}) where {T,N} =
     MultiFloat{T,N}(ntuple(i -> -x._limbs[i], Val{N}()))
 
@@ -188,6 +267,14 @@ export mfadd, mfmul, mfinv, mfdiv, mfrsqrt, mfsqrt
 end
 
 
+@inline Base.:+(x::MultiFloat{T,X}, y::MultiFloat{T,Y}) where {T,X,Y} =
+    mfadd(Val{max(X, Y)}(), x, y)
+
+
+@inline Base.:-(x::MultiFloat{T,X}, y::MultiFloat{T,Y}) where {T,X,Y} =
+    mfadd(Val{max(X, Y)}(), x, -y)
+
+
 @generated function mfmul(
     ::Val{Z}, x::MultiFloat{T,X}, y::MultiFloat{T,Y},
 ) where {Z,T,X,Y}
@@ -204,18 +291,37 @@ end
 end
 
 
-@generated function mfinv(::Val{Z}, x::MultiFloat{T,X}) where {Z,T,X}
-    Core.println(
-        Core.stderr,
-        """
-        WARNING: A fast algorithm for the following MultiFloat operation:
-            mfinv(::Val{$Z}, x::MultiFloat{$T, $X})
-        has not yet been developed. A slow fallback algorithm using MPFR
-        (BigFloat) operations will be used instead.
-        """
-    )
-    return :(mfinv_exact(Val{Z}(), x))
+@inline Base.:*(x::MultiFloat{T,X}, y::MultiFloat{T,Y}) where {T,X,Y} =
+    mfmul(Val{max(X, Y)}(), x, y)
+
+
+@inline function mfinv_impl(
+    ::Val{Z}, x::MultiFloat{T,X}, estimate::MultiFloat{T,E},
+) where {Z,T,X,E}
+    _one = MultiFloat{T,1}((one(T),))
+    residual = mfadd(Val{E}(), _one, -mfmul(Val{E + 1}(), estimate, x))
+    correction = mfmul(Val{E}(), estimate, residual)
+    if E + E >= Z
+        return mfadd(Val{Z}(), estimate, correction)
+    else
+        next_estimate = mfadd(Val{E + E}(), estimate, correction)
+        return mfinv_impl(Val{Z}(), x, next_estimate)
+    end
 end
+
+
+@inline function mfinv(::Val{Z}, x::MultiFloat{T,X}) where {Z,T,X}
+    estimate = MultiFloat{T,1}((inv(x._limbs[1]),))
+    if Z == 1
+        return estimate
+    else
+        return mfinv_impl(Val{Z}(), x, estimate)
+    end
+end
+
+
+@inline Base.inv(x::MultiFloat{T,X}) where {T,X} =
+    mfinv(Val{X}(), x)
 
 
 @generated function mfdiv(
@@ -234,6 +340,10 @@ end
 end
 
 
+@inline Base.:/(x::MultiFloat{T,X}, y::MultiFloat{T,Y}) where {T,X,Y} =
+    mfdiv(Val{max(X, Y)}(), x, y)
+
+
 @generated function mfrsqrt(::Val{Z}, x::MultiFloat{T,X}) where {Z,T,X}
     Core.println(
         Core.stderr,
@@ -246,6 +356,9 @@ end
     )
     return :(mfrsqrt_exact(Val{Z}(), x))
 end
+
+
+@inline rsqrt(x::MultiFloat{T,X}) where {T,X} = mfrsqrt(Val{X}(), x)
 
 
 @generated function mfsqrt(::Val{Z}, x::MultiFloat{T,X}) where {Z,T,X}
@@ -261,5 +374,47 @@ end
     return :(mfsqrt_exact(Val{Z}(), x))
 end
 
+
+@inline Base.sqrt(x::MultiFloat{T,X}) where {T,X} = mfsqrt(Val{X}(), x)
+
+
+################################################################################
+
+
+@inline function two_sum(x::T, y::T) where {T}
+    s = x + y
+    x_prime = s - y
+    y_prime = s - x_prime
+    x_err = x - x_prime
+    y_err = y - y_prime
+    e = x_err + y_err
+    return (s, e)
+end
+
+
+@inline function two_prod(x::T, y::T) where {T}
+    p = x * y
+    e = fma(x, y, -p)
+    return (p, e)
+end
+
+
+@inline mfadd(::Val{1}, x::MultiFloat{T,1}, y::MultiFloat{T,1}) where {T} =
+    MultiFloat{T,1}((x._limbs[1] + y._limbs[1],))
+
+
+@inline mfmul(::Val{1}, x::MultiFloat{T,1}, y::MultiFloat{T,1}) where {T} =
+    MultiFloat{T,1}((x._limbs[1] * y._limbs[1],))
+
+
+@inline mfadd(::Val{2}, x::MultiFloat{T,1}, y::MultiFloat{T,1}) where {T} =
+    MultiFloat{T,2}(two_sum(x._limbs[1], y._limbs[1]))
+
+
+@inline mfmul(::Val{2}, x::MultiFloat{T,1}, y::MultiFloat{T,1}) where {T} =
+    MultiFloat{T,2}(two_prod(x._limbs[1], y._limbs[1]))
+
+
+################################################################################
 
 end # module MultiFloatsV3

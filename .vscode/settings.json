@@ -8,6 +8,7 @@
         "mfmul",
         "mfrsqrt",
         "mfsqrt",
-        "mpfr"
+        "mpfr",
+        "rsqrt"
     ]
 }
