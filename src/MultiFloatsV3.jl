@@ -102,11 +102,32 @@ const Vec16Float64x4 = MultiFloatVec{16,Float64,4}
     one(MultiFloatVec{M,T,N})
 
 
+@inline Base.signbit(x::MultiFloat{T,N}) where {T,N} = signbit(x._limbs[1])
+
+@inline Base.signbit(x::MultiFloatVec{M,T,N}) where {M,T,N} =
+    signbit(x._limbs[1])
+
+
 @inline Base.:-(x::MultiFloat{T,N}) where {T,N} =
     MultiFloat{T,N}(ntuple(i -> -x._limbs[i], Val{N}()))
 
 @inline Base.:-(x::MultiFloatVec{M,T,N}) where {M,T,N} =
     MultiFloatVec{M,T,N}(ntuple(i -> -x._limbs[i], Val{N}()))
+
+
+@inline function halve(x::MultiFloat{T,N}) where {T,N}
+    _one = one(T)
+    _two = _one + _one
+    _half = inv(_two)
+    return MultiFloat{T,N}(ntuple(i -> _half * x._limbs[i], Val{N}()))
+end
+
+@inline function halve(x::MultiFloatVec{M,T,N}) where {M,T,N}
+    _one = one(T)
+    _two = _one + _one
+    _half = inv(_two)
+    return MultiFloatVec{M,T,N}(ntuple(i -> _half * x._limbs[i], Val{N}()))
+end
 
 
 ################################################################################
@@ -326,13 +347,15 @@ end
 @inline function mfinv_impl(
     ::Val{Z}, x::MultiFloat{T,X}, estimate::MultiFloat{T,E},
 ) where {Z,T,X,E}
-    _one = MultiFloat{T,1}((one(T),))
-    residual = mfadd(Val{E}(), _one, -mfmul(Val{E + 1}(), estimate, x))
-    correction = mfmul(Val{E}(), estimate, residual)
+    neg_one = MultiFloat{T,1}((-one(T),))
     if E + E >= Z
-        return mfadd(Val{Z}(), estimate, correction)
+        residual = mfadd(Val{E}(), neg_one, mfmul(Val{E + E}(), estimate, x))
+        correction = mfmul(Val{E}(), estimate, residual)
+        return mfadd(Val{Z}(), estimate, -correction) # TODO
     else
-        next_estimate = mfadd(Val{E + E}(), estimate, correction)
+        residual = mfadd(Val{E}(), neg_one, mfmul(Val{E + E}(), estimate, x))
+        correction = mfmul(Val{E}(), estimate, residual)
+        next_estimate = mfadd(Val{E + E}(), estimate, -correction) # TODO
         return mfinv_impl(Val{Z}(), x, next_estimate)
     end
 end
@@ -352,19 +375,33 @@ end
     mfinv(Val{X}(), x)
 
 
-@generated function mfdiv(
+@inline function mfdiv_impl(
+    ::Val{Z}, x::MultiFloat{T,X}, y::MultiFloat{T,Y}, estimate::MultiFloat{T,E},
+) where {Z,T,X,Y,E}
+    neg_one = MultiFloat{T,1}((-one(T),))
+    if E + E >= Z
+        quotient = mfmul(Val{E}(), x, estimate)
+        residual = mfadd(Val{E}(), -x, mfmul(Val{E + E}(), y, quotient))
+        correction = mfmul(Val{E}(), estimate, residual)
+        return mfadd(Val{Z}(), quotient, -correction) # TODO
+    else
+        residual = mfadd(Val{E}(), neg_one, mfmul(Val{E + E}(), y, estimate))
+        correction = mfmul(Val{E}(), estimate, residual)
+        next_estimate = mfadd(Val{E + E}(), estimate, -correction) # TODO
+        return mfdiv_impl(Val{Z}(), x, y, next_estimate)
+    end
+end
+
+
+@inline function mfdiv(
     ::Val{Z}, x::MultiFloat{T,X}, y::MultiFloat{T,Y},
 ) where {Z,T,X,Y}
-    Core.println(
-        Core.stderr,
-        """
-        WARNING: A fast algorithm for the following MultiFloat operation:
-            mfdiv(::Val{$Z}, x::MultiFloat{$T, $X}, y::MultiFloat{$T, $Y})
-        has not yet been developed. A slow fallback algorithm using MPFR
-        (BigFloat) operations will be used instead.
-        """
-    )
-    return :(mfdiv_exact(Val{Z}(), x, y))
+    if Z == 1
+        return MultiFloat{T,1}((x._limbs[1] / y._limbs[1],))
+    else
+        estimate = MultiFloat{T,1}((inv(y._limbs[1]),))
+        return mfdiv_impl(Val{Z}(), x, y, estimate)
+    end
 end
 
 
@@ -372,34 +409,65 @@ end
     mfdiv(Val{max(X, Y)}(), x, y)
 
 
-@generated function mfrsqrt(::Val{Z}, x::MultiFloat{T,X}) where {Z,T,X}
-    Core.println(
-        Core.stderr,
-        """
-        WARNING: A fast algorithm for the following MultiFloat operation:
-            mfrsqrt(::Val{$Z}, x::MultiFloat{$T, $X})
-        has not yet been developed. A slow fallback algorithm using MPFR
-        (BigFloat) operations will be used instead.
-        """
-    )
-    return :(mfrsqrt_exact(Val{Z}(), x))
+@inline function mfrsqrt_impl(
+    ::Val{Z}, x::MultiFloat{T,X}, estimate::MultiFloat{T,E},
+) where {Z,T,X,E}
+    neg_one = MultiFloat{T,1}((-one(T),))
+    if E + E >= Z
+        square = mfmul(Val{E + E}(), estimate, estimate)
+        residual = mfadd(Val{E}(), neg_one, mfmul(Val{E + E}(), x, square))
+        correction = mfmul(Val{E}(), halve(estimate), residual)
+        return mfadd(Val{Z}(), estimate, -correction) # TODO
+    else
+        square = mfmul(Val{E + E}(), estimate, estimate)
+        residual = mfadd(Val{E}(), neg_one, mfmul(Val{E + E}(), x, square))
+        correction = mfmul(Val{E}(), halve(estimate), residual)
+        next_estimate = mfadd(Val{E + E}(), estimate, -correction) # TODO
+        return mfrsqrt_impl(Val{Z}(), x, next_estimate)
+    end
+end
+
+
+@inline function mfrsqrt(::Val{Z}, x::MultiFloat{T,X}) where {Z,T,X}
+    estimate = MultiFloat{T,1}((inv(sqrt(x._limbs[1])),))
+    if Z == 1
+        return estimate
+    else
+        return mfrsqrt_impl(Val{Z}(), x, estimate)
+    end
 end
 
 
 @inline rsqrt(x::MultiFloat{T,X}) where {T,X} = mfrsqrt(Val{X}(), x)
 
 
-@generated function mfsqrt(::Val{Z}, x::MultiFloat{T,X}) where {Z,T,X}
-    Core.println(
-        Core.stderr,
-        """
-        WARNING: A fast algorithm for the following MultiFloat operation:
-            mfsqrt(::Val{$Z}, x::MultiFloat{$T, $X})
-        has not yet been developed. A slow fallback algorithm using MPFR
-        (BigFloat) operations will be used instead.
-        """
-    )
-    return :(mfsqrt_exact(Val{Z}(), x))
+@inline function mfsqrt_impl(
+    ::Val{Z}, x::MultiFloat{T,X}, estimate::MultiFloat{T,E},
+) where {Z,T,X,E}
+    neg_one = MultiFloat{T,1}((-one(T),))
+    if E + E >= Z
+        root = mfmul(Val{E}(), x, estimate)
+        square = mfmul(Val{E + E}(), root, root)
+        residual = mfadd(Val{E}(), -x, square)
+        correction = mfmul(Val{E}(), halve(estimate), residual)
+        return mfadd(Val{Z}(), root, -correction) # TODO
+    else
+        square = mfmul(Val{E + E}(), estimate, estimate)
+        residual = mfadd(Val{E}(), neg_one, mfmul(Val{E + E}(), x, square))
+        correction = mfmul(Val{E}(), halve(estimate), residual)
+        next_estimate = mfadd(Val{E + E}(), estimate, -correction) # TODO
+        return mfsqrt_impl(Val{Z}(), x, next_estimate)
+    end
+end
+
+
+@inline function mfsqrt(::Val{Z}, x::MultiFloat{T,X}) where {Z,T,X}
+    if Z == 1
+        return MultiFloat{T,1}((sqrt(x._limbs[1]),))
+    else
+        estimate = MultiFloat{T,1}((inv(sqrt(x._limbs[1])),))
+        return mfsqrt_impl(Val{Z}(), x, estimate)
+    end
 end
 
 
