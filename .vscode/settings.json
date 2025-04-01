@@ -9,6 +9,7 @@
         "mfrsqrt",
         "mfsqrt",
         "mpfr",
-        "rsqrt"
+        "rsqrt",
+        "Vararg"
     ]
 }

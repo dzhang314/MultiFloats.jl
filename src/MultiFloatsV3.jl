@@ -4,6 +4,8 @@ using Base.MPFR: libmpfr, CdoubleMax,
     MPFRRoundingMode, MPFRRoundNearest, MPFRRoundFaithful
 using SIMD: Vec
 
+const ENABLE_RUNTIME_ASSERTIONS = true
+
 ################################################################################
 
 
@@ -344,11 +346,56 @@ end
 ################################################################################
 
 
+@inline function two_sum(x::T, y::T) where {T}
+    s = x + y
+    x_prime = s - y
+    y_prime = s - x_prime
+    x_err = x - x_prime
+    y_err = y - y_prime
+    e = x_err + y_err
+    return (s, e)
+end
+
+
+@inline function is_normalized(x::NTuple{N,T}) where {N,T}
+    result = true
+    @inbounds for i = 1:N-1
+        a, b = x[i], x[i+1]
+        s, e = two_sum(a, b)
+        result &= ((s == a) & (e == b)) | (!isfinite(s)) | (!isfinite(e))
+    end
+    return result
+end
+
+
 @inline function fast_two_sum(x::T, y::T) where {T}
     s = x + y
-    y_prime = sum - x
+    y_prime = s - x
     e = y - y_prime
     return (s, e)
+end
+
+
+@generated function fast_combine(x::Vararg{T,N}) where {T,N}
+    xs = [Symbol('x', i) for i in Base.OneTo(N)]
+    body = Expr[]
+    push!(body, Expr(:meta, :inline))
+    push!(body, Expr(:(=), Expr(:tuple, xs...), :x))
+    for _ = 1:N-1
+        for i = N-1:-1:1
+            push!(body, Expr(:(=), Expr(:tuple, xs[i], xs[i+1]),
+                Expr(:call, :fast_two_sum, xs[i], xs[i+1])))
+        end
+    end
+    push!(body, Expr(:return, Expr(:tuple, xs...)))
+    return Expr(:block, body...)
+end
+
+
+@inline function two_prod(x::T, y::T) where {T}
+    p = x * y
+    e = fma(x, y, -p)
+    return (p, e)
 end
 
 
@@ -361,15 +408,25 @@ export mfinv, mfdiv, mfrsqrt, mfsqrt
 @inline function mfinv_impl(
     ::Val{Z}, x::MultiFloat{T,X}, estimate::MultiFloat{T,E},
 ) where {Z,T,X,E}
+    @assert Z > E > 0
     neg_one = MultiFloat{T,1}((-one(T),))
     if E + E >= Z
         residual = mfadd(Val{E}(), neg_one, mfmul(Val{E + E}(), estimate, x))
-        correction = mfmul(Val{E}(), estimate, residual)
-        return mfadd(Val{Z}(), estimate, -correction) # TODO
+        correction = mfmul(Val{Z - E}(), estimate, residual)
+        result = MultiFloat{T,Z}(fast_combine(
+            estimate._limbs..., (-correction)._limbs...))
+        @static if ENABLE_RUNTIME_ASSERTIONS
+            @assert is_normalized(result._limbs)
+        end
+        return result
     else
         residual = mfadd(Val{E}(), neg_one, mfmul(Val{E + E}(), estimate, x))
         correction = mfmul(Val{E}(), estimate, residual)
-        next_estimate = mfadd(Val{E + E}(), estimate, -correction) # TODO
+        next_estimate = MultiFloat{T,E + E}(fast_combine(
+            estimate._limbs..., (-correction)._limbs...))
+        @static if ENABLE_RUNTIME_ASSERTIONS
+            @assert is_normalized(next_estimate._limbs)
+        end
         return mfinv_impl(Val{Z}(), x, next_estimate)
     end
 end
@@ -392,16 +449,26 @@ end
 @inline function mfdiv_impl(
     ::Val{Z}, x::MultiFloat{T,X}, y::MultiFloat{T,Y}, estimate::MultiFloat{T,E},
 ) where {Z,T,X,Y,E}
+    @assert Z > E > 0
     neg_one = MultiFloat{T,1}((-one(T),))
     if E + E >= Z
         quotient = mfmul(Val{E}(), x, estimate)
         residual = mfadd(Val{E}(), -x, mfmul(Val{E + E}(), y, quotient))
-        correction = mfmul(Val{E}(), estimate, residual)
-        return mfadd(Val{Z}(), quotient, -correction) # TODO
+        correction = mfmul(Val{Z - E}(), estimate, residual)
+        result = MultiFloat{T,Z}(fast_combine(
+            quotient._limbs..., (-correction)._limbs...))
+        @static if ENABLE_RUNTIME_ASSERTIONS
+            @assert is_normalized(result._limbs)
+        end
+        return result
     else
         residual = mfadd(Val{E}(), neg_one, mfmul(Val{E + E}(), y, estimate))
         correction = mfmul(Val{E}(), estimate, residual)
-        next_estimate = mfadd(Val{E + E}(), estimate, -correction) # TODO
+        next_estimate = MultiFloat{T,E + E}(fast_combine(
+            estimate._limbs..., (-correction)._limbs...))
+        @static if ENABLE_RUNTIME_ASSERTIONS
+            @assert is_normalized(next_estimate._limbs)
+        end
         return mfdiv_impl(Val{Z}(), x, y, next_estimate)
     end
 end
@@ -426,17 +493,27 @@ end
 @inline function mfrsqrt_impl(
     ::Val{Z}, x::MultiFloat{T,X}, estimate::MultiFloat{T,E},
 ) where {Z,T,X,E}
+    @assert Z > E > 0
     neg_one = MultiFloat{T,1}((-one(T),))
     if E + E >= Z
         square = mfmul(Val{E + E}(), estimate, estimate)
         residual = mfadd(Val{E}(), neg_one, mfmul(Val{E + E}(), x, square))
-        correction = mfmul(Val{E}(), halve(estimate), residual)
-        return mfadd(Val{Z}(), estimate, -correction) # TODO
+        correction = mfmul(Val{Z - E}(), halve(estimate), residual)
+        result = MultiFloat{T,Z}(fast_combine(
+            estimate._limbs..., (-correction)._limbs...))
+        @static if ENABLE_RUNTIME_ASSERTIONS
+            @assert is_normalized(result._limbs)
+        end
+        return result
     else
         square = mfmul(Val{E + E}(), estimate, estimate)
         residual = mfadd(Val{E}(), neg_one, mfmul(Val{E + E}(), x, square))
         correction = mfmul(Val{E}(), halve(estimate), residual)
-        next_estimate = mfadd(Val{E + E}(), estimate, -correction) # TODO
+        next_estimate = MultiFloat{T,E + E}(fast_combine(
+            estimate._limbs..., (-correction)._limbs...))
+        @static if ENABLE_RUNTIME_ASSERTIONS
+            @assert is_normalized(next_estimate._limbs)
+        end
         return mfrsqrt_impl(Val{Z}(), x, next_estimate)
     end
 end
@@ -458,18 +535,28 @@ end
 @inline function mfsqrt_impl(
     ::Val{Z}, x::MultiFloat{T,X}, estimate::MultiFloat{T,E},
 ) where {Z,T,X,E}
+    @assert Z > E > 0
     neg_one = MultiFloat{T,1}((-one(T),))
     if E + E >= Z
         root = mfmul(Val{E}(), x, estimate)
         square = mfmul(Val{E + E}(), root, root)
         residual = mfadd(Val{E}(), -x, square)
-        correction = mfmul(Val{E}(), halve(estimate), residual)
-        return mfadd(Val{Z}(), root, -correction) # TODO
+        correction = mfmul(Val{Z - E}(), halve(estimate), residual)
+        result = MultiFloat{T,Z}(fast_combine(
+            root._limbs..., (-correction)._limbs...))
+        @static if ENABLE_RUNTIME_ASSERTIONS
+            @assert is_normalized(result._limbs)
+        end
+        return result
     else
         square = mfmul(Val{E + E}(), estimate, estimate)
         residual = mfadd(Val{E}(), neg_one, mfmul(Val{E + E}(), x, square))
         correction = mfmul(Val{E}(), halve(estimate), residual)
-        next_estimate = mfadd(Val{E + E}(), estimate, -correction) # TODO
+        next_estimate = MultiFloat{T,E + E}(fast_combine(
+            estimate._limbs..., (-correction)._limbs...))
+        @static if ENABLE_RUNTIME_ASSERTIONS
+            @assert is_normalized(next_estimate._limbs)
+        end
         return mfsqrt_impl(Val{Z}(), x, next_estimate)
     end
 end
@@ -489,24 +576,6 @@ end
 
 
 ################################################################################
-
-
-@inline function two_sum(x::T, y::T) where {T}
-    s = x + y
-    x_prime = s - y
-    y_prime = s - x_prime
-    x_err = x - x_prime
-    y_err = y - y_prime
-    e = x_err + y_err
-    return (s, e)
-end
-
-
-@inline function two_prod(x::T, y::T) where {T}
-    p = x * y
-    e = fma(x, y, -p)
-    return (p, e)
-end
 
 
 @inline mfadd(::Val{1}, x::MultiFloat{T,1}, y::MultiFloat{T,1}) where {T} =
