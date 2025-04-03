@@ -613,8 +613,9 @@ end
     @inbounds a = x._limbs[1]
     @inbounds b = y._limbs[1]
     @inbounds c = y._limbs[2]
-    (a, b) = two_sum(a, b)
-    (a, c) = fast_two_sum(a, c)
+    # This is the provably optimal FPAN for (1, 2) -> 1 addition.
+    a += b
+    a += c
     return MultiFloat{T,1}((a,))
 end
 
@@ -627,9 +628,10 @@ end
     @inbounds b = y._limbs[1]
     @inbounds c = x._limbs[2]
     @inbounds d = y._limbs[2]
-    (a, b) = two_sum(a, b)
-    (c, d) = two_sum(c, d)
-    (a, c) = fast_two_sum(a, c)
+    # This is the provably optimal FPAN for (2, 2) -> 1 addition.
+    a += b
+    c += d
+    a += c
     return MultiFloat{T,1}((a,))
 end
 
@@ -641,11 +643,12 @@ end
     @inbounds b = y._limbs[1]
     @inbounds c = y._limbs[2]
     @inbounds d = y._limbs[3]
-    @inbounds e = y._limbs[4]
-    (a, b) = fast_two_sum(a, b)
-    (a, c) = fast_two_sum(a, c) # TODO: Something is strange here.
-    (b, d) = fast_two_sum(b, d) # This should not work, but it passes tests.
-    (b, c) = fast_two_sum(b, c)
+    # This is a simplified special case of the optimal FPAN for (2, 2) -> 2
+    # addition. One comparator is omitted since y is assumed to be normalized.
+    (a, b) = fast_two_sum(a, b) # TODO: Something is strange here.
+    (a, c) = fast_two_sum(a, c) # This should not work, but it passes tests.
+    b += d
+    b += c
     (a, b) = fast_two_sum(a, b)
     @static if ENABLE_RUNTIME_ASSERTIONS
         @assert is_normalized((a, b))
@@ -661,11 +664,12 @@ end
     @inbounds b = y._limbs[1]
     @inbounds c = x._limbs[2]
     @inbounds d = y._limbs[2]
+    # This is the provably optimal FPAN for (2, 2) -> 2 addition.
     (a, b) = two_sum(a, b)
     (c, d) = two_sum(c, d)
     (a, c) = fast_two_sum(a, c)
-    (b, d) = fast_two_sum(b, d)
-    (b, c) = two_sum(b, c)
+    b += d
+    b += c
     (a, b) = fast_two_sum(a, b)
     @static if ENABLE_RUNTIME_ASSERTIONS
         @assert is_normalized((a, b))
@@ -683,19 +687,20 @@ end
     @inbounds d = y._limbs[2]
     @inbounds e = x._limbs[3]
     @inbounds f = y._limbs[3]
+    # This FPAN is conjectured to be uniquely optimal for (3, 3) -> 3 addition.
     (a, b) = two_sum(a, b)
     (c, d) = two_sum(c, d)
     (e, f) = two_sum(e, f)
     (a, c) = fast_two_sum(a, c)
-    (b, f) = fast_two_sum(b, f)
+    b += f
     (d, e) = two_sum(d, e)
     (a, d) = fast_two_sum(a, d)
     (b, c) = two_sum(b, c)
-    (c, e) = two_sum(c, e)
+    c += e
     (c, d) = two_sum(c, d)
     (b, c) = two_sum(b, c)
     (a, b) = fast_two_sum(a, b)
-    (c, d) = two_sum(c, d)
+    c += d
     (b, c) = fast_two_sum(b, c)
     @static if ENABLE_RUNTIME_ASSERTIONS
         @assert is_normalized((a, b, c))
@@ -724,16 +729,72 @@ end
     (d, e) = two_sum(d, e)
     (f, g) = two_sum(f, g)
     (a, d) = fast_two_sum(a, d)
-    (b, g) = fast_two_sum(b, g)
-    (c, f) = fast_two_sum(c, f)
+    b += g
+    c += f
     (a, c) = fast_two_sum(a, c)
-    (d, e) = fast_two_sum(d, e)
-    (b, c) = two_sum(b, c)
-    (b, d) = two_sum(b, d)
+    d += e
+    b += c
+    b += d
     (a, b) = fast_two_sum(a, b)
     @static if ENABLE_RUNTIME_ASSERTIONS
         @assert is_normalized((a, b))
     end
+    return MultiFloat{T,2}((a, b))
+end
+
+
+@inline function mfadd(
+    ::Val{4}, x::MultiFloat{T,4}, y::MultiFloat{T,4},
+) where {T}
+    @inbounds a = x._limbs[1]
+    @inbounds b = y._limbs[1]
+    @inbounds c = x._limbs[2]
+    @inbounds d = y._limbs[2]
+    @inbounds e = x._limbs[3]
+    @inbounds f = y._limbs[3]
+    @inbounds g = x._limbs[4]
+    @inbounds h = y._limbs[4]
+    # This is one of seven FPANs conjectured to be optimal for (4, 4) -> 4
+    # addition. More principled analysis should be performed in the future.
+    (a, b) = two_sum(a, b)
+    (c, d) = two_sum(c, d)
+    (e, f) = two_sum(e, f)
+    (g, h) = two_sum(g, h)
+    (a, c) = fast_two_sum(a, c)
+    b += h
+    (d, e) = two_sum(d, e)
+    (f, g) = two_sum(f, g)
+    (b, g) = two_sum(b, g)
+    (c, d) = fast_two_sum(c, d)
+    (e, f) = two_sum(e, f)
+    (a, c) = fast_two_sum(a, c)
+    (d, e) = fast_two_sum(d, e)
+    (b, d) = two_sum(b, d)
+    e += f
+    (b, c) = two_sum(b, c)
+    (d, e) = two_sum(d, e)
+    (a, b) = fast_two_sum(a, b)
+    (c, d) = fast_two_sum(c, d)
+    e += g
+    (b, c) = fast_two_sum(b, c)
+    d += e
+    (a, b) = fast_two_sum(a, b)
+    (c, d) = fast_two_sum(c, d)
+    (b, c) = fast_two_sum(b, c)
+    (c, d) = fast_two_sum(c, d)
+    @static if ENABLE_RUNTIME_ASSERTIONS
+        @assert is_normalized((a, b, c, d))
+    end
+    return MultiFloat{T,4}((a, b, c, d))
+end
+
+
+@inline function mfadd(
+    ::Val{2}, x::MultiFloat{T,4}, y::MultiFloat{T,4},
+) where {T}
+    # This is a stopgap solution until an optimized
+    # (4, 4) ->  2 addition network is found.
+    (a, b, c, d) = mfadd(Val{4}(), x, y)._limbs
     return MultiFloat{T,2}((a, b))
 end
 
@@ -746,7 +807,7 @@ end
 ) where {T}
     @inbounds (a, b) = two_prod(x._limbs[1], y._limbs[1])
     @inbounds c = x._limbs[1] * y._limbs[2]
-    (b, c) = two_sum(b, c)
+    b += c
     (a, b) = fast_two_sum(a, b)
     @static if ENABLE_RUNTIME_ASSERTIONS
         @assert is_normalized((a, b))
@@ -760,7 +821,21 @@ end
 ) where {T}
     @inbounds (a, b) = two_prod(x._limbs[1], y._limbs[1])
     @inbounds c = x._limbs[1] * y._limbs[2]
-    (b, c) = two_sum(b, c)
+    b += c
+    (a, b) = fast_two_sum(a, b)
+    @static if ENABLE_RUNTIME_ASSERTIONS
+        @assert is_normalized((a, b))
+    end
+    return MultiFloat{T,2}((a, b))
+end
+
+
+@inline function mfmul(
+    ::Val{2}, x::MultiFloat{T,1}, y::MultiFloat{T,4},
+) where {T}
+    @inbounds (a, b) = two_prod(x._limbs[1], y._limbs[1])
+    @inbounds c = x._limbs[1] * y._limbs[2]
+    b += c
     (a, b) = fast_two_sum(a, b)
     @static if ENABLE_RUNTIME_ASSERTIONS
         @assert is_normalized((a, b))
@@ -774,7 +849,7 @@ end
 ) where {T}
     @inbounds (a, b) = two_prod(x._limbs[1], y._limbs[1])
     @inbounds c = x._limbs[2] * y._limbs[1]
-    (b, c) = two_sum(b, c)
+    b += c
     (a, b) = fast_two_sum(a, b)
     @static if ENABLE_RUNTIME_ASSERTIONS
         @assert is_normalized((a, b))
@@ -788,7 +863,21 @@ end
 ) where {T}
     @inbounds (a, b) = two_prod(x._limbs[1], y._limbs[1])
     @inbounds c = x._limbs[2] * y._limbs[1]
-    (b, c) = two_sum(b, c)
+    b += c
+    (a, b) = fast_two_sum(a, b)
+    @static if ENABLE_RUNTIME_ASSERTIONS
+        @assert is_normalized((a, b))
+    end
+    return MultiFloat{T,2}((a, b))
+end
+
+
+@inline function mfmul(
+    ::Val{2}, x::MultiFloat{T,4}, y::MultiFloat{T,1},
+) where {T}
+    @inbounds (a, b) = two_prod(x._limbs[1], y._limbs[1])
+    @inbounds c = x._limbs[2] * y._limbs[1]
+    b += c
     (a, b) = fast_two_sum(a, b)
     @static if ENABLE_RUNTIME_ASSERTIONS
         @assert is_normalized((a, b))
@@ -803,8 +892,8 @@ end
     @inbounds (a, b) = two_prod(x._limbs[1], y._limbs[1])
     @inbounds c = x._limbs[1] * y._limbs[2]
     @inbounds d = x._limbs[2] * y._limbs[1]
-    (c, d) = two_sum(c, d)
-    (b, c) = two_sum(b, c)
+    c += d
+    b += c
     (a, b) = fast_two_sum(a, b)
     @static if ENABLE_RUNTIME_ASSERTIONS
         @assert is_normalized((a, b))
@@ -819,8 +908,24 @@ end
     @inbounds (a, b) = two_prod(x._limbs[1], y._limbs[1])
     @inbounds c = x._limbs[1] * y._limbs[2]
     @inbounds d = x._limbs[2] * y._limbs[1]
-    (c, d) = two_sum(c, d)
-    (b, c) = two_sum(b, c)
+    c += d
+    b += c
+    (a, b) = fast_two_sum(a, b)
+    @static if ENABLE_RUNTIME_ASSERTIONS
+        @assert is_normalized((a, b))
+    end
+    return MultiFloat{T,2}((a, b))
+end
+
+
+@inline function mfmul(
+    ::Val{2}, x::MultiFloat{T,4}, y::MultiFloat{T,2},
+) where {T}
+    @inbounds (a, b) = two_prod(x._limbs[1], y._limbs[1])
+    @inbounds c = x._limbs[1] * y._limbs[2]
+    @inbounds d = x._limbs[2] * y._limbs[1]
+    c += d
+    b += c
     (a, b) = fast_two_sum(a, b)
     @static if ENABLE_RUNTIME_ASSERTIONS
         @assert is_normalized((a, b))
@@ -844,14 +949,14 @@ end
     # very thin margin. Other candidates may have more gates that are
     # reducible to FastTwoSum; this should be investigated in the future.
     (c, d) = two_sum(c, d)
-    (e, f) = two_sum(e, f)
-    (g, i) = two_sum(g, i)
+    e += f
+    g += i
     (b, c) = two_sum(b, c)
-    (g, h) = two_sum(g, h) # Interestingly, (e, h) also works here.
+    g += h # Interestingly, e += h also works here.
     (a, b) = fast_two_sum(a, b)
-    (c, d) = fast_two_sum(c, d)
-    (e, g) = two_sum(e, g)
-    (c, e) = two_sum(c, e)
+    c += d
+    e += g
+    c += e
     (b, c) = fast_two_sum(b, c)
     (a, b) = fast_two_sum(a, b)
     (b, c) = fast_two_sum(b, c)
@@ -869,18 +974,19 @@ end
     @inbounds (c, e) = two_prod(x._limbs[1], y._limbs[2])
     @inbounds (d, f) = two_prod(x._limbs[2], y._limbs[1])
     @inbounds (g, h) = two_prod(x._limbs[2], y._limbs[2])
+    # This FPAN is conjectured to be uniquely optimal for (2, 2) -> 4 mul.
     (c, d) = two_sum(c, d)
     (e, f) = two_sum(e, f)
     (b, c) = two_sum(b, c)
     (e, g) = two_sum(e, g)
-    (f, h) = fast_two_sum(f, h)
+    f += h
     (a, b) = fast_two_sum(a, b)
     (d, e) = fast_two_sum(d, e)
-    (f, g) = two_sum(f, g)
+    f += g
     (c, d) = fast_two_sum(c, d)
-    (e, f) = fast_two_sum(e, f)
+    e += f
     (b, c) = fast_two_sum(b, c)
-    (d, e) = fast_two_sum(d, e)
+    d += e
     (a, b) = fast_two_sum(a, b)
     (c, d) = fast_two_sum(c, d)
     (b, c) = fast_two_sum(b, c)
@@ -916,22 +1022,22 @@ end
     x14 += x15
     x2, x3 = two_sum(x2, x3)
     x5, x7 = two_sum(x5, x7)
-    x6, x9 = two_sum(x6, x9)
-    x10, x13 = two_sum(x10, x13)
+    x6 += x9
+    x10 += x13
     x1, x2 = fast_two_sum(x1, x2)
     x3, x8 = fast_two_sum(x3, x8)
     x4, x5 = two_sum(x4, x5)
-    x6, x10 = two_sum(x6, x10)
-    x7, x11 = two_sum(x7, x11)
+    x6 += x10
+    x7 += x11
     x3, x5 = two_sum(x3, x5)
-    x7, x14 = two_sum(x7, x14)
+    x7 += x14
     x3, x4 = two_sum(x3, x4)
-    x5, x8 = two_sum(x5, x8)
-    x6, x7 = two_sum(x6, x7)
+    x5 += x8
+    x6 += x7
     x2, x3 = two_sum(x2, x3)
-    x4, x5 = two_sum(x4, x5)
+    x4 += x5
     x1, x2 = fast_two_sum(x1, x2)
-    x4, x6 = two_sum(x4, x6)
+    x4 += x6
     x3, x4 = two_sum(x3, x4)
     x2, x3 = two_sum(x2, x3)
     x3, x4 = fast_two_sum(x3, x4)
@@ -957,6 +1063,20 @@ end
 
 
 @inline function mfmul(
+    ::Val{4}, x::MultiFloat{T,2}, y::MultiFloat{T,4},
+) where {T}
+    # This is a stopgap solution until an optimized
+    # (2, 4) -> 4 multiplication network is found.
+    _zero = zero(T)
+    @inbounds x_padded = MultiFloat{T,4}(
+        (x._limbs[1], x._limbs[2], _zero, _zero))
+    @inbounds y_padded = MultiFloat{T,4}(
+        (y._limbs[1], y._limbs[2], y._limbs[3], y._limbs[4]))
+    return mfmul(Val{4}(), x_padded, y_padded)
+end
+
+
+@inline function mfmul(
     ::Val{4}, x::MultiFloat{T,3}, y::MultiFloat{T,2},
 ) where {T}
     # This is a stopgap solution until an optimized
@@ -964,6 +1084,20 @@ end
     _zero = zero(T)
     @inbounds x_padded = MultiFloat{T,4}(
         (x._limbs[1], x._limbs[2], x._limbs[3], _zero))
+    @inbounds y_padded = MultiFloat{T,4}(
+        (y._limbs[1], y._limbs[2], _zero, _zero))
+    return mfmul(Val{4}(), x_padded, y_padded)
+end
+
+
+@inline function mfmul(
+    ::Val{4}, x::MultiFloat{T,4}, y::MultiFloat{T,2},
+) where {T}
+    # This is a stopgap solution until an optimized
+    # (4, 2) -> 4 multiplication network is found.
+    _zero = zero(T)
+    @inbounds x_padded = MultiFloat{T,4}(
+        (x._limbs[1], x._limbs[2], x._limbs[3], x._limbs[4]))
     @inbounds y_padded = MultiFloat{T,4}(
         (y._limbs[1], y._limbs[2], _zero, _zero))
     return mfmul(Val{4}(), x_padded, y_padded)
