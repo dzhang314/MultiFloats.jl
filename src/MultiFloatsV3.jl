@@ -645,8 +645,8 @@ end
     @inbounds d = y._limbs[3]
     # This is a simplified special case of the optimal FPAN for (2, 2) -> 2
     # addition. One comparator is omitted since y is assumed to be normalized.
-    (a, b) = fast_two_sum(a, b) # TODO: Something is strange here.
-    (a, c) = fast_two_sum(a, c) # This should not work, but it passes tests.
+    (a, b) = two_sum(a, b)
+    (a, c) = fast_two_sum(a, c)
     b += d
     b += c
     (a, b) = fast_two_sum(a, b)
@@ -981,11 +981,11 @@ end
     (e, g) = two_sum(e, g)
     f += h
     (a, b) = fast_two_sum(a, b)
-    (d, e) = fast_two_sum(d, e)
+    (d, e) = two_sum(d, e)
     f += g
-    (c, d) = fast_two_sum(c, d)
+    (c, d) = two_sum(c, d)
     e += f
-    (b, c) = fast_two_sum(b, c)
+    (b, c) = two_sum(b, c)
     d += e
     (a, b) = fast_two_sum(a, b)
     (c, d) = fast_two_sum(c, d)
