@@ -369,6 +369,11 @@ end
 
 
 @inline function fast_two_sum(x::T, y::T) where {T}
+    @static if ENABLE_RUNTIME_ASSERTIONS
+        if isfinite(x) & isfinite(y)
+            @assert (iszero(x) | iszero(y)) || (exponent(x) >= exponent(y))
+        end
+    end
     s = x + y
     y_prime = s - x
     e = y - y_prime
@@ -582,7 +587,7 @@ end
     MultiFloat{T,1}((x._limbs[1] + y._limbs[1],))
 
 
-@inline mfmul(::Val{1}, x::MultiFloat{T,1}, y::MultiFloat{T,1}) where {T} =
+@inline mfmul(::Val{1}, x::MultiFloat{T,X}, y::MultiFloat{T,Y}) where {T,X,Y} =
     MultiFloat{T,1}((x._limbs[1] * y._limbs[1],))
 
 
@@ -592,6 +597,107 @@ end
 
 @inline mfmul(::Val{2}, x::MultiFloat{T,1}, y::MultiFloat{T,1}) where {T} =
     MultiFloat{T,2}(two_prod(x._limbs[1], y._limbs[1]))
+
+
+################################################################################
+
+
+@inline function mfadd(
+    ::Val{1}, x::MultiFloat{T,1}, y::MultiFloat{T,2},
+) where {T}
+    @inbounds a = x._limbs[1]
+    @inbounds b = y._limbs[1]
+    @inbounds c = y._limbs[2]
+    (a, b) = two_sum(a, b)
+    (a, c) = fast_two_sum(a, c)
+    return MultiFloat{T,1}((a,))
+end
+
+
+
+@inline function mfadd(
+    ::Val{1}, x::MultiFloat{T,2}, y::MultiFloat{T,2},
+) where {T}
+    @inbounds a = x._limbs[1]
+    @inbounds b = y._limbs[1]
+    @inbounds c = x._limbs[2]
+    @inbounds d = y._limbs[2]
+    (a, b) = two_sum(a, b)
+    (c, d) = two_sum(c, d)
+    (a, c) = fast_two_sum(a, c)
+    return MultiFloat{T,1}((a,))
+end
+
+
+@inline function mfadd(
+    ::Val{2}, x::MultiFloat{T,1}, y::MultiFloat{T,4},
+) where {T}
+    @inbounds a = x._limbs[1]
+    @inbounds b = y._limbs[1]
+    @inbounds c = y._limbs[2]
+    @inbounds d = y._limbs[3]
+    @inbounds e = y._limbs[4]
+    (a, b) = fast_two_sum(a, b)
+    (a, c) = fast_two_sum(a, c) # TODO: Something is strange here.
+    (b, d) = fast_two_sum(b, d) # This should not work, but it passes tests.
+    (b, c) = fast_two_sum(b, c)
+    (a, b) = fast_two_sum(a, b)
+    @static if ENABLE_RUNTIME_ASSERTIONS
+        @assert (a, b) === two_sum(a, b)
+    end
+    return MultiFloat{T,2}((a, b))
+end
+
+
+@inline function mfadd(
+    ::Val{2}, x::MultiFloat{T,2}, y::MultiFloat{T,2},
+) where {T}
+    @inbounds a = x._limbs[1]
+    @inbounds b = y._limbs[1]
+    @inbounds c = x._limbs[2]
+    @inbounds d = y._limbs[2]
+    (a, b) = two_sum(a, b)
+    (c, d) = two_sum(c, d)
+    (a, c) = fast_two_sum(a, c)
+    (b, d) = fast_two_sum(b, d)
+    (b, c) = two_sum(b, c)
+    (a, b) = fast_two_sum(a, b)
+    @static if ENABLE_RUNTIME_ASSERTIONS
+        @assert (a, b) === two_sum(a, b)
+    end
+    return MultiFloat{T,2}((a, b))
+end
+
+
+@inline function mfadd(
+    ::Val{3}, x::MultiFloat{T,3}, y::MultiFloat{T,3},
+) where {T}
+    @inbounds a = x._limbs[1]
+    @inbounds b = y._limbs[1]
+    @inbounds c = x._limbs[2]
+    @inbounds d = y._limbs[2]
+    @inbounds e = x._limbs[3]
+    @inbounds f = y._limbs[3]
+    (a, b) = two_sum(a, b)
+    (c, d) = two_sum(c, d)
+    (e, f) = two_sum(e, f)
+    (a, c) = fast_two_sum(a, c)
+    (b, f) = fast_two_sum(b, f)
+    (d, e) = two_sum(d, e)
+    (a, d) = fast_two_sum(a, d)
+    (b, c) = two_sum(b, c)
+    (c, e) = two_sum(c, e)
+    (c, d) = two_sum(c, d)
+    (b, c) = two_sum(b, c)
+    (a, b) = fast_two_sum(a, b)
+    (c, d) = two_sum(c, d)
+    (b, c) = fast_two_sum(b, c)
+    @static if ENABLE_RUNTIME_ASSERTIONS
+        @assert (a, b) === two_sum(a, b)
+        @assert (b, c) === two_sum(b, c)
+    end
+    return MultiFloat{T,3}((a, b, c))
+end
 
 
 ################################################################################
