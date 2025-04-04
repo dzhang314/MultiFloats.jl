@@ -1039,7 +1039,7 @@ end
     x4 += x6
     (x1, x2) = fast_two_sum(x1, x2)
     (x3, x4) = two_sum(x3, x4)
-    (x2, x3) = fast_two_sum(x2, x3)
+    (x2, x3) = two_sum(x2, x3)
     (x3, x4) = fast_two_sum(x3, x4)
     @static if ENABLE_RUNTIME_ASSERTIONS
         @assert is_normalized((x1, x2, x3, x4))
