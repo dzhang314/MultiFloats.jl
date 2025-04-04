@@ -1014,33 +1014,33 @@ end
     # The following FPAN for (4, 4) -> 4 multiplication is conjectural.
     # Despite several days of computational effort, the combinatorial search
     # for (4, 4) -> 4 multiplication networks has not yet converged.
-    x3, x4 = two_sum(x3, x4)
-    x5, x6 = two_sum(x5, x6)
-    x7, x9 = two_sum(x7, x9)
+    (x3, x4) = two_sum(x3, x4)
+    (x5, x6) = two_sum(x5, x6)
+    (x7, x9) = two_sum(x7, x9)
     x10 += x12
     x13 += x16
     x14 += x15
-    x2, x3 = two_sum(x2, x3)
-    x5, x7 = two_sum(x5, x7)
-    x6 += x9
-    x10 += x13
-    x1, x2 = fast_two_sum(x1, x2)
-    x3, x8 = fast_two_sum(x3, x8)
-    x4, x5 = two_sum(x4, x5)
+    (x2, x3) = two_sum(x2, x3)
+    (x5, x8) = two_sum(x5, x8)
     x6 += x10
-    x7 += x11
-    x3, x5 = two_sum(x3, x5)
-    x7 += x14
-    x3, x4 = two_sum(x3, x4)
-    x5 += x8
+    x9 += x11
+    x13 += x14
+    (x1, x2) = fast_two_sum(x1, x2)
+    (x3, x4) = fast_two_sum(x3, x4)
+    (x5, x7) = two_sum(x5, x7)
+    x6 += x13
+    x8 += x9
+    (x3, x5) = two_sum(x3, x5)
+    x4 += x8
     x6 += x7
-    x2, x3 = two_sum(x2, x3)
     x4 += x5
-    x1, x2 = fast_two_sum(x1, x2)
+    (x3, x4) = fast_two_sum(x3, x4)
+    (x2, x3) = two_sum(x2, x3)
     x4 += x6
-    x3, x4 = two_sum(x3, x4)
-    x2, x3 = two_sum(x2, x3)
-    x3, x4 = fast_two_sum(x3, x4)
+    (x1, x2) = fast_two_sum(x1, x2)
+    (x3, x4) = two_sum(x3, x4)
+    (x2, x3) = fast_two_sum(x2, x3)
+    (x3, x4) = fast_two_sum(x3, x4)
     @static if ENABLE_RUNTIME_ASSERTIONS
         @assert is_normalized((x1, x2, x3, x4))
     end
