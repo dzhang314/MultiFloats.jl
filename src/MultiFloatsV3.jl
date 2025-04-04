@@ -1034,7 +1034,7 @@ end
     x4 += x8
     x6 += x7
     x4 += x5
-    (x3, x4) = fast_two_sum(x3, x4)
+    (x3, x4) = two_sum(x3, x4)
     (x2, x3) = two_sum(x2, x3)
     x4 += x6
     (x1, x2) = fast_two_sum(x1, x2)
