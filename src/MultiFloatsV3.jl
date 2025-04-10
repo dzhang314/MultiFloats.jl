@@ -1001,50 +1001,50 @@ end
 @inline function mfmul(
     ::Val{4}, x::MultiFloat{T,4}, y::MultiFloat{T,4},
 ) where {T}
-    @inbounds (x1, x2) = two_prod(x._limbs[1], y._limbs[1])
-    @inbounds (x3, x5) = two_prod(x._limbs[1], y._limbs[2])
-    @inbounds (x4, x6) = two_prod(x._limbs[2], y._limbs[1])
-    @inbounds (x7, x10) = two_prod(x._limbs[1], y._limbs[3])
-    @inbounds (x8, x11) = two_prod(x._limbs[2], y._limbs[2])
-    @inbounds (x9, x12) = two_prod(x._limbs[3], y._limbs[1])
-    @inbounds x13 = x._limbs[1] * y._limbs[4]
-    @inbounds x14 = x._limbs[2] * y._limbs[3]
-    @inbounds x15 = x._limbs[3] * y._limbs[2]
-    @inbounds x16 = x._limbs[4] * y._limbs[1]
+    @inbounds (a, b) = two_prod(x._limbs[1], y._limbs[1])
+    @inbounds (c, e) = two_prod(x._limbs[1], y._limbs[2])
+    @inbounds (d, f) = two_prod(x._limbs[2], y._limbs[1])
+    @inbounds (g, j) = two_prod(x._limbs[1], y._limbs[3])
+    @inbounds (h, k) = two_prod(x._limbs[2], y._limbs[2])
+    @inbounds (i, l) = two_prod(x._limbs[3], y._limbs[1])
+    @inbounds m = x._limbs[1] * y._limbs[4]
+    @inbounds n = x._limbs[2] * y._limbs[3]
+    @inbounds o = x._limbs[3] * y._limbs[2]
+    @inbounds p = x._limbs[4] * y._limbs[1]
     # The following FPAN for (4, 4) -> 4 multiplication is conjectural.
     # Despite several days of computational effort, the combinatorial search
     # for (4, 4) -> 4 multiplication networks has not yet converged.
-    (x3, x4) = two_sum(x3, x4)
-    (x5, x6) = two_sum(x5, x6)
-    (x7, x9) = two_sum(x7, x9)
-    x10 += x12
-    x13 += x16
-    x14 += x15
-    (x2, x3) = two_sum(x2, x3)
-    (x5, x8) = two_sum(x5, x8)
-    x6 += x10
-    x9 += x11
-    x13 += x14
-    (x1, x2) = fast_two_sum(x1, x2)
-    (x3, x4) = fast_two_sum(x3, x4)
-    (x5, x7) = two_sum(x5, x7)
-    x6 += x13
-    x8 += x9
-    (x3, x5) = two_sum(x3, x5)
-    x4 += x8
-    x6 += x7
-    x4 += x5
-    (x3, x4) = two_sum(x3, x4)
-    (x2, x3) = two_sum(x2, x3)
-    x4 += x6
-    (x1, x2) = fast_two_sum(x1, x2)
-    (x3, x4) = two_sum(x3, x4)
-    (x2, x3) = two_sum(x2, x3)
-    (x3, x4) = fast_two_sum(x3, x4)
+    (c, d) = two_sum(c, d)
+    (e, f) = two_sum(e, f)
+    (g, i) = two_sum(g, i)
+    j += l
+    m += p
+    n += o
+    (b, c) = two_sum(b, c)
+    (e, h) = two_sum(e, h)
+    f += j
+    i += k
+    m += n
+    (a, b) = fast_two_sum(a, b)
+    (c, d) = fast_two_sum(c, d)
+    (e, g) = two_sum(e, g)
+    f += m
+    h += i
+    (c, e) = two_sum(c, e)
+    d += h
+    f += g
+    d += e
+    (c, d) = two_sum(c, d)
+    (b, c) = two_sum(b, c)
+    d += f
+    (a, b) = fast_two_sum(a, b)
+    (c, d) = two_sum(c, d)
+    (b, c) = two_sum(b, c)
+    (c, d) = fast_two_sum(c, d)
     @static if ENABLE_RUNTIME_ASSERTIONS
-        @assert is_normalized((x1, x2, x3, x4))
+        @assert is_normalized((a, b, c, d))
     end
-    return MultiFloat{T,4}((x1, x2, x3, x4))
+    return MultiFloat{T,4}((a, b, c, d))
 end
 
 
