@@ -225,6 +225,7 @@ end
         i -> _half * x._limbs[i], Val{N}()))
 end
 
+
 ################################################################################
 
 
@@ -258,7 +259,9 @@ end
 export split!
 
 
-function Base.BigFloat(x::MultiFloat{T,N}) where {T,N}
+function Base.BigFloat(
+    x::Union{MultiFloat{T,N},PreciseMultiFloat{T,N}},
+) where {T,N}
     p = exponent(floatmax(T)) - exponent(floatmin(T)) + precision(T)
     result = BigFloat(precision=p)
     mpfr_zero!(result)
@@ -288,7 +291,9 @@ export mfadd_exact, mfmul_exact, mfadd_rounded, mfmul_rounded,
 
 
 function mfadd_exact(
-    ::Val{Z}, x::MultiFloat{T,X}, y::MultiFloat{T,Y},
+    ::Val{Z},
+    x::Union{MultiFloat{T,X},PreciseMultiFloat{T,X}},
+    y::Union{MultiFloat{T,Y},PreciseMultiFloat{T,Y}},
 ) where {Z,T,X,Y}
     p = exponent(floatmax(T)) - exponent(floatmin(T)) + precision(T)
     q = 2 * p + 1
@@ -296,12 +301,21 @@ function mfadd_exact(
     ccall((:mpfr_add, libmpfr), Cint,
         (Ref{BigFloat}, Ref{BigFloat}, Ref{BigFloat}, MPFRRoundingMode),
         z, BigFloat(x), BigFloat(y), MPFRRoundNearest)
-    return MultiFloat{T,Z}(split!(z, T, Val{Z}()))
+    result = split!(z, T, Val{Z}())
+    if (x isa MultiFloat) & (y isa MultiFloat)
+        return MultiFloat{T,Z}(result)
+    elseif (x isa PreciseMultiFloat) & (y isa PreciseMultiFloat)
+        return PreciseMultiFloat{T,Z}(result)
+    else
+        @assert false
+    end
 end
 
 
 function mfmul_exact(
-    ::Val{Z}, x::MultiFloat{T,X}, y::MultiFloat{T,Y},
+    ::Val{Z},
+    x::Union{MultiFloat{T,X},PreciseMultiFloat{T,X}},
+    y::Union{MultiFloat{T,Y},PreciseMultiFloat{T,Y}},
 ) where {Z,T,X,Y}
     p = exponent(floatmax(T)) - exponent(floatmin(T)) + precision(T)
     q = 2 * p
@@ -309,47 +323,84 @@ function mfmul_exact(
     ccall((:mpfr_mul, libmpfr), Cint,
         (Ref{BigFloat}, Ref{BigFloat}, Ref{BigFloat}, MPFRRoundingMode),
         z, BigFloat(x), BigFloat(y), MPFRRoundNearest)
-    return MultiFloat{T,Z}(split!(z, T, Val{Z}()))
+    result = split!(z, T, Val{Z}())
+    if (x isa MultiFloat) & (y isa MultiFloat)
+        return MultiFloat{T,Z}(result)
+    elseif (x isa PreciseMultiFloat) & (y isa PreciseMultiFloat)
+        return PreciseMultiFloat{T,Z}(result)
+    else
+        @assert false
+    end
 end
 
 
 function mfadd_rounded(
-    ::Val{Z}, x::MultiFloat{T,X}, y::MultiFloat{T,Y},
+    ::Val{Z},
+    x::Union{MultiFloat{T,X},PreciseMultiFloat{T,X}},
+    y::Union{MultiFloat{T,Y},PreciseMultiFloat{T,Y}},
 ) where {Z,T,X,Y}
     q = Z * (precision(T) - 1)
     z = BigFloat(precision=q)
     ccall((:mpfr_add, libmpfr), Cint,
         (Ref{BigFloat}, Ref{BigFloat}, Ref{BigFloat}, MPFRRoundingMode),
         z, BigFloat(x), BigFloat(y), MPFRRoundFaithful)
-    return MultiFloat{T,Z}(split!(z, T, Val{Z}()))
+    result = split!(z, T, Val{Z}())
+    if (x isa MultiFloat) & (y isa MultiFloat)
+        return MultiFloat{T,Z}(result)
+    elseif (x isa PreciseMultiFloat) & (y isa PreciseMultiFloat)
+        return PreciseMultiFloat{T,Z}(result)
+    else
+        @assert false
+    end
 end
 
 
 function mfmul_rounded(
-    ::Val{Z}, x::MultiFloat{T,X}, y::MultiFloat{T,Y},
+    ::Val{Z},
+    x::Union{MultiFloat{T,X},PreciseMultiFloat{T,X}},
+    y::Union{MultiFloat{T,Y},PreciseMultiFloat{T,Y}},
 ) where {Z,T,X,Y}
     q = Z * (precision(T) - 1)
     z = BigFloat(precision=q)
     ccall((:mpfr_mul, libmpfr), Cint,
         (Ref{BigFloat}, Ref{BigFloat}, Ref{BigFloat}, MPFRRoundingMode),
         z, BigFloat(x), BigFloat(y), MPFRRoundFaithful)
-    return MultiFloat{T,Z}(split!(z, T, Val{Z}()))
+    result = split!(z, T, Val{Z}())
+    if (x isa MultiFloat) & (y isa MultiFloat)
+        return MultiFloat{T,Z}(result)
+    elseif (x isa PreciseMultiFloat) & (y isa PreciseMultiFloat)
+        return PreciseMultiFloat{T,Z}(result)
+    else
+        @assert false
+    end
 end
 
 
-function mfinv_exact(::Val{Z}, x::MultiFloat{T,X}) where {Z,T,X}
+function mfinv_exact(
+    ::Val{Z},
+    x::Union{MultiFloat{T,X},PreciseMultiFloat{T,X}},
+) where {Z,T,X}
     p = exponent(floatmax(T)) - exponent(floatmin(T)) + precision(T)
     q = 2 * p
     z = BigFloat(precision=q)
     ccall((:mpfr_ui_div, libmpfr), Cint,
         (Ref{BigFloat}, Culong, Ref{BigFloat}, MPFRRoundingMode),
         z, 1, BigFloat(x), MPFRRoundNearest)
-    return MultiFloat{T,Z}(split!(z, T, Val{Z}()))
+    result = split!(z, T, Val{Z}())
+    if x isa MultiFloat
+        return MultiFloat{T,Z}(result)
+    elseif x isa PreciseMultiFloat
+        return PreciseMultiFloat{T,Z}(result)
+    else
+        @assert false
+    end
 end
 
 
 function mfdiv_exact(
-    ::Val{Z}, x::MultiFloat{T,X}, y::MultiFloat{T,Y},
+    ::Val{Z},
+    x::Union{MultiFloat{T,X},PreciseMultiFloat{T,X}},
+    y::Union{MultiFloat{T,Y},PreciseMultiFloat{T,Y}},
 ) where {Z,T,X,Y}
     p = exponent(floatmax(T)) - exponent(floatmin(T)) + precision(T)
     q = 2 * p
@@ -357,11 +408,21 @@ function mfdiv_exact(
     ccall((:mpfr_div, libmpfr), Cint,
         (Ref{BigFloat}, Ref{BigFloat}, Ref{BigFloat}, MPFRRoundingMode),
         z, BigFloat(x), BigFloat(y), MPFRRoundNearest)
-    return MultiFloat{T,Z}(split!(z, T, Val{Z}()))
+    result = split!(z, T, Val{Z}())
+    if (x isa MultiFloat) & (y isa MultiFloat)
+        return MultiFloat{T,Z}(result)
+    elseif (x isa PreciseMultiFloat) & (y isa PreciseMultiFloat)
+        return PreciseMultiFloat{T,Z}(result)
+    else
+        @assert false
+    end
 end
 
 
-function mfrsqrt_exact(::Val{Z}, x::MultiFloat{T,X}) where {Z,T,X}
+function mfrsqrt_exact(
+    ::Val{Z},
+    x::Union{MultiFloat{T,X},PreciseMultiFloat{T,X}},
+) where {Z,T,X}
     p = exponent(floatmax(T)) - exponent(floatmin(T)) + precision(T)
     # To my knowledge, innocuous double rounding bounds for inverse square
     # roots have never been studied in the floating-point literature. This
@@ -371,18 +432,76 @@ function mfrsqrt_exact(::Val{Z}, x::MultiFloat{T,X}) where {Z,T,X}
     ccall((:mpfr_rec_sqrt, libmpfr), Cint,
         (Ref{BigFloat}, Ref{BigFloat}, MPFRRoundingMode),
         z, BigFloat(x), MPFRRoundNearest)
-    return MultiFloat{T,Z}(split!(z, T, Val{Z}()))
+    result = split!(z, T, Val{Z}())
+    if x isa MultiFloat
+        return MultiFloat{T,Z}(result)
+    elseif x isa PreciseMultiFloat
+        return PreciseMultiFloat{T,Z}(result)
+    else
+        @assert false
+    end
 end
 
 
-function mfsqrt_exact(::Val{Z}, x::MultiFloat{T,X}) where {Z,T,X}
+function mfsqrt_exact(
+    ::Val{Z},
+    x::Union{MultiFloat{T,X},PreciseMultiFloat{T,X}},
+) where {Z,T,X}
     p = exponent(floatmax(T)) - exponent(floatmin(T)) + precision(T)
     q = 2 * p + 2
     z = BigFloat(precision=q)
     ccall((:mpfr_sqrt, libmpfr), Cint,
         (Ref{BigFloat}, Ref{BigFloat}, MPFRRoundingMode),
         z, BigFloat(x), MPFRRoundNearest)
-    return MultiFloat{T,Z}(split!(z, T, Val{Z}()))
+    result = split!(z, T, Val{Z}())
+    if x isa MultiFloat
+        return MultiFloat{T,Z}(result)
+    elseif x isa PreciseMultiFloat
+        return PreciseMultiFloat{T,Z}(result)
+    else
+        @assert false
+    end
+end
+
+
+################################################################################
+
+
+function Base.:+(
+    x::PreciseMultiFloat{T,N}, y::PreciseMultiFloat{T,N},
+) where {T,N}
+    return mfadd_exact(Val{N}(), x, y)
+end
+
+
+function Base.:-(
+    x::PreciseMultiFloat{T,N}, y::PreciseMultiFloat{T,N},
+) where {T,N}
+    return mfadd_exact(Val{N}(), x, -y)
+end
+
+
+function Base.:*(
+    x::PreciseMultiFloat{T,N}, y::PreciseMultiFloat{T,N},
+) where {T,N}
+    return mfmul_exact(Val{N}(), x, y)
+end
+
+
+function Base.:/(
+    x::PreciseMultiFloat{T,N}, y::PreciseMultiFloat{T,N},
+) where {T,N}
+    return mfdiv_exact(Val{N}(), x, y)
+end
+
+
+function Base.inv(x::PreciseMultiFloat{T,N}) where {T,N}
+    return mfinv_exact(Val{N}(), x)
+end
+
+
+function Base.sqrt(x::PreciseMultiFloat{T,N}) where {T,N}
+    return mfsqrt_exact(Val{N}(), x)
 end
 
 
