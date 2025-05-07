@@ -6,13 +6,18 @@ using SIMD: Vec
 
 const ENABLE_RUNTIME_ASSERTIONS = true
 
-################################################################################
+############################################################### TYPE DEFINITIONS
 
 
-export MultiFloat, MultiFloatVec
+export MultiFloat, MultiFloatVec, PreciseMultiFloat, PreciseMultiFloatVec
 
 
 struct MultiFloat{T,N} <: AbstractFloat
+    _limbs::NTuple{N,T}
+end
+
+
+struct PreciseMultiFloat{T,N} <: AbstractFloat
     _limbs::NTuple{N,T}
 end
 
@@ -22,21 +27,43 @@ struct MultiFloatVec{M,T,N}
 end
 
 
-################################################################################
+struct PreciseMultiFloatVec{M,T,N}
+    _limbs::NTuple{N,Vec{M,T}}
+end
+
+
+################################################################### TYPE ALIASES
 
 
 export Float16x, Float32x, Float64x,
+    PreciseFloat16x, PreciseFloat32x, PreciseFloat64x,
     Float64x1, Float64x2, Float64x3, Float64x4,
+    PreciseFloat64x1, PreciseFloat64x2, PreciseFloat64x3, PreciseFloat64x4,
     Vec1Float64x1, Vec1Float64x2, Vec1Float64x3, Vec1Float64x4,
     Vec2Float64x1, Vec2Float64x2, Vec2Float64x3, Vec2Float64x4,
     Vec4Float64x1, Vec4Float64x2, Vec4Float64x3, Vec4Float64x4,
     Vec8Float64x1, Vec8Float64x2, Vec8Float64x3, Vec8Float64x4,
-    Vec16Float64x1, Vec16Float64x2, Vec16Float64x3, Vec16Float64x4
+    Vec16Float64x1, Vec16Float64x2, Vec16Float64x3, Vec16Float64x4,
+    Vec1PreciseFloat64x1, Vec1PreciseFloat64x2,
+    Vec1PreciseFloat64x3, Vec1PreciseFloat64x4,
+    Vec2PreciseFloat64x1, Vec2PreciseFloat64x2,
+    Vec2PreciseFloat64x3, Vec2PreciseFloat64x4,
+    Vec4PreciseFloat64x1, Vec4PreciseFloat64x2,
+    Vec4PreciseFloat64x3, Vec4PreciseFloat64x4,
+    Vec8PreciseFloat64x1, Vec8PreciseFloat64x2,
+    Vec8PreciseFloat64x3, Vec8PreciseFloat64x4,
+    Vec16PreciseFloat64x1, Vec16PreciseFloat64x2,
+    Vec16PreciseFloat64x3, Vec16PreciseFloat64x4
 
 
 const Float16x{N} = MultiFloat{Float16,N}
 const Float32x{N} = MultiFloat{Float32,N}
 const Float64x{N} = MultiFloat{Float64,N}
+
+
+const PreciseFloat16x{N} = PreciseMultiFloat{Float16,N}
+const PreciseFloat32x{N} = PreciseMultiFloat{Float32,N}
+const PreciseFloat64x{N} = PreciseMultiFloat{Float64,N}
 
 
 const Float64x1 = MultiFloat{Float64,1}
@@ -45,35 +72,54 @@ const Float64x3 = MultiFloat{Float64,3}
 const Float64x4 = MultiFloat{Float64,4}
 
 
+const PreciseFloat64x1 = PreciseMultiFloat{Float64,1}
+const PreciseFloat64x2 = PreciseMultiFloat{Float64,2}
+const PreciseFloat64x3 = PreciseMultiFloat{Float64,3}
+const PreciseFloat64x4 = PreciseMultiFloat{Float64,4}
+
+
 const Vec1Float64x1 = MultiFloatVec{1,Float64,1}
 const Vec1Float64x2 = MultiFloatVec{1,Float64,2}
 const Vec1Float64x3 = MultiFloatVec{1,Float64,3}
 const Vec1Float64x4 = MultiFloatVec{1,Float64,4}
-
-
 const Vec2Float64x1 = MultiFloatVec{2,Float64,1}
 const Vec2Float64x2 = MultiFloatVec{2,Float64,2}
 const Vec2Float64x3 = MultiFloatVec{2,Float64,3}
 const Vec2Float64x4 = MultiFloatVec{2,Float64,4}
-
-
 const Vec4Float64x1 = MultiFloatVec{4,Float64,1}
 const Vec4Float64x2 = MultiFloatVec{4,Float64,2}
 const Vec4Float64x3 = MultiFloatVec{4,Float64,3}
 const Vec4Float64x4 = MultiFloatVec{4,Float64,4}
-
-
 const Vec8Float64x1 = MultiFloatVec{8,Float64,1}
 const Vec8Float64x2 = MultiFloatVec{8,Float64,2}
 const Vec8Float64x3 = MultiFloatVec{8,Float64,3}
 const Vec8Float64x4 = MultiFloatVec{8,Float64,4}
-
-
 const Vec16Float64x1 = MultiFloatVec{16,Float64,1}
 const Vec16Float64x2 = MultiFloatVec{16,Float64,2}
 const Vec16Float64x3 = MultiFloatVec{16,Float64,3}
 const Vec16Float64x4 = MultiFloatVec{16,Float64,4}
 
+
+const Vec1PreciseFloat64x1 = PreciseMultiFloatVec{1,Float64,1}
+const Vec1PreciseFloat64x2 = PreciseMultiFloatVec{1,Float64,2}
+const Vec1PreciseFloat64x3 = PreciseMultiFloatVec{1,Float64,3}
+const Vec1PreciseFloat64x4 = PreciseMultiFloatVec{1,Float64,4}
+const Vec2PreciseFloat64x1 = PreciseMultiFloatVec{2,Float64,1}
+const Vec2PreciseFloat64x2 = PreciseMultiFloatVec{2,Float64,2}
+const Vec2PreciseFloat64x3 = PreciseMultiFloatVec{2,Float64,3}
+const Vec2PreciseFloat64x4 = PreciseMultiFloatVec{2,Float64,4}
+const Vec4PreciseFloat64x1 = PreciseMultiFloatVec{4,Float64,1}
+const Vec4PreciseFloat64x2 = PreciseMultiFloatVec{4,Float64,2}
+const Vec4PreciseFloat64x3 = PreciseMultiFloatVec{4,Float64,3}
+const Vec4PreciseFloat64x4 = PreciseMultiFloatVec{4,Float64,4}
+const Vec8PreciseFloat64x1 = PreciseMultiFloatVec{8,Float64,1}
+const Vec8PreciseFloat64x2 = PreciseMultiFloatVec{8,Float64,2}
+const Vec8PreciseFloat64x3 = PreciseMultiFloatVec{8,Float64,3}
+const Vec8PreciseFloat64x4 = PreciseMultiFloatVec{8,Float64,4}
+const Vec16PreciseFloat64x1 = PreciseMultiFloatVec{16,Float64,1}
+const Vec16PreciseFloat64x2 = PreciseMultiFloatVec{16,Float64,2}
+const Vec16PreciseFloat64x3 = PreciseMultiFloatVec{16,Float64,3}
+const Vec16PreciseFloat64x4 = PreciseMultiFloatVec{16,Float64,4}
 
 
 ################################################################################
@@ -82,39 +128,72 @@ const Vec16Float64x4 = MultiFloatVec{16,Float64,4}
 @inline Base.zero(::Type{MultiFloat{T,N}}) where {T,N} =
     MultiFloat{T,N}(ntuple(_ -> zero(T), Val{N}()))
 
-@inline Base.zero(::MultiFloat{T,N}) where {T,N} = zero(MultiFloat{T,N})
+@inline Base.zero(::Type{PreciseMultiFloat{T,N}}) where {T,N} =
+    PreciseMultiFloat{T,N}(ntuple(_ -> zero(T), Val{N}()))
 
 @inline Base.zero(::Type{MultiFloatVec{M,T,N}}) where {M,T,N} =
     MultiFloatVec{M,T,N}(ntuple(_ -> zero(Vec{M,T}), Val{N}()))
 
-@inline Base.zero(::MultiFloatVec{M,T,N}) where {M,T,N} =
-    zero(MultiFloatVec{M,T,N})
+@inline Base.zero(::Type{PreciseMultiFloatVec{M,T,N}}) where {M,T,N} =
+    PreciseMultiFloatVec{M,T,N}(ntuple(_ -> zero(Vec{M,T}), Val{N}()))
 
 
 @inline Base.one(::Type{MultiFloat{T,N}}) where {T,N} =
     MultiFloat{T,N}(ntuple(i -> (i == 1) ? one(T) : zero(T), Val{N}()))
 
-@inline Base.one(::MultiFloat{T,N}) where {T,N} = one(MultiFloat{T,N})
+@inline Base.one(::Type{PreciseMultiFloat{T,N}}) where {T,N} =
+    PreciseMultiFloat{T,N}(ntuple(i -> (i == 1) ? one(T) : zero(T), Val{N}()))
 
 @inline Base.one(::Type{MultiFloatVec{M,T,N}}) where {M,T,N} =
     MultiFloatVec{M,T,N}(ntuple(
         i -> (i == 1) ? one(Vec{M,T}) : zero(Vec{M,T}), Val{N}()))
 
+@inline Base.one(::Type{PreciseMultiFloatVec{M,T,N}}) where {M,T,N} =
+    PreciseMultiFloatVec{M,T,N}(ntuple(
+        i -> (i == 1) ? one(Vec{M,T}) : zero(Vec{M,T}), Val{N}()))
+
+
+@inline Base.zero(::MultiFloat{T,N}) where {T,N} =
+    zero(MultiFloat{T,N})
+@inline Base.zero(::PreciseMultiFloat{T,N}) where {T,N} =
+    zero(PreciseMultiFloat{T,N})
+@inline Base.zero(::MultiFloatVec{M,T,N}) where {M,T,N} =
+    zero(MultiFloatVec{M,T,N})
+@inline Base.zero(::PreciseMultiFloatVec{M,T,N}) where {M,T,N} =
+    zero(PreciseMultiFloatVec{M,T,N})
+
+
+@inline Base.one(::MultiFloat{T,N}) where {T,N} =
+    one(MultiFloat{T,N})
+@inline Base.one(::PreciseMultiFloat{T,N}) where {T,N} =
+    one(PreciseMultiFloat{T,N})
 @inline Base.one(::MultiFloatVec{M,T,N}) where {M,T,N} =
     one(MultiFloatVec{M,T,N})
+@inline Base.one(::PreciseMultiFloatVec{M,T,N}) where {M,T,N} =
+    one(PreciseMultiFloatVec{M,T,N})
 
 
-@inline Base.signbit(x::MultiFloat{T,N}) where {T,N} = signbit(x._limbs[1])
-
+@inline Base.signbit(x::MultiFloat{T,N}) where {T,N} =
+    signbit(x._limbs[1])
+@inline Base.signbit(x::PreciseMultiFloat{T,N}) where {T,N} =
+    signbit(x._limbs[1])
 @inline Base.signbit(x::MultiFloatVec{M,T,N}) where {M,T,N} =
+    signbit(x._limbs[1])
+@inline Base.signbit(x::PreciseMultiFloatVec{M,T,N}) where {M,T,N} =
     signbit(x._limbs[1])
 
 
 @inline Base.:-(x::MultiFloat{T,N}) where {T,N} =
     MultiFloat{T,N}(ntuple(i -> -x._limbs[i], Val{N}()))
 
+@inline Base.:-(x::PreciseMultiFloat{T,N}) where {T,N} =
+    PreciseMultiFloat{T,N}(ntuple(i -> -x._limbs[i], Val{N}()))
+
 @inline Base.:-(x::MultiFloatVec{M,T,N}) where {M,T,N} =
     MultiFloatVec{M,T,N}(ntuple(i -> -x._limbs[i], Val{N}()))
+
+@inline Base.:-(x::PreciseMultiFloatVec{M,T,N}) where {M,T,N} =
+    PreciseMultiFloatVec{M,T,N}(ntuple(i -> -x._limbs[i], Val{N}()))
 
 
 @inline function halve(x::MultiFloat{T,N}) where {T,N}
@@ -124,6 +203,13 @@ const Vec16Float64x4 = MultiFloatVec{16,Float64,4}
     return MultiFloat{T,N}(ntuple(i -> _half * x._limbs[i], Val{N}()))
 end
 
+@inline function halve(x::PreciseMultiFloat{T,N}) where {T,N}
+    _one = one(T)
+    _two = _one + _one
+    _half = inv(_two)
+    return PreciseMultiFloat{T,N}(ntuple(i -> _half * x._limbs[i], Val{N}()))
+end
+
 @inline function halve(x::MultiFloatVec{M,T,N}) where {M,T,N}
     _one = one(T)
     _two = _one + _one
@@ -131,6 +217,13 @@ end
     return MultiFloatVec{M,T,N}(ntuple(i -> _half * x._limbs[i], Val{N}()))
 end
 
+@inline function halve(x::PreciseMultiFloatVec{M,T,N}) where {M,T,N}
+    _one = one(T)
+    _two = _one + _one
+    _half = inv(_two)
+    return PreciseMultiFloatVec{M,T,N}(ntuple(
+        i -> _half * x._limbs[i], Val{N}()))
+end
 
 ################################################################################
 
