@@ -122,7 +122,32 @@ const Vec16PreciseFloat64x3 = PreciseMultiFloatVec{16,Float64,3}
 const Vec16PreciseFloat64x4 = PreciseMultiFloatVec{16,Float64,4}
 
 
-################################################################################
+################################################################### CONSTRUCTORS
+
+
+@inline MultiFloat{T,N}(x::T) where {T,N} =
+    MultiFloat{T,N}(ntuple(i -> ifelse(i == 1, x, zero(T)), Val{N}()))
+
+@inline PreciseMultiFloat{T,N}(x::T) where {T,N} =
+    PreciseMultiFloat{T,N}(ntuple(i -> ifelse(i == 1, x, zero(T)), Val{N}()))
+
+@inline MultiFloatVec{M,T,N}(x::Vec{M,T}) where {M,T,N} =
+    MultiFloatVec{M,T,N}(ntuple(
+        i -> ifelse(i == 1, x, zero(Vec{M,T})), Val{N}()))
+
+@inline PreciseMultiFloatVec{M,T,N}(x::Vec{M,T}) where {M,T,N} =
+    PreciseMultiFloatVec{M,T,N}(ntuple(
+        i -> ifelse(i == 1, x, zero(Vec{M,T})), Val{N}()))
+
+
+@inline MultiFloatVec{M,T,N}(x::T) where {M,T,N} =
+    MultiFloatVec{M,T,N}(Vec{M,T}(x))
+@inline PreciseMultiFloatVec{M,T,N}(x::T) where {M,T,N} =
+    PreciseMultiFloatVec{M,T,N}(Vec{M,T}(x))
+@inline MultiFloatVec{M,T,N}(xs::NTuple{M,T}) where {M,T,N} =
+    MultiFloatVec{M,T,N}(Vec{M,T}(xs))
+@inline PreciseMultiFloatVec{M,T,N}(xs::NTuple{M,T}) where {M,T,N} =
+    PreciseMultiFloatVec{M,T,N}(Vec{M,T}(xs))
 
 
 @inline Base.zero(::Type{MultiFloat{T,N}}) where {T,N} =
@@ -171,6 +196,9 @@ const Vec16PreciseFloat64x4 = PreciseMultiFloatVec{16,Float64,4}
     one(MultiFloatVec{M,T,N})
 @inline Base.one(::PreciseMultiFloatVec{M,T,N}) where {M,T,N} =
     one(PreciseMultiFloatVec{M,T,N})
+
+
+################################################################################
 
 
 @inline Base.signbit(x::MultiFloat{T,N}) where {T,N} =
