@@ -12,9 +12,9 @@
 
 
 
-## ⚠️ WARNING: Please use Julia LTS (v1.10)!
+## ⚠️ WARNING: Please use Julia v1.11.5 or higher!
 
-There is a [serious regression in Julia v1.11](https://github.com/JuliaLang/julia/issues/57713) relating to vector memory alignment that causes segfaults in [SIMD.jl](https://github.com/eschnett/SIMD.jl) and all packages that use SIMD datatypes, including **MultiFloats.jl**. The issue is internal to the Julia interpreter/compiler and is unfortunately [still present as of Julia v1.11.4](https://github.com/JuliaLang/julia/issues/57713#issuecomment-2713353099); it is expected to be fixed in v1.11.5.
+There is a [serious regression in Julia v1.11](https://github.com/JuliaLang/julia/issues/57713) relating to vector memory alignment that causes segfaults in [SIMD.jl](https://github.com/eschnett/SIMD.jl) and all packages that use SIMD datatypes, including **MultiFloats.jl**. The issue is internal to the Julia interpreter/compiler and is unfortunately [present from  Julia v1.11.0 to v1.11.4](https://github.com/JuliaLang/julia/issues/57713#issuecomment-2713353099); it is fixed in v1.11.5.
 
 For the time being, please use **MultiFloats.jl** with Julia LTS (v1.10). I will update **MultiFloats.jl** to v1.11 as soon as possible once a fix for this issue is released.
 
