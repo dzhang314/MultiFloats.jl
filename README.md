@@ -103,6 +103,7 @@ The timings reported below are minima of 3 single-threaded runs performed on an 
 | transcendentals<br>`sin`, `exp`, `log`           | ⚠️ | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ |
 | compatible with<br>[GenericLinearAlgebra.jl][12] | ✔️ | ✔️ | ✔️ | ❌ | ✔️ | ✔️ |
 | float introspection<br>`minfloat`, `eps`         | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ |
+| Supports `Inf` (see caveats at bottom of readme) | ❌ | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ |
 
 
 
