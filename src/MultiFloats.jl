@@ -659,6 +659,8 @@ end
     return _MF{T,N}(ntuple(i -> ldexp(x._limbs[i], n), Val{N}()))
 end
 
+# needed for hashing
+Base.decompose(x::MultiFloat) = Base.decompose(BigFloat(x))
 
 # Note: SIMD.jl does not define Base.prevfloat or Base.nextfloat for vectors.
 _prevfloat(x::_MF{T,N}) where {T,N} = renormalize(_MF{T,N}((ntuple(
