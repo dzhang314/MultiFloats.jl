@@ -441,10 +441,14 @@ const Vec8PreciseFloat64x4 = PreciseMultiFloatVec{8,Float64,4}
 
 
 @inline scale(a, x) = a * x
-@inline scale(a::T, x::_MF{T,N}) where {T,N} =
-    _MF{T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
-@inline scale(a::T, x::_MFV{M,T,N}) where {M,T,N} =
-    _MFV{M,T,N}(ntuple(i -> a * x._limbs[i], Val{N}()))
+@inline scale(a::T, x::_MF{T,N}) where {T,N} = _MF{T,N}(
+    ntuple(i -> a * x._limbs[i], Val{N}()))
+@inline scale(a::T, x::_PMF{T,N}) where {T,N} = _PMF{T,N}(
+    ntuple(i -> a * x._limbs[i], Val{N}()))
+@inline scale(a::T, x::_MFV{M,T,N}) where {M,T,N} = _MFV{M,T,N}(
+    ntuple(i -> a * x._limbs[i], Val{N}()))
+@inline scale(a::T, x::_PMFV{M,T,N}) where {M,T,N} = _PMFV{M,T,N}(
+    ntuple(i -> a * x._limbs[i], Val{N}()))
 
 
 ########################################################## ERROR-FREE ARITHMETIC
@@ -482,59 +486,6 @@ end
 # Note: MultiFloats.renormalize is not exported because it is a
 # MultiFloat-specific operation. Users are expected to call it as
 # MultiFloats.renormalize(x).
-
-
-# function _one_pass_renorm_expr(T::DataType, num_inputs::Int, num_outputs::Int)
-#     @assert num_outputs > 0
-#     @assert ((num_inputs == num_outputs) ||
-#              (num_inputs == num_outputs + 1))
-#     code = _inline_block()
-
-#     # Unpack argument tuple.
-#     args = [Symbol('x', i) for i = 1:num_inputs]
-#     push!(code, _meta_unpack(args, :xs))
-
-#     # Generate one-pass renormalization code.
-#     for i = 1:num_outputs-1
-#         push!(code, _meta_fast_two_sum(args[i], args[i+1], args[i], args[i+1]))
-#     end
-
-#     # Return a tuple of renormalized terms.
-#     return Expr(:block, code..., Expr(:return, _meta_tuple(
-#         args[1:num_outputs-1]..., _meta_sum(T, args[num_outputs:end]))))
-# end
-
-
-# @generated _one_pass_renorm(::Val{N}, xs::T...) where {T,N} =
-#     _one_pass_renorm_expr(T, length(xs), N)
-
-
-# function _two_pass_renorm_expr(T::DataType, num_inputs::Int, num_outputs::Int)
-#     @assert num_outputs > 0
-#     @assert ((num_inputs == num_outputs) ||
-#              (num_inputs == num_outputs + 1))
-#     code = _inline_block()
-
-#     # Unpack argument tuple.
-#     args = [Symbol('x', i) for i = 1:num_inputs]
-#     push!(code, _meta_unpack(args, :xs))
-
-#     # Generate two-pass renormalization code.
-#     for i = num_inputs-1:-1:2
-#         push!(code, _meta_fast_two_sum(args[i], args[i+1], args[i], args[i+1]))
-#     end
-#     for i = 1:num_outputs-1
-#         push!(code, _meta_fast_two_sum(args[i], args[i+1], args[i], args[i+1]))
-#     end
-
-#     # Return a tuple of renormalized terms.
-#     return Expr(:block, code..., Expr(:return, _meta_tuple(
-#         args[1:num_outputs-1]..., _meta_sum(T, args[num_outputs:end]))))
-# end
-
-
-# @generated _two_pass_renorm(::Val{N}, xs::T...) where {T,N} =
-#     _two_pass_renorm_expr(T, length(xs), N)
 
 
 # # This function is needed to work around the following SIMD bug:
