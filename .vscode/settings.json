@@ -1,8 +1,10 @@
 {
     "cSpell.words": [
         "Cvoid",
+        "extractelement",
         "FPAN",
         "FPANs",
+        "GMFV",
         "libmpfr",
         "mfadd",
         "mfdiv",
@@ -10,8 +12,14 @@
         "mfmul",
         "mfrsqrt",
         "mfsqrt",
+        "mfvgather",
+        "mfvscatter",
         "mpfr",
+        "PMFV",
         "rsqrt",
-        "Vararg"
+        "Vararg",
+        "vgather",
+        "vifelse",
+        "vscatter"
     ]
 }
