@@ -170,7 +170,9 @@ const Vec8PreciseFloat64x4 = PreciseMultiFloatVec{8,Float64,4}
 @inline _PMFV{M,T,N}(x::Vec{M,T}) where {M,T,N} = _PMFV{M,T,N}(
     ntuple(i -> ifelse(isone(i), x, zero(Vec{M,T})), Val{N}()))
 @inline _MFV{M,T,N}(x::NTuple{M,T}) where {M,T,N} = _MFV{M,T,N}(Vec{M,T}(x))
+@inline _MFV{M,T,N}(x::Vararg{T,M}) where {M,T,N} = _MFV{M,T,N}(Vec{M,T}(x))
 @inline _PMFV{M,T,N}(x::NTuple{M,T}) where {M,T,N} = _PMFV{M,T,N}(Vec{M,T}(x))
+@inline _PMFV{M,T,N}(x::Vararg{T,M}) where {M,T,N} = _PMFV{M,T,N}(Vec{M,T}(x))
 
 
 # Construct from multiple limbs: truncate or pad with zeroes.
@@ -180,6 +182,12 @@ const Vec8PreciseFloat64x4 = PreciseMultiFloatVec{8,Float64,4}
 @inline _PMF{T,N1}(x::_GMF{T,N2}) where {T,N1,N2} = _PMF{T,N1}(
     tuple(ntuple(i -> x._limbs[i], Val{min(N1, N2)}())...,
         ntuple(_ -> zero(T), Val{max(N1 - N2, 0)}())...))
+@inline _MFV{M,T,N1}(x::_GMF{T,N2}) where {M,T,N1,N2} = _MFV{M,T,N1}(
+    tuple(ntuple(i -> Vec{M,T}(x._limbs[i]), Val{min(N1, N2)}())...,
+        ntuple(_ -> zero(Vec{M,T}), Val{max(N1 - N2, 0)}())...))
+@inline _PMFV{M,T,N1}(x::_GMF{T,N2}) where {M,T,N1,N2} = _PMFV{M,T,N1}(
+    tuple(ntuple(i -> Vec{M,T}(x._limbs[i]), Val{min(N1, N2)}())...,
+        ntuple(_ -> zero(Vec{M,T}), Val{max(N1 - N2, 0)}())...))
 @inline _MFV{M,T,N1}(x::_GMFV{M,T,N2}) where {M,T,N1,N2} = _MFV{M,T,N1}(
     tuple(ntuple(i -> x._limbs[i], Val{min(N1, N2)}())...,
         ntuple(_ -> zero(Vec{M,T}), Val{max(N1 - N2, 0)}())...))
@@ -193,14 +201,22 @@ const Vec8PreciseFloat64x4 = PreciseMultiFloatVec{8,Float64,4}
 @inline _PMFV{M,T,N}(x::T) where {M,T,N} = _PMFV{M,T,N}(Vec{M,T}(x))
 @inline _MFV{M,T,N}(x::_MF{T,N}) where {M,T,N} = _MFV{M,T,N}(
     ntuple(i -> Vec{M,T}(x._limbs[i]), Val{N}()))
+@inline _MFV{1,T,N}(x::_MF{T,N}) where {T,N} = _MFV{1,T,N}(
+    ntuple(i -> Vec{1,T}(x._limbs[i]), Val{N}()))
 @inline _PMFV{M,T,N}(x::_PMF{T,N}) where {M,T,N} = _PMFV{M,T,N}(
     ntuple(i -> Vec{M,T}(x._limbs[i]), Val{N}()))
+@inline _PMFV{1,T,N}(x::_PMF{T,N}) where {T,N} = _PMFV{1,T,N}(
+    ntuple(i -> Vec{1,T}(x._limbs[i]), Val{N}()))
 
 
 # Construct vector from tuple of scalars: transpose.
 @inline _MFV{M,T,N}(xs::NTuple{M,_GMF{T,N}}) where {M,T,N} = _MFV{M,T,N}(
     ntuple(j -> Vec{M,T}(ntuple(i -> xs[i]._limbs[j], Val{M}())), Val{N}()))
+@inline _MFV{M,T,N}(xs::Vararg{_GMF{T,N},M}) where {M,T,N} = _MFV{M,T,N}(
+    ntuple(j -> Vec{M,T}(ntuple(i -> xs[i]._limbs[j], Val{M}())), Val{N}()))
 @inline _PMFV{M,T,N}(xs::NTuple{M,_GMF{T,N}}) where {M,T,N} = _PMFV{M,T,N}(
+    ntuple(j -> Vec{M,T}(ntuple(i -> xs[i]._limbs[j], Val{M}())), Val{N}()))
+@inline _PMFV{M,T,N}(xs::Vararg{_GMF{T,N},M}) where {M,T,N} = _PMFV{M,T,N}(
     ntuple(j -> Vec{M,T}(ntuple(i -> xs[i]._limbs[j], Val{M}())), Val{N}()))
 
 
