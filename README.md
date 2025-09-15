@@ -1,6 +1,6 @@
 # MultiFloats.jl
 
-**Copyright © 2019-2024 by David K. Zhang. Released under the [MIT License][1].**
+**Copyright © 2019-2025 by David K. Zhang. Released under the [MIT License][1].**
 
 **MultiFloats.jl** is a Julia package for extended-precision arithmetic using 100–400 bits (30–120 decimal digits). In this range, it is the fastest library that I am aware of. At 100-bit precision, **MultiFloats.jl** is roughly **30× faster than [`BigFloat`][2]**, **6× faster than [Quadmath.jl][3]**, and **2× faster than [DoubleFloats.jl][4]**.
 
