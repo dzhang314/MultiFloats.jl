@@ -10,119 +10,6 @@ const ENABLE_RUNTIME_ASSERTIONS = true
 ################################################################################
 
 
-@inline Base.signbit(x::MultiFloat{T,N}) where {T,N} =
-    signbit(x._limbs[1])
-@inline Base.signbit(x::PreciseMultiFloat{T,N}) where {T,N} =
-    signbit(x._limbs[1])
-@inline Base.signbit(x::MultiFloatVec{M,T,N}) where {M,T,N} =
-    signbit(x._limbs[1])
-@inline Base.signbit(x::PreciseMultiFloatVec{M,T,N}) where {M,T,N} =
-    signbit(x._limbs[1])
-
-
-@inline Base.:-(x::MultiFloat{T,N}) where {T,N} =
-    MultiFloat{T,N}(ntuple(i -> -x._limbs[i], Val{N}()))
-
-@inline Base.:-(x::PreciseMultiFloat{T,N}) where {T,N} =
-    PreciseMultiFloat{T,N}(ntuple(i -> -x._limbs[i], Val{N}()))
-
-@inline Base.:-(x::MultiFloatVec{M,T,N}) where {M,T,N} =
-    MultiFloatVec{M,T,N}(ntuple(i -> -x._limbs[i], Val{N}()))
-
-@inline Base.:-(x::PreciseMultiFloatVec{M,T,N}) where {M,T,N} =
-    PreciseMultiFloatVec{M,T,N}(ntuple(i -> -x._limbs[i], Val{N}()))
-
-
-@inline function halve(x::MultiFloat{T,N}) where {T,N}
-    _one = one(T)
-    _two = _one + _one
-    _half = inv(_two)
-    return MultiFloat{T,N}(ntuple(i -> _half * x._limbs[i], Val{N}()))
-end
-
-@inline function halve(x::PreciseMultiFloat{T,N}) where {T,N}
-    _one = one(T)
-    _two = _one + _one
-    _half = inv(_two)
-    return PreciseMultiFloat{T,N}(ntuple(i -> _half * x._limbs[i], Val{N}()))
-end
-
-@inline function halve(x::MultiFloatVec{M,T,N}) where {M,T,N}
-    _one = one(T)
-    _two = _one + _one
-    _half = inv(_two)
-    return MultiFloatVec{M,T,N}(ntuple(i -> _half * x._limbs[i], Val{N}()))
-end
-
-@inline function halve(x::PreciseMultiFloatVec{M,T,N}) where {M,T,N}
-    _one = one(T)
-    _two = _one + _one
-    _half = inv(_two)
-    return PreciseMultiFloatVec{M,T,N}(ntuple(
-        i -> _half * x._limbs[i], Val{N}()))
-end
-
-
-################################################################################
-
-
-function mpfr_zero!(x::BigFloat)
-    ccall((:mpfr_set_zero, libmpfr), Cvoid,
-        (Ref{BigFloat}, Cint),
-        x, 0)
-    return x
-end
-
-
-function mpfr_add!(x::BigFloat, y::CdoubleMax)
-    ccall((:mpfr_add_d, libmpfr), Cint,
-        (Ref{BigFloat}, Ref{BigFloat}, Cdouble, MPFRRoundingMode),
-        x, x, y, MPFRRoundNearest)
-    return x
-end
-
-
-function mpfr_sub!(x::BigFloat, y::CdoubleMax)
-    ccall((:mpfr_sub_d, libmpfr), Cint,
-        (Ref{BigFloat}, Ref{BigFloat}, Cdouble, MPFRRoundingMode),
-        x, x, y, MPFRRoundNearest)
-    return x
-end
-
-
-################################################################################
-
-
-export split!
-
-
-function Base.BigFloat(
-    x::Union{MultiFloat{T,N},PreciseMultiFloat{T,N}},
-) where {T,N}
-    p = exponent(floatmax(T)) - exponent(floatmin(T)) + precision(T)
-    result = BigFloat(precision=p)
-    mpfr_zero!(result)
-    for i = 1:N
-        mpfr_add!(result, x._limbs[i])
-    end
-    return result
-end
-
-
-function split!(x::BigFloat, ::Type{T}, ::Val{N}) where {T,N}
-    result = ntuple(_ -> zero(T), Val{N}())
-    for i = 1:N
-        term = T(x)
-        result = Base.setindex(result, term, i)
-        mpfr_sub!(x, term)
-    end
-    return result
-end
-
-
-################################################################################
-
-
 export mfadd_exact, mfmul_exact, mfadd_rounded, mfmul_rounded,
     mfinv_exact, mfdiv_exact, mfrsqrt_exact, mfsqrt_exact
 
@@ -395,17 +282,6 @@ end
 ################################################################################
 
 
-@inline function two_sum(x::T, y::T) where {T}
-    s = x + y
-    x_prime = s - y
-    y_prime = s - x_prime
-    x_err = x - x_prime
-    y_err = y - y_prime
-    e = x_err + y_err
-    return (s, e)
-end
-
-
 @inline function is_normalized(x::NTuple{N,T}) where {N,T}
     result = true
     @inbounds for i = 1:N-1
@@ -414,24 +290,6 @@ end
         result &= ((s == a) & (e == b)) | (!isfinite(s)) | (!isfinite(e))
     end
     return result
-end
-
-
-@inline function unsafe_fast_two_sum(x::T, y::T) where {T}
-    s = x + y
-    y_prime = s - x
-    e = y - y_prime
-    return (s, e)
-end
-
-
-@inline function fast_two_sum(x::T, y::T) where {T}
-    @static if ENABLE_RUNTIME_ASSERTIONS
-        if isfinite(x) & isfinite(y)
-            @assert (iszero(x) | iszero(y)) || (exponent(x) >= exponent(y))
-        end
-    end
-    return unsafe_fast_two_sum(x, y)
 end
 
 
@@ -448,13 +306,6 @@ end
     end
     push!(body, Expr(:return, Expr(:tuple, xs...)))
     return Expr(:block, body...)
-end
-
-
-@inline function two_prod(x::T, y::T) where {T}
-    p = x * y
-    e = fma(x, y, -p)
-    return (p, e)
 end
 
 

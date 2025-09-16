@@ -1,5 +1,6 @@
 module MultiFloats
 
+using Base.MPFR: libmpfr, CdoubleMax, MPFRRoundingMode, MPFRRoundNearest
 using SIMD: Vec, vifelse, vgather, vscatter
 using SIMD.Intrinsics: extractelement
 
@@ -209,7 +210,7 @@ const Vec8PreciseFloat64x4 = PreciseMultiFloatVec{8,Float64,4}
         ntuple(_ -> zero(Vec{M,T}), Val{max(N1 - N2, 0)}())...))
 
 
-# Construct MultiFloat vector from multiple MultiFloat scalars (NTuple/Vararg).
+# Construct MultiFloat vector from multiple MultiFloat scalars.
 @inline _MFV{M,T,N}(xs::NTuple{M,_GMF{T,N}}) where {M,T,N} = _MFV{M,T,N}(
     ntuple(j -> Vec{M,T}(ntuple(i -> xs[i]._limbs[j], Val{M}())), Val{N}()))
 @inline _MFV{M,T,N}(xs::Vararg{_GMF{T,N},M}) where {M,T,N} = _MFV{M,T,N}(
@@ -223,30 +224,30 @@ const Vec8PreciseFloat64x4 = PreciseMultiFloatVec{8,Float64,4}
 ################################################ CONVERSION FROM PRIMITIVE TYPES
 
 
-@inline _split_impl(::Val{0}, ::Type, ::Integer) = ()
-@inline _split_impl(::Val{0}, ::Type, ::AbstractFloat) = ()
-@inline _split_impl(::Val{1}, ::Type{T}, x::Integer) where {T} = (T(x),)
-@inline _split_impl(::Val{1}, ::Type{T}, x::AbstractFloat) where {T} = (T(x),)
+@inline _split_impl(::Integer, ::Type, ::Val{0}) = ()
+@inline _split_impl(::AbstractFloat, ::Type, ::Val{0}) = ()
+@inline _split_impl(x::Integer, ::Type{T}, ::Val{1}) where {T} = (T(x),)
+@inline _split_impl(x::AbstractFloat, ::Type{T}, ::Val{1}) where {T} = (T(x),)
 
-@inline function _split_impl(::Val{N}, ::Type{T}, x::I) where {N,T,I<:Integer}
+@inline function _split_impl(x::I, ::Type{T}, ::Val{N}) where {I<:Integer,T,N}
     next_limb = T(x)
     remainder = reinterpret(signed(I), x - I(next_limb))
-    return (next_limb, _split_impl(Val{N - 1}(), T, remainder)...)
+    return (next_limb, _split_impl(remainder, T, Val{N - 1}())...)
 end
 
 @inline function _split_impl(
-    ::Val{N},
-    ::Type{T},
     x::F,
-) where {N,T,F<:AbstractFloat}
+    ::Type{T},
+    ::Val{N},
+) where {F<:AbstractFloat,T,N}
     next_limb = T(x)
     remainder = x - F(next_limb)
-    return (next_limb, _split_impl(Val{N - 1}(), T, remainder)...)
+    return (next_limb, _split_impl(remainder, T, Val{N - 1}())...)
 end
 
-@inline function _split(::Val{M}, ::Val{N}, ::Type{T}, x) where {M,N,T}
-    result = tuple(_split_impl(Val{min(M, N)}(), T, x)...,
-        ntuple(_ -> zero(T), Val{max(N - M, 0)}())...)
+@inline function _split(x, ::Type{T}, ::Val{N}, ::Val{K}) where {T,N,K}
+    result = tuple(_split_impl(x, T, Val{min(N, K)}())...,
+        ntuple(_ -> zero(T), Val{max(N - K, 0)}())...)
     first_limb = first(result)
     return ifelse(isfinite(first_limb), result,
         ntuple(_ -> first_limb, Val{N}()))
@@ -274,22 +275,22 @@ const _Fits64x3 = Union{Int128,UInt128}
 const _Fits64xN = Union{_Fits64x2,_Fits64x3}
 
 
-@inline _split(::Val{N}, ::Type{_F16}, x::_Fits16x2) where {N} =
-    _split(Val{2}(), Val{N}(), _F16, x)
-@inline _split(::Val{N}, ::Type{_F16}, x::_Fits16x3) where {N} =
-    _split(Val{3}(), Val{N}(), _F16, x)
-@inline _split(::Val{N}, ::Type{_F16}, x::_Fits16x4) where {N} =
-    _split(Val{4}(), Val{N}(), _F16, x)
-@inline _split(::Val{N}, ::Type{_F32}, x::_Fits32x2) where {N} =
-    _split(Val{2}(), Val{N}(), _F32, x)
-@inline _split(::Val{N}, ::Type{_F32}, x::_Fits32x3) where {N} =
-    _split(Val{3}(), Val{N}(), _F32, x)
-@inline _split(::Val{N}, ::Type{_F32}, x::_Fits32x6) where {N} =
-    _split(Val{6}(), Val{N}(), _F32, x)
-@inline _split(::Val{N}, ::Type{_F64}, x::_Fits64x2) where {N} =
-    _split(Val{2}(), Val{N}(), _F64, x)
-@inline _split(::Val{N}, ::Type{_F64}, x::_Fits64x3) where {N} =
-    _split(Val{3}(), Val{N}(), _F64, x)
+@inline _split(x::_Fits16x2, ::Type{_F16}, ::Val{N}) where {N} =
+    _split(x, _F16, Val{N}(), Val{2}())
+@inline _split(x::_Fits16x3, ::Type{_F16}, ::Val{N}) where {N} =
+    _split(x, _F16, Val{N}(), Val{3}())
+@inline _split(x::_Fits16x4, ::Type{_F16}, ::Val{N}) where {N} =
+    _split(x, _F16, Val{N}(), Val{4}())
+@inline _split(x::_Fits32x2, ::Type{_F32}, ::Val{N}) where {N} =
+    _split(x, _F32, Val{N}(), Val{2}())
+@inline _split(x::_Fits32x3, ::Type{_F32}, ::Val{N}) where {N} =
+    _split(x, _F32, Val{N}(), Val{3}())
+@inline _split(x::_Fits32x6, ::Type{_F32}, ::Val{N}) where {N} =
+    _split(x, _F32, Val{N}(), Val{6}())
+@inline _split(x::_Fits64x2, ::Type{_F64}, ::Val{N}) where {N} =
+    _split(x, _F64, Val{N}(), Val{2}())
+@inline _split(x::_Fits64x3, ::Type{_F64}, ::Val{N}) where {N} =
+    _split(x, _F64, Val{N}(), Val{3}())
 
 
 # Construct MultiFloat scalar from primitive scalar (single limb).
@@ -312,17 +313,17 @@ const _Fits64xN = Union{_Fits64x2,_Fits64x3}
 
 # Construct MultiFloat scalar from primitive scalar (multiple limbs).
 @inline _MF{_F16,N}(x::_Fits16xN) where {N} =
-    _MF{_F16,N}(_split(Val{N}(), _F16, x))
+    _MF{_F16,N}(_split(x, _F16, Val{N}()))
 @inline _MF{_F32,N}(x::_Fits32xN) where {N} =
-    _MF{_F32,N}(_split(Val{N}(), _F32, x))
+    _MF{_F32,N}(_split(x, _F32, Val{N}()))
 @inline _MF{_F64,N}(x::_Fits64xN) where {N} =
-    _MF{_F64,N}(_split(Val{N}(), _F64, x))
+    _MF{_F64,N}(_split(x, _F64, Val{N}()))
 @inline _PMF{_F16,N}(x::_Fits16xN) where {N} =
-    _PMF{_F16,N}(_split(Val{N}(), _F16, x))
+    _PMF{_F16,N}(_split(x, _F16, Val{N}()))
 @inline _PMF{_F32,N}(x::_Fits32xN) where {N} =
-    _PMF{_F32,N}(_split(Val{N}(), _F32, x))
+    _PMF{_F32,N}(_split(x, _F32, Val{N}()))
 @inline _PMF{_F64,N}(x::_Fits64xN) where {N} =
-    _PMF{_F64,N}(_split(Val{N}(), _F64, x))
+    _PMF{_F64,N}(_split(x, _F64, Val{N}()))
 
 
 # Construct MultiFloat vector from primitive scalar (multiple limbs).
@@ -338,6 +339,94 @@ const _Fits64xN = Union{_Fits64x2,_Fits64x3}
     _PMFV{M,_F32,N}(_PMFV{_F32,N}(x))
 @inline _PMFV{M,_F64,N}(x::_Fits64xN) where {M,N} =
     _PMFV{M,_F64,N}(_PMFV{_F64,N}(x))
+
+
+# Construct MultiFloat vector from multiple non-MultiFloat scalars.
+@inline _MFV{M,T,N}(xs::NTuple{M,Any}) where {M,T,N} =
+    _MFV{M,T,N}(_MF{T,N}.(xs))
+@inline _MFV{M,T,N}(xs::Vararg{Any,M}) where {M,T,N} =
+    _MFV{M,T,N}(_MF{T,N}.(xs))
+@inline _PMFV{M,T,N}(xs::NTuple{M,Any}) where {M,T,N} =
+    _PMFV{M,T,N}(_PMF{T,N}.(xs))
+@inline _PMFV{M,T,N}(xs::Vararg{Any,M}) where {M,T,N} =
+    _PMFV{M,T,N}(_PMF{T,N}.(xs))
+_MFV{M,T,N}(xs::Vararg{Any,K}) where {M,T,N,K} =
+    error("MultiFloatVec constructor requires 1 or $M arguments.")
+_PMFV{M,T,N}(xs::Vararg{Any,K}) where {M,T,N,K} =
+    error("PreciseMultiFloatVec constructor requires 1 or $M arguments.")
+
+
+###################################################### CONVERSION FROM BIG TYPES
+
+
+@inline function mpfr_sub!(x::BigFloat, y::CdoubleMax)
+    ccall((:mpfr_sub_d, libmpfr), Cint,
+        (Ref{BigFloat}, Ref{BigFloat}, Cdouble, MPFRRoundingMode),
+        x, x, y, MPFRRoundNearest)
+    return x
+end
+
+
+@inline function _split!(x::BigFloat, ::Type{T}, ::Val{N}) where {T,N}
+    if !isfinite(x)
+        value = T(x)
+        return ntuple(_ -> value, Val{N}())
+    elseif x > +floatmax(T)
+        pos_inf = typemax(T)
+        return ntuple(_ -> pos_inf, Val{N}())
+    elseif x < -floatmax(T)
+        neg_inf = typemin(T)
+        return ntuple(_ -> neg_inf, Val{N}())
+    else
+        result = ntuple(_ -> zero(T), Val{N}())
+        for i = 1:N
+            limb = T(x)
+            result = Base.setindex(result, limb, i)
+            mpfr_sub!(x, limb)
+        end
+        return result
+    end
+end
+
+
+_MF{T,N}(x::BigFloat) where {T,N} = _MF{T,N}(_split!(x, T, Val{N}()))
+_PMF{T,N}(x::BigFloat) where {T,N} = _PMF{T,N}(_split!(x, T, Val{N}()))
+
+
+# TODO: Implement conversion from BigInt and Rational.
+
+
+######################################################## CONVERSION TO BIG TYPES
+
+
+@inline function mpfr_zero!(x::BigFloat)
+    ccall((:mpfr_set_zero, libmpfr), Cvoid, (Ref{BigFloat}, Cint), x, 0)
+    return x
+end
+
+
+@inline function mpfr_add!(x::BigFloat, y::CdoubleMax)
+    ccall((:mpfr_add_d, libmpfr), Cint,
+        (Ref{BigFloat}, Ref{BigFloat}, Cdouble, MPFRRoundingMode),
+        x, x, y, MPFRRoundNearest)
+    return x
+end
+
+
+function Base.BigFloat(
+    x::_GMF{T,N};
+    precision::Integer=precision(BigFloat),
+) where {T,N}
+    result = BigFloat(; precision)
+    mpfr_zero!(result)
+    for limb in x._limbs
+        mpfr_add!(result, limb)
+    end
+    return result
+end
+
+
+# TODO: Implement conversion to BigInt and Rational.
 
 
 ################################################################ VECTOR INDEXING
@@ -389,35 +478,6 @@ const _Fits64xN = Union{_Fits64x2,_Fits64x3}
 ###################################################### CONVERSION FROM BIG TYPES
 
 
-# @inline _extract_limbs(::Type{T}, x::BigFloat, ::Val{0}) where {T} = ()
-# @inline _extract_limbs(::Type{T}, x::BigFloat, ::Val{1}) where {T} = (T(x),)
-# @inline function _extract_limbs(::Type{T}, x::BigFloat, ::Val{N}) where {T,N}
-#     head = T(x)
-#     tail = _extract_limbs(T, x - head, Val{N - 1}())
-#     return (head, tail...)
-# end
-
-
-# @inline function _MF{T,N}(x::BigFloat) where {T,N}
-#     if !isfinite(x)
-#         value = T(x)
-#         return _MF{T,N}(ntuple(_ -> value, Val{N}()))
-#     elseif x > +floatmax(T)
-#         value = T(+Inf)
-#         return _MF{T,N}(ntuple(_ -> value, Val{N}()))
-#     elseif x < -floatmax(T)
-#         value = T(-Inf)
-#         return _MF{T,N}(ntuple(_ -> value, Val{N}()))
-#     else
-#         return setprecision(BigFloat, precision(x)) do
-#             setrounding(BigFloat, RoundNearest) do
-#                 _MF{T,N}(_extract_limbs(T, x, Val{N}()))
-#             end
-#         end
-#     end
-# end
-
-
 # @inline _extract_limbs(::Type{T}, x::BigInt, ::Val{0}) where {T} = ()
 # @inline _extract_limbs(::Type{T}, x::BigInt, ::Val{1}) where {T} = (T(x),)
 # @inline function _extract_limbs(::Type{T}, x::BigInt, ::Val{N}) where {T,N}
@@ -445,11 +505,6 @@ const _Fits64xN = Union{_Fits64x2,_Fits64x3}
 #         _MF{T,N}(BigFloat(x; precision=_full_precision(T)))
 #     end
 # end
-
-
-# @inline _MFV{M,T,N}(x::BigFloat) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
-# @inline _MFV{M,T,N}(x::BigInt) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
-# @inline _MFV{M,T,N}(x::Rational{U}) where {M,T,N,U} = _MFV{M,T,N}(_MF{T,N}(x))
 
 
 ########################################## CONVERSION FROM STRING AND IRRATIONAL
@@ -551,68 +606,6 @@ end
     err = fma(a, b, -prod)
     return (prod, err)
 end
-
-
-################################################################ RENORMALIZATION
-
-
-# Note: MultiFloats.renormalize is not exported because it is a
-# MultiFloat-specific operation. Users are expected to call it as
-# MultiFloats.renormalize(x).
-
-
-# # This function is needed to work around the following SIMD bug:
-# # https://github.com/eschnett/SIMD.jl/issues/115
-# @inline _ntuple_equal(x::NTuple{N,T}, y::NTuple{N,T}
-# ) where {N,T} = all(x .== y)
-# @inline _ntuple_equal(x::NTuple{N,Vec{M,T}}, y::NTuple{N,Vec{M,T}}
-# ) where {N,M,T} = all(all.(x .== y))
-
-
-# @inline function renormalize(xs::NTuple{N,T}) where {T,N}
-#     total = sum(xs)
-#     if !isfinite(total)
-#         return ntuple(_ -> total, Val{N}())
-#     end
-#     while true
-#         xs_new = _two_pass_renorm(Val{N}(), xs...)
-#         if _ntuple_equal(xs, xs_new)
-#             return xs
-#         else
-#             xs = xs_new
-#         end
-#     end
-# end
-
-
-# @inline _mask_each(
-#     mask::Vec{M,Bool}, x::NTuple{N,Vec{M,T}}, y::Vec{M,T}
-# ) where {M,T,N} = ntuple(i -> vifelse(mask, x[i], y), Val{N}())
-# @inline _mask_each(
-#     mask::Vec{M,Bool}, x::NTuple{N,Vec{M,T}}, y::NTuple{N,Vec{M,T}}
-# ) where {M,T,N} = ntuple(i -> vifelse(mask, x[i], y[i]), Val{N}())
-
-
-# @inline function renormalize(xs::NTuple{N,Vec{M,T}}) where {M,T,N}
-#     total = sum(xs)
-#     mask = isfinite(total)
-#     xs = _mask_each(mask, xs, zero(Vec{M,T}))
-#     while true
-#         xs_new = _two_pass_renorm(Val{N}(), xs...)
-#         if _ntuple_equal(xs, xs_new)
-#             return _mask_each(mask, xs, total)
-#         else
-#             xs = xs_new
-#         end
-#     end
-# end
-
-
-# @inline renormalize(x::_MF{T,N}) where {T,N} =
-#     _MF{T,N}(renormalize(x._limbs))
-# @inline renormalize(x::_MFV{M,T,N}) where {M,T,N} =
-#     _MFV{M,T,N}(renormalize(x._limbs))
-# @inline renormalize(x::T) where {T<:Real} = x
 
 
 ################################################### FLOATING-POINT INTROSPECTION
