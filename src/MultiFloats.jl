@@ -13,21 +13,27 @@ export MultiFloat, MultiFloatVec, PreciseMultiFloat, PreciseMultiFloatVec
 
 struct MultiFloat{T,N} <: AbstractFloat
     _limbs::NTuple{N,T}
+    @inline MultiFloat{T,N}(limbs::NTuple{N,T}) where {T,N} = new(limbs)
 end
 
 
 struct PreciseMultiFloat{T,N} <: AbstractFloat
     _limbs::NTuple{N,T}
+    @inline PreciseMultiFloat{T,N}(limbs::NTuple{N,T}) where {T,N} = new(limbs)
 end
 
 
 struct MultiFloatVec{M,T,N}
     _limbs::NTuple{N,Vec{M,T}}
+    @inline MultiFloatVec{M,T,N}(
+        limbs::NTuple{N,Vec{M,T}}) where {M,T,N} = new(limbs)
 end
 
 
 struct PreciseMultiFloatVec{M,T,N}
     _limbs::NTuple{N,Vec{M,T}}
+    @inline PreciseMultiFloatVec{M,T,N}(
+        limbs::NTuple{N,Vec{M,T}}) where {M,T,N} = new(limbs)
 end
 
 
@@ -341,6 +347,11 @@ const _Fits64xN = Union{_Fits64x2,_Fits64x3}
     _PMFV{M,_F64,N}(_PMFV{_F64,N}(x))
 
 
+# Construct MultiFloat vector from non-MultiFloat scalar.
+@inline _MFV{M,T,N}(x::Any) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
+@inline _PMFV{M,T,N}(x::Any) where {M,T,N} = _PMFV{M,T,N}(_PMF{T,N}(x))
+
+
 # Construct MultiFloat vector from multiple non-MultiFloat scalars.
 @inline _MFV{M,T,N}(xs::NTuple{M,Any}) where {M,T,N} =
     _MFV{M,T,N}(_MF{T,N}.(xs))
@@ -350,8 +361,12 @@ const _Fits64xN = Union{_Fits64x2,_Fits64x3}
     _PMFV{M,T,N}(_PMF{T,N}.(xs))
 @inline _PMFV{M,T,N}(xs::Vararg{Any,M}) where {M,T,N} =
     _PMFV{M,T,N}(_PMF{T,N}.(xs))
+_MFV{M,T,N}(xs::NTuple{K,Any}) where {M,T,N,K} =
+    error("MultiFloatVec constructor requires tuple of length $M.")
 _MFV{M,T,N}(xs::Vararg{Any,K}) where {M,T,N,K} =
     error("MultiFloatVec constructor requires 1 or $M arguments.")
+_PMFV{M,T,N}(xs::NTuple{K,Any}) where {M,T,N,K} =
+    error("PreciseMultiFloatVec constructor requires tuple of length $M.")
 _PMFV{M,T,N}(xs::Vararg{Any,K}) where {M,T,N,K} =
     error("PreciseMultiFloatVec constructor requires 1 or $M arguments.")
 
@@ -579,15 +594,7 @@ end
     ntuple(i -> a * x._limbs[i], Val{N}()))
 
 
-########################################################## ERROR-FREE ARITHMETIC
-
-
-@inline function fast_two_sum(a::T, b::T) where {T}
-    sum = a + b
-    b_prime = sum - a
-    b_err = b - b_prime
-    return (sum, b_err)
-end
+############################################################## ADDITION NETWORKS
 
 
 @inline function two_sum(a::T, b::T) where {T}
@@ -601,11 +608,233 @@ end
 end
 
 
+@inline function fast_two_sum(a::T, b::T) where {T}
+    sum = a + b
+    b_prime = sum - a
+    b_err = b - b_prime
+    return (sum, b_err)
+end
+
+
+@inline function mfadd(
+    x::NTuple{1,T},
+    y::NTuple{1,T},
+    ::Val{1},
+) where {T}
+    return (x[1] + y[1],)
+end
+
+
+@inline function mfadd(
+    x::NTuple{2,T},
+    y::NTuple{2,T},
+    ::Val{2},
+) where {T}
+    a, b = two_sum(x[1], y[1])
+    c, d = two_sum(x[2], y[2])
+    a, c = fast_two_sum(a, c)
+    b += d
+    b += c
+    a, b = fast_two_sum(a, b)
+    return (a, b)
+end
+
+
+@inline function mfadd(
+    x::NTuple{3,T},
+    y::NTuple{3,T},
+    ::Val{3},
+) where {T}
+    a, b = two_sum(x[1], y[1])
+    c, d = two_sum(x[2], y[2])
+    e, f = two_sum(x[3], y[3])
+    a, c = fast_two_sum(a, c)
+    b += f
+    d, e = two_sum(d, e)
+    a, d = fast_two_sum(a, d)
+    b, c = two_sum(b, c)
+    c += e
+    c, d = two_sum(c, d)
+    b, c = two_sum(b, c)
+    a, b = fast_two_sum(a, b)
+    c += d
+    b, c = fast_two_sum(b, c)
+    a, b = fast_two_sum(a, b)
+    return (a, b, c)
+end
+
+
+@inline function mfadd(
+    x::NTuple{4,T},
+    y::NTuple{4,T},
+    ::Val{4},
+) where {T}
+    a, b = two_sum(x[1], y[1])
+    c, d = two_sum(x[2], y[2])
+    e, f = two_sum(x[3], y[3])
+    g, h = two_sum(x[4], y[4])
+    a, c = fast_two_sum(a, c)
+    b += h
+    d, e = two_sum(d, e)
+    f, g = two_sum(f, g)
+    b, g = two_sum(b, g)
+    c, d = fast_two_sum(c, d)
+    e, f = two_sum(e, f)
+    a, c = fast_two_sum(a, c)
+    d, e = fast_two_sum(d, e)
+    b, d = two_sum(b, d)
+    c, g = fast_two_sum(c, g)
+    e += f
+    b, c = two_sum(b, c)
+    d, e = two_sum(d, e)
+    a, b = fast_two_sum(a, b)
+    c, d = two_sum(c, d)
+    e += g
+    b, c = fast_two_sum(b, c)
+    d, e = two_sum(d, e)
+    a, b = fast_two_sum(a, b)
+    c, d = fast_two_sum(c, d)
+    b, c = fast_two_sum(b, c)
+    d += e
+    a, b = fast_two_sum(a, b)
+    c, d = fast_two_sum(c, d)
+    b, c = fast_two_sum(b, c)
+    c, d = fast_two_sum(c, d)
+    return (a, b, c, d)
+end
+
+
+######################################################## MULTIPLICATION NETWORKS
+
+
 @inline function two_prod(a::T, b::T) where {T}
     prod = a * b
     err = fma(a, b, -prod)
     return (prod, err)
 end
+
+
+@inline function mfmul(
+    x::NTuple{1,T},
+    y::NTuple{1,T},
+    ::Val{1},
+) where {T}
+    return (x[1] * y[1],)
+end
+
+
+@inline function mfmul(
+    x::NTuple{2,T},
+    y::NTuple{2,T},
+    ::Val{2},
+) where {T}
+    p00, e00 = two_prod(x[1], y[1])
+    p01 = x[1] * y[2]
+    p10 = x[2] * y[1]
+    p01 += p10
+    e00 += p01
+    p00, e00 = fast_two_sum(p00, e00)
+    return (p00, e00)
+end
+
+
+@inline function mfmul(
+    x::NTuple{3,T},
+    y::NTuple{3,T},
+    ::Val{3},
+) where {T}
+    p00, e00 = two_prod(x[1], y[1])
+    p01, e01 = two_prod(x[1], y[2])
+    p10, e10 = two_prod(x[2], y[1])
+    p02 = x[1] * y[3]
+    p11 = x[2] * y[2]
+    p20 = x[3] * y[1]
+    p01, p10 = two_sum(p01, p10)
+    e01 += e10
+    p02 += p20
+    e00, p01 = two_sum(e00, p01)
+    p02 += p11
+    p00, e00 = fast_two_sum(p00, e00)
+    p01 += p10
+    e01 += p02
+    p01 += e01
+    e00, p01 = two_sum(e00, p01)
+    p00, e00 = fast_two_sum(p00, e00)
+    e00, p01 = fast_two_sum(e00, p01)
+    p00, e00 = fast_two_sum(p00, e00)
+    return (p00, e00, p01)
+end
+
+
+@inline function mfmul(
+    x::NTuple{4,T},
+    y::NTuple{4,T},
+    ::Val{4},
+) where {T}
+    p00, e00 = two_prod(x[1], y[1])
+    p01, e01 = two_prod(x[1], y[2])
+    p10, e10 = two_prod(x[2], y[1])
+    p02, e02 = two_prod(x[1], y[3])
+    p11, e11 = two_prod(x[2], y[2])
+    p20, e20 = two_prod(x[3], y[1])
+    p03 = x[1] * y[4]
+    p12 = x[2] * y[3]
+    p21 = x[3] * y[2]
+    p30 = x[4] * y[1]
+    p01, p10 = two_sum(p01, p10)
+    e01, e10 = two_sum(e01, e10)
+    p02, p20 = two_sum(p02, p20)
+    e02 += e20
+    p03 += p30
+    p12 += p21
+    e00, p01 = two_sum(e00, p01)
+    e01, p11 = two_sum(e01, p11)
+    e10 += e02
+    p20 += e11
+    p03 += p12
+    p00, e00 = fast_two_sum(p00, e00)
+    p01, p10 = fast_two_sum(p01, p10)
+    e01, p02 = two_sum(e01, p02)
+    e10 += p03
+    p11 += p20
+    p01, e01 = two_sum(p01, e01)
+    p10 += p11
+    e10 += p02
+    p10 += e01
+    p01, p10 = two_sum(p01, p10)
+    e00, p01 = two_sum(e00, p01)
+    p10 += e10
+    p00, e00 = fast_two_sum(p00, e00)
+    p01, p10 = two_sum(p01, p10)
+    e00, p01 = two_sum(e00, p01)
+    p00, e00 = fast_two_sum(p00, e00)
+    p01, p10 = fast_two_sum(p01, p10)
+    e00, p01 = fast_two_sum(e00, p01)
+    p00, e00 = fast_two_sum(p00, e00)
+    p01, p10 = fast_two_sum(p01, p10)
+    e00, p01 = fast_two_sum(e00, p01)
+    p01, p10 = fast_two_sum(p01, p10)
+    return (p00, e00, p01, p10)
+end
+
+
+########################################################### ARITHMETIC OPERATORS
+
+
+@inline Base.:+(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
+    _MF{T,N}(mfadd(x._limbs, y._limbs, Val{N}()))
+@inline Base.:+(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
+    _MFV{M,T,N}(mfadd(x._limbs, y._limbs, Val{N}()))
+
+
+@inline Base.:-(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = x + (-y)
+@inline Base.:-(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = x + (-y)
+
+
+@inline Base.:*(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
+    _MF{T,N}(mfmul(x._limbs, y._limbs, Val{N}()))
+@inline Base.:*(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
+    _MFV{M,T,N}(mfmul(x._limbs, y._limbs, Val{N}()))
 
 
 ################################################### FLOATING-POINT INTROSPECTION
