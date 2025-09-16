@@ -1,3 +1,9 @@
+# MultiFloats.jl v3.0 is coming soon!
+
+If you've found **MultiFloats.jl** looking for my [recent research](https://theory.stanford.edu/~aiken/publications/papers/cav25.pdf) on [fast high-precision floating-point arithmetic](https://theory.stanford.edu/~aiken/publications/papers/sc25.pdf), the algorithms described in those papers will be available in the upcoming major release of **MultiFloats.jl v3.0** alongside the new **MultiFloats C++** library with CUDA/HIP support. Stay tuned for significant performance and accuracy improvements!
+
+
+
 # MultiFloats.jl
 
 **Copyright © 2019-2025 by David K. Zhang. Released under the [MIT License][1].**
