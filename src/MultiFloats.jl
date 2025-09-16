@@ -279,93 +279,106 @@ const _Fits64 = Union{_Fits32,Int32,UInt32,Float32}
 
 
 @inline _MF{_F16,N}(x::_Fits16) where {N} = _MF{_F16,N}(_F16(x))
-@inline _PMF{_F16,N}(x::_Fits16) where {N} = _PMF{_F16,N}(_F16(x))
-@inline _MFV{M,_F16,N}(x::_Fits16) where {M,N} = _MFV{M,_F16,N}(_F16(x))
-@inline _PMFV{M,_F16,N}(x::_Fits16) where {M,N} = _PMFV{M,_F16,N}(_F16(x))
-
-
 @inline _MF{_F32,N}(x::_Fits32) where {N} = _MF{_F32,N}(_F32(x))
-@inline _PMF{_F32,N}(x::_Fits32) where {N} = _PMF{_F32,N}(_F32(x))
-@inline _MFV{M,_F32,N}(x::_Fits32) where {M,N} = _MFV{M,_F32,N}(_F32(x))
-@inline _PMFV{M,_F32,N}(x::_Fits32) where {M,N} = _PMFV{M,_F32,N}(_F32(x))
-
-
 @inline _MF{_F64,N}(x::_Fits64) where {N} = _MF{_F64,N}(_F64(x))
+@inline _PMF{_F16,N}(x::_Fits16) where {N} = _PMF{_F16,N}(_F16(x))
+@inline _PMF{_F32,N}(x::_Fits32) where {N} = _PMF{_F32,N}(_F32(x))
 @inline _PMF{_F64,N}(x::_Fits64) where {N} = _PMF{_F64,N}(_F64(x))
+@inline _MFV{M,_F16,N}(x::_Fits16) where {M,N} = _MFV{M,_F16,N}(_F16(x))
+@inline _MFV{M,_F32,N}(x::_Fits32) where {M,N} = _MFV{M,_F32,N}(_F32(x))
 @inline _MFV{M,_F64,N}(x::_Fits64) where {M,N} = _MFV{M,_F64,N}(_F64(x))
+@inline _PMFV{M,_F16,N}(x::_Fits16) where {M,N} = _PMFV{M,_F16,N}(_F16(x))
+@inline _PMFV{M,_F32,N}(x::_Fits32) where {M,N} = _PMFV{M,_F32,N}(_F32(x))
 @inline _PMFV{M,_F64,N}(x::_Fits64) where {M,N} = _PMFV{M,_F64,N}(_F64(x))
 
 
-# Int64, UInt64, Int128, and UInt128 cannot be directly converted to Float64
-# without losing precision, so they must be split into multiple components.
+@inline _split_impl(::Val{0}, ::Type, ::Integer) = ()
+@inline _split_impl(::Val{0}, ::Type, ::AbstractFloat) = ()
+@inline _split_impl(::Val{1}, ::Type{T}, x::Integer) where {T} = (T(x),)
+@inline _split_impl(::Val{1}, ::Type{T}, x::AbstractFloat) where {T} = (T(x),)
+
+@inline function _split_impl(::Val{N}, ::Type{T}, x::I) where {N,T,I<:Integer}
+    next_term = T(x)
+    remainder = reinterpret(signed(I), x - I(next_term))
+    return (next_term, _split_impl(Val{N - 1}(), T, remainder)...)
+end
+
+@inline function _split_impl(
+    ::Val{N},
+    ::Type{T},
+    x::F,
+) where {N,T,F<:AbstractFloat}
+    next_term = T(x)
+    remainder = x - F(next_term)
+    return (next_term, _split_impl(Val{N - 1}(), T, remainder)...)
+end
+
+@inline function _split(::Val{M}, ::Val{N}, ::Type{T}, x) where {M,N,T}
+    result = tuple(_split_impl(Val{min(M, N)}(), T, x)...,
+        ntuple(_ -> zero(T), Val{max(N - M, 0)}())...)
+    first_term = first(result)
+    return ifelse(isfinite(first_term), result,
+        ntuple(_ -> first_term, Val{N}()))
+end
 
 
-# @inline Float64x1(x::Int64) = Float64x1(Float64(x))
-# @inline Float64x1(x::UInt64) = Float64x1(Float64(x))
-# @inline Float64x1(x::Int128) = Float64x1(Float64(x))
-# @inline Float64x1(x::UInt128) = Float64x1(Float64(x))
+const _Fits16x2 = Union{Int16,UInt16}
+const _Fits16x3 = Union{Int32,UInt32,Float32}
+const _Fits16x4 = Union{Int64,UInt64,Float64,Int128,UInt128}
+const _Fits32x2 = Union{Int32,UInt32}
+const _Fits32x3 = Union{Int64,UInt64,Float64}
+const _Fits32x6 = Union{Int128,UInt128}
+const _Fits64x2 = Union{Int64,UInt64}
+const _Fits64x3 = Union{Int128,UInt128}
 
 
-# @inline function Float64x{N}(x::Int64) where {N}
-#     x0 = Float64(x)
-#     x1 = Float64(x - Int64(x0))
-#     return Float64x{N}((x0, x1, ntuple(_ -> 0.0, Val{N - 2}())...))
-# end
+@inline _split(::Val{N}, ::Type{_F16}, x::_Fits16x2) where {N} =
+    _split(Val{2}(), Val{N}(), _F16, x)
+@inline _split(::Val{N}, ::Type{_F16}, x::_Fits16x3) where {N} =
+    _split(Val{3}(), Val{N}(), _F16, x)
+@inline _split(::Val{N}, ::Type{_F16}, x::_Fits16x4) where {N} =
+    _split(Val{4}(), Val{N}(), _F16, x)
+@inline _split(::Val{N}, ::Type{_F32}, x::_Fits32x2) where {N} =
+    _split(Val{2}(), Val{N}(), _F32, x)
+@inline _split(::Val{N}, ::Type{_F32}, x::_Fits32x3) where {N} =
+    _split(Val{3}(), Val{N}(), _F32, x)
+@inline _split(::Val{N}, ::Type{_F32}, x::_Fits32x6) where {N} =
+    _split(Val{6}(), Val{N}(), _F32, x)
+@inline _split(::Val{N}, ::Type{_F64}, x::_Fits64x2) where {N} =
+    _split(Val{2}(), Val{N}(), _F64, x)
+@inline _split(::Val{N}, ::Type{_F64}, x::_Fits64x3) where {N} =
+    _split(Val{3}(), Val{N}(), _F64, x)
 
 
-# @inline function Float64x{N}(x::UInt64) where {N}
-#     x0 = Float64(x)
-#     x1 = Float64(reinterpret(Int64, x - UInt64(x0)))
-#     return Float64x{N}((x0, x1, ntuple(_ -> 0.0, Val{N - 2}())...))
-# end
+const _Fits16xN = Union{_Fits16x2,_Fits16x3,_Fits16x4}
+const _Fits32xN = Union{_Fits32x2,_Fits32x3,_Fits32x6}
+const _Fits64xN = Union{_Fits64x2,_Fits64x3}
 
 
-# @inline function Float64x2(x::Int128)
-#     x0 = Float64(x)
-#     x1 = Float64(x - Int128(x0))
-#     return Float64x2((x0, x1))
-# end
-
-
-# @inline function Float64x2(x::UInt128)
-#     x0 = Float64(x)
-#     x1 = Float64(reinterpret(Int128, x - UInt128(x0)))
-#     return Float64x2((x0, x1))
-# end
-
-
-# @inline function Float64x{N}(x::Int128) where {N}
-#     x0 = Float64(x)
-#     r1 = x - Int128(x0)
-#     x1 = Float64(r1)
-#     x2 = Float64(r1 - Int128(x1))
-#     return Float64x{N}((x0, x1, x2, ntuple(_ -> 0.0, Val{N - 3}())...))
-# end
-
-
-# @inline function Float64x{N}(x::UInt128) where {N}
-#     x0 = Float64(x)
-#     r1 = reinterpret(Int128, x - UInt128(x0))
-#     x1 = Float64(r1)
-#     x2 = Float64(r1 - Int128(x1))
-#     return Float64x{N}((x0, x1, x2, ntuple(_ -> 0.0, Val{N - 3}())...))
-# end
-
-
-# @inline _MFV{M,T,N}(x::Bool) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
-# @inline _MFV{M,T,N}(x::Int8) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
-# @inline _MFV{M,T,N}(x::Int16) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
-# @inline _MFV{M,T,N}(x::Int32) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
-# @inline _MFV{M,T,N}(x::Int64) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
-# @inline _MFV{M,T,N}(x::Int128) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
-# @inline _MFV{M,T,N}(x::UInt8) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
-# @inline _MFV{M,T,N}(x::UInt16) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
-# @inline _MFV{M,T,N}(x::UInt32) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
-# @inline _MFV{M,T,N}(x::UInt64) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
-# @inline _MFV{M,T,N}(x::UInt128) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
-# @inline _MFV{M,T,N}(x::Float16) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
-# @inline _MFV{M,T,N}(x::Float32) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
-# @inline _MFV{M,T,N}(x::Float64) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
+@inline _MF{_F16,N}(x::_Fits16xN) where {N} =
+    _MF{_F16,N}(_split(Val{N}(), _F16, x))
+@inline _MF{_F32,N}(x::_Fits32xN) where {N} =
+    _MF{_F32,N}(_split(Val{N}(), _F32, x))
+@inline _MF{_F64,N}(x::_Fits64xN) where {N} =
+    _MF{_F64,N}(_split(Val{N}(), _F64, x))
+@inline _PMF{_F16,N}(x::_Fits16xN) where {N} =
+    _PMF{_F16,N}(_split(Val{N}(), _F16, x))
+@inline _PMF{_F32,N}(x::_Fits32xN) where {N} =
+    _PMF{_F32,N}(_split(Val{N}(), _F32, x))
+@inline _PMF{_F64,N}(x::_Fits64xN) where {N} =
+    _PMF{_F64,N}(_split(Val{N}(), _F64, x))
+@inline _MFV{M,_F16,N}(x::_Fits16xN) where {M,N} =
+    _MFV{M,_F16,N}(_MF{_F16,N}(x))
+@inline _MFV{M,_F32,N}(x::_Fits32xN) where {M,N} =
+    _MFV{M,_F32,N}(_MF{_F32,N}(x))
+@inline _MFV{M,_F64,N}(x::_Fits64xN) where {M,N} =
+    _MFV{M,_F64,N}(_MF{_F64,N}(x))
+@inline _PMFV{M,_F16,N}(x::_Fits16xN) where {M,N} =
+    _PMFV{M,_F16,N}(_PMFV{_F16,N}(x))
+@inline _PMFV{M,_F32,N}(x::_Fits32xN) where {M,N} =
+    _PMFV{M,_F32,N}(_PMFV{_F32,N}(x))
+@inline _PMFV{M,_F64,N}(x::_Fits64xN) where {M,N} =
+    _PMFV{M,_F64,N}(_PMFV{_F64,N}(x))
 
 
 ###################################################### CONVERSION FROM BIG TYPES
