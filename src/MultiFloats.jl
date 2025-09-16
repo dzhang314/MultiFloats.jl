@@ -274,8 +274,8 @@ const _F16 = Float16
 const _F32 = Float32
 const _F64 = Float64
 const _Fits16 = Union{Bool,Int8,UInt8}
-const _Fits32 = Union{_FitsInF16,Int16,UInt16,Float16}
-const _Fits64 = Union{_FitsInF32,Int32,UInt32,Float32}
+const _Fits32 = Union{_Fits16,Int16,UInt16,Float16}
+const _Fits64 = Union{_Fits32,Int32,UInt32,Float32}
 
 
 @inline _MF{_F16,N}(x::_Fits16) where {N} = _MF{_F16,N}(_F16(x))
