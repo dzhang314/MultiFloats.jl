@@ -156,10 +156,6 @@ const Vec8PreciseFloat64x4 = PreciseMultiFloatVec{8,Float64,4}
 ################################################################### CONSTRUCTORS
 
 
-# TODO: Add constructors for PreciseMultiFloat types.
-# TODO: Add converting constructors between MultiFloat and PreciseMultiFloat.
-
-
 # Construct from a single limb: pad remaining limbs with zeroes.
 @inline _MF{T,N}(x::T) where {T,N} = _MF{T,N}(
     ntuple(i -> ifelse(isone(i), x, zero(T)), Val{N}()))
@@ -221,6 +217,126 @@ const Vec8PreciseFloat64x4 = PreciseMultiFloatVec{8,Float64,4}
     ntuple(j -> Vec{M,T}(ntuple(i -> xs[i]._limbs[j], Val{M}())), Val{N}()))
 
 
+################################################ CONVERSION FROM PRIMITIVE TYPES
+
+
+@inline _split_impl(::Val{0}, ::Type, ::Integer) = ()
+@inline _split_impl(::Val{0}, ::Type, ::AbstractFloat) = ()
+@inline _split_impl(::Val{1}, ::Type{T}, x::Integer) where {T} = (T(x),)
+@inline _split_impl(::Val{1}, ::Type{T}, x::AbstractFloat) where {T} = (T(x),)
+
+@inline function _split_impl(::Val{N}, ::Type{T}, x::I) where {N,T,I<:Integer}
+    next_limb = T(x)
+    remainder = reinterpret(signed(I), x - I(next_limb))
+    return (next_limb, _split_impl(Val{N - 1}(), T, remainder)...)
+end
+
+@inline function _split_impl(
+    ::Val{N},
+    ::Type{T},
+    x::F,
+) where {N,T,F<:AbstractFloat}
+    next_limb = T(x)
+    remainder = x - F(next_limb)
+    return (next_limb, _split_impl(Val{N - 1}(), T, remainder)...)
+end
+
+@inline function _split(::Val{M}, ::Val{N}, ::Type{T}, x) where {M,N,T}
+    result = tuple(_split_impl(Val{min(M, N)}(), T, x)...,
+        ntuple(_ -> zero(T), Val{max(N - M, 0)}())...)
+    first_limb = first(result)
+    return ifelse(isfinite(first_limb), result,
+        ntuple(_ -> first_limb, Val{N}()))
+end
+
+
+const _F16 = Float16
+const _Fits16 = Union{Bool,Int8,UInt8}
+const _Fits16x2 = Union{Int16,UInt16}
+const _Fits16x3 = Union{Int32,UInt32,Float32}
+const _Fits16x4 = Union{Int64,UInt64,Float64,Int128,UInt128}
+const _Fits16xN = Union{_Fits16x2,_Fits16x3,_Fits16x4}
+
+const _F32 = Float32
+const _Fits32 = Union{Bool,Int8,UInt8,Int16,UInt16,Float16}
+const _Fits32x2 = Union{Int32,UInt32}
+const _Fits32x3 = Union{Int64,UInt64,Float64}
+const _Fits32x6 = Union{Int128,UInt128}
+const _Fits32xN = Union{_Fits32x2,_Fits32x3,_Fits32x6}
+
+const _F64 = Float64
+const _Fits64 = Union{Bool,Int8,UInt8,Int16,UInt16,Float16,Int32,UInt32,Float32}
+const _Fits64x2 = Union{Int64,UInt64}
+const _Fits64x3 = Union{Int128,UInt128}
+const _Fits64xN = Union{_Fits64x2,_Fits64x3}
+
+
+@inline _split(::Val{N}, ::Type{_F16}, x::_Fits16x2) where {N} =
+    _split(Val{2}(), Val{N}(), _F16, x)
+@inline _split(::Val{N}, ::Type{_F16}, x::_Fits16x3) where {N} =
+    _split(Val{3}(), Val{N}(), _F16, x)
+@inline _split(::Val{N}, ::Type{_F16}, x::_Fits16x4) where {N} =
+    _split(Val{4}(), Val{N}(), _F16, x)
+@inline _split(::Val{N}, ::Type{_F32}, x::_Fits32x2) where {N} =
+    _split(Val{2}(), Val{N}(), _F32, x)
+@inline _split(::Val{N}, ::Type{_F32}, x::_Fits32x3) where {N} =
+    _split(Val{3}(), Val{N}(), _F32, x)
+@inline _split(::Val{N}, ::Type{_F32}, x::_Fits32x6) where {N} =
+    _split(Val{6}(), Val{N}(), _F32, x)
+@inline _split(::Val{N}, ::Type{_F64}, x::_Fits64x2) where {N} =
+    _split(Val{2}(), Val{N}(), _F64, x)
+@inline _split(::Val{N}, ::Type{_F64}, x::_Fits64x3) where {N} =
+    _split(Val{3}(), Val{N}(), _F64, x)
+
+
+# Construct MultiFloat scalar from primitive scalar (single limb).
+@inline _MF{_F16,N}(x::_Fits16) where {N} = _MF{_F16,N}(_F16(x))
+@inline _MF{_F32,N}(x::_Fits32) where {N} = _MF{_F32,N}(_F32(x))
+@inline _MF{_F64,N}(x::_Fits64) where {N} = _MF{_F64,N}(_F64(x))
+@inline _PMF{_F16,N}(x::_Fits16) where {N} = _PMF{_F16,N}(_F16(x))
+@inline _PMF{_F32,N}(x::_Fits32) where {N} = _PMF{_F32,N}(_F32(x))
+@inline _PMF{_F64,N}(x::_Fits64) where {N} = _PMF{_F64,N}(_F64(x))
+
+
+# Construct MultiFloat vector from primitive scalar (single limb).
+@inline _MFV{M,_F16,N}(x::_Fits16) where {M,N} = _MFV{M,_F16,N}(_F16(x))
+@inline _MFV{M,_F32,N}(x::_Fits32) where {M,N} = _MFV{M,_F32,N}(_F32(x))
+@inline _MFV{M,_F64,N}(x::_Fits64) where {M,N} = _MFV{M,_F64,N}(_F64(x))
+@inline _PMFV{M,_F16,N}(x::_Fits16) where {M,N} = _PMFV{M,_F16,N}(_F16(x))
+@inline _PMFV{M,_F32,N}(x::_Fits32) where {M,N} = _PMFV{M,_F32,N}(_F32(x))
+@inline _PMFV{M,_F64,N}(x::_Fits64) where {M,N} = _PMFV{M,_F64,N}(_F64(x))
+
+
+# Construct MultiFloat scalar from primitive scalar (multi-limb).
+@inline _MF{_F16,N}(x::_Fits16xN) where {N} =
+    _MF{_F16,N}(_split(Val{N}(), _F16, x))
+@inline _MF{_F32,N}(x::_Fits32xN) where {N} =
+    _MF{_F32,N}(_split(Val{N}(), _F32, x))
+@inline _MF{_F64,N}(x::_Fits64xN) where {N} =
+    _MF{_F64,N}(_split(Val{N}(), _F64, x))
+@inline _PMF{_F16,N}(x::_Fits16xN) where {N} =
+    _PMF{_F16,N}(_split(Val{N}(), _F16, x))
+@inline _PMF{_F32,N}(x::_Fits32xN) where {N} =
+    _PMF{_F32,N}(_split(Val{N}(), _F32, x))
+@inline _PMF{_F64,N}(x::_Fits64xN) where {N} =
+    _PMF{_F64,N}(_split(Val{N}(), _F64, x))
+
+
+# Construct MultiFloat vector from primitive scalar (multi-limb).
+@inline _MFV{M,_F16,N}(x::_Fits16xN) where {M,N} =
+    _MFV{M,_F16,N}(_MF{_F16,N}(x))
+@inline _MFV{M,_F32,N}(x::_Fits32xN) where {M,N} =
+    _MFV{M,_F32,N}(_MF{_F32,N}(x))
+@inline _MFV{M,_F64,N}(x::_Fits64xN) where {M,N} =
+    _MFV{M,_F64,N}(_MF{_F64,N}(x))
+@inline _PMFV{M,_F16,N}(x::_Fits16xN) where {M,N} =
+    _PMFV{M,_F16,N}(_PMFV{_F16,N}(x))
+@inline _PMFV{M,_F32,N}(x::_Fits32xN) where {M,N} =
+    _PMFV{M,_F32,N}(_PMFV{_F32,N}(x))
+@inline _PMFV{M,_F64,N}(x::_Fits64xN) where {M,N} =
+    _PMFV{M,_F64,N}(_PMFV{_F64,N}(x))
+
+
 ################################################################ VECTOR INDEXING
 
 
@@ -265,120 +381,6 @@ const Vec8PreciseFloat64x4 = PreciseMultiFloatVec{8,Float64,4}
 
 # @inline mfvscatter(x::_MFV{M,T,N}, array::Array{_MF{T,N},D}, index::Vec{M,I}
 # ) where {M,T,N,D,I<:Integer} = mfvscatter(x, pointer(array), index - one(I))
-
-
-################################################ CONVERSION FROM PRIMITIVE TYPES
-
-
-const _F16 = Float16
-const _F32 = Float32
-const _F64 = Float64
-const _Fits16 = Union{Bool,Int8,UInt8}
-const _Fits32 = Union{_Fits16,Int16,UInt16,Float16}
-const _Fits64 = Union{_Fits32,Int32,UInt32,Float32}
-
-
-@inline _MF{_F16,N}(x::_Fits16) where {N} = _MF{_F16,N}(_F16(x))
-@inline _MF{_F32,N}(x::_Fits32) where {N} = _MF{_F32,N}(_F32(x))
-@inline _MF{_F64,N}(x::_Fits64) where {N} = _MF{_F64,N}(_F64(x))
-@inline _PMF{_F16,N}(x::_Fits16) where {N} = _PMF{_F16,N}(_F16(x))
-@inline _PMF{_F32,N}(x::_Fits32) where {N} = _PMF{_F32,N}(_F32(x))
-@inline _PMF{_F64,N}(x::_Fits64) where {N} = _PMF{_F64,N}(_F64(x))
-@inline _MFV{M,_F16,N}(x::_Fits16) where {M,N} = _MFV{M,_F16,N}(_F16(x))
-@inline _MFV{M,_F32,N}(x::_Fits32) where {M,N} = _MFV{M,_F32,N}(_F32(x))
-@inline _MFV{M,_F64,N}(x::_Fits64) where {M,N} = _MFV{M,_F64,N}(_F64(x))
-@inline _PMFV{M,_F16,N}(x::_Fits16) where {M,N} = _PMFV{M,_F16,N}(_F16(x))
-@inline _PMFV{M,_F32,N}(x::_Fits32) where {M,N} = _PMFV{M,_F32,N}(_F32(x))
-@inline _PMFV{M,_F64,N}(x::_Fits64) where {M,N} = _PMFV{M,_F64,N}(_F64(x))
-
-
-@inline _split_impl(::Val{0}, ::Type, ::Integer) = ()
-@inline _split_impl(::Val{0}, ::Type, ::AbstractFloat) = ()
-@inline _split_impl(::Val{1}, ::Type{T}, x::Integer) where {T} = (T(x),)
-@inline _split_impl(::Val{1}, ::Type{T}, x::AbstractFloat) where {T} = (T(x),)
-
-@inline function _split_impl(::Val{N}, ::Type{T}, x::I) where {N,T,I<:Integer}
-    next_term = T(x)
-    remainder = reinterpret(signed(I), x - I(next_term))
-    return (next_term, _split_impl(Val{N - 1}(), T, remainder)...)
-end
-
-@inline function _split_impl(
-    ::Val{N},
-    ::Type{T},
-    x::F,
-) where {N,T,F<:AbstractFloat}
-    next_term = T(x)
-    remainder = x - F(next_term)
-    return (next_term, _split_impl(Val{N - 1}(), T, remainder)...)
-end
-
-@inline function _split(::Val{M}, ::Val{N}, ::Type{T}, x) where {M,N,T}
-    result = tuple(_split_impl(Val{min(M, N)}(), T, x)...,
-        ntuple(_ -> zero(T), Val{max(N - M, 0)}())...)
-    first_term = first(result)
-    return ifelse(isfinite(first_term), result,
-        ntuple(_ -> first_term, Val{N}()))
-end
-
-
-const _Fits16x2 = Union{Int16,UInt16}
-const _Fits16x3 = Union{Int32,UInt32,Float32}
-const _Fits16x4 = Union{Int64,UInt64,Float64,Int128,UInt128}
-const _Fits32x2 = Union{Int32,UInt32}
-const _Fits32x3 = Union{Int64,UInt64,Float64}
-const _Fits32x6 = Union{Int128,UInt128}
-const _Fits64x2 = Union{Int64,UInt64}
-const _Fits64x3 = Union{Int128,UInt128}
-
-
-@inline _split(::Val{N}, ::Type{_F16}, x::_Fits16x2) where {N} =
-    _split(Val{2}(), Val{N}(), _F16, x)
-@inline _split(::Val{N}, ::Type{_F16}, x::_Fits16x3) where {N} =
-    _split(Val{3}(), Val{N}(), _F16, x)
-@inline _split(::Val{N}, ::Type{_F16}, x::_Fits16x4) where {N} =
-    _split(Val{4}(), Val{N}(), _F16, x)
-@inline _split(::Val{N}, ::Type{_F32}, x::_Fits32x2) where {N} =
-    _split(Val{2}(), Val{N}(), _F32, x)
-@inline _split(::Val{N}, ::Type{_F32}, x::_Fits32x3) where {N} =
-    _split(Val{3}(), Val{N}(), _F32, x)
-@inline _split(::Val{N}, ::Type{_F32}, x::_Fits32x6) where {N} =
-    _split(Val{6}(), Val{N}(), _F32, x)
-@inline _split(::Val{N}, ::Type{_F64}, x::_Fits64x2) where {N} =
-    _split(Val{2}(), Val{N}(), _F64, x)
-@inline _split(::Val{N}, ::Type{_F64}, x::_Fits64x3) where {N} =
-    _split(Val{3}(), Val{N}(), _F64, x)
-
-
-const _Fits16xN = Union{_Fits16x2,_Fits16x3,_Fits16x4}
-const _Fits32xN = Union{_Fits32x2,_Fits32x3,_Fits32x6}
-const _Fits64xN = Union{_Fits64x2,_Fits64x3}
-
-
-@inline _MF{_F16,N}(x::_Fits16xN) where {N} =
-    _MF{_F16,N}(_split(Val{N}(), _F16, x))
-@inline _MF{_F32,N}(x::_Fits32xN) where {N} =
-    _MF{_F32,N}(_split(Val{N}(), _F32, x))
-@inline _MF{_F64,N}(x::_Fits64xN) where {N} =
-    _MF{_F64,N}(_split(Val{N}(), _F64, x))
-@inline _PMF{_F16,N}(x::_Fits16xN) where {N} =
-    _PMF{_F16,N}(_split(Val{N}(), _F16, x))
-@inline _PMF{_F32,N}(x::_Fits32xN) where {N} =
-    _PMF{_F32,N}(_split(Val{N}(), _F32, x))
-@inline _PMF{_F64,N}(x::_Fits64xN) where {N} =
-    _PMF{_F64,N}(_split(Val{N}(), _F64, x))
-@inline _MFV{M,_F16,N}(x::_Fits16xN) where {M,N} =
-    _MFV{M,_F16,N}(_MF{_F16,N}(x))
-@inline _MFV{M,_F32,N}(x::_Fits32xN) where {M,N} =
-    _MFV{M,_F32,N}(_MF{_F32,N}(x))
-@inline _MFV{M,_F64,N}(x::_Fits64xN) where {M,N} =
-    _MFV{M,_F64,N}(_MF{_F64,N}(x))
-@inline _PMFV{M,_F16,N}(x::_Fits16xN) where {M,N} =
-    _PMFV{M,_F16,N}(_PMFV{_F16,N}(x))
-@inline _PMFV{M,_F32,N}(x::_Fits32xN) where {M,N} =
-    _PMFV{M,_F32,N}(_PMFV{_F32,N}(x))
-@inline _PMFV{M,_F64,N}(x::_Fits64xN) where {M,N} =
-    _PMFV{M,_F64,N}(_PMFV{_F64,N}(x))
 
 
 ###################################################### CONVERSION FROM BIG TYPES
