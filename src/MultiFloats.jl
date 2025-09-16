@@ -201,10 +201,11 @@ const Vec8PreciseFloat64x4 = PreciseMultiFloatVec{8,Float64,4}
 @inline _PMFV{M,T,N}(x::T) where {M,T,N} = _PMFV{M,T,N}(Vec{M,T}(x))
 @inline _MFV{M,T,N}(x::_MF{T,N}) where {M,T,N} = _MFV{M,T,N}(
     ntuple(i -> Vec{M,T}(x._limbs[i]), Val{N}()))
-@inline _MFV{1,T,N}(x::_MF{T,N}) where {T,N} = _MFV{1,T,N}(
-    ntuple(i -> Vec{1,T}(x._limbs[i]), Val{N}()))
 @inline _PMFV{M,T,N}(x::_PMF{T,N}) where {M,T,N} = _PMFV{M,T,N}(
     ntuple(i -> Vec{M,T}(x._limbs[i]), Val{N}()))
+# This method resolves ambiguity with the Vararg constructor when M == 1.
+@inline _MFV{1,T,N}(x::_MF{T,N}) where {T,N} = _MFV{1,T,N}(
+    ntuple(i -> Vec{1,T}(x._limbs[i]), Val{N}()))
 @inline _PMFV{1,T,N}(x::_PMF{T,N}) where {T,N} = _PMFV{1,T,N}(
     ntuple(i -> Vec{1,T}(x._limbs[i]), Val{N}()))
 
@@ -269,19 +270,30 @@ const Vec8PreciseFloat64x4 = PreciseMultiFloatVec{8,Float64,4}
 ################################################ CONVERSION FROM PRIMITIVE TYPES
 
 
-# TODO: Add converting constructors for PreciseMultiFloat types.
+const _F16 = Float16
+const _F32 = Float32
+const _F64 = Float64
+const _Fits16 = Union{Bool,Int8,UInt8}
+const _Fits32 = Union{_FitsInF16,Int16,UInt16,Float16}
+const _Fits64 = Union{_FitsInF32,Int32,UInt32,Float32}
 
 
-# Bool, Int8, UInt8, Int16, UInt16, Float16, Int32, UInt32, and Float32
-# can be directly converted to Float64 without losing precision.
+@inline _MF{_F16,N}(x::_Fits16) where {N} = _MF{_F16,N}(_F16(x))
+@inline _PMF{_F16,N}(x::_Fits16) where {N} = _PMF{_F16,N}(_F16(x))
+@inline _MFV{M,_F16,N}(x::_Fits16) where {M,N} = _MFV{M,_F16,N}(_F16(x))
+@inline _PMFV{M,_F16,N}(x::_Fits16) where {M,N} = _PMFV{M,_F16,N}(_F16(x))
 
 
-@inline Float64x{N}(
-    x::Union{Bool,Int8,Int16,Int32,UInt8,UInt16,UInt32,Float16,Float32},
-) where {N} = Float64x{N}(Float64(x))
-@inline PreciseFloat64x{N}(
-    x::Union{Bool,Int8,Int16,Int32,UInt8,UInt16,UInt32,Float16,Float32},
-) where {N} = PreciseFloat64x{N}(Float64(x))
+@inline _MF{_F32,N}(x::_Fits32) where {N} = _MF{_F32,N}(_F32(x))
+@inline _PMF{_F32,N}(x::_Fits32) where {N} = _PMF{_F32,N}(_F32(x))
+@inline _MFV{M,_F32,N}(x::_Fits32) where {M,N} = _MFV{M,_F32,N}(_F32(x))
+@inline _PMFV{M,_F32,N}(x::_Fits32) where {M,N} = _PMFV{M,_F32,N}(_F32(x))
+
+
+@inline _MF{_F64,N}(x::_Fits64) where {N} = _MF{_F64,N}(_F64(x))
+@inline _PMF{_F64,N}(x::_Fits64) where {N} = _PMF{_F64,N}(_F64(x))
+@inline _MFV{M,_F64,N}(x::_Fits64) where {M,N} = _MFV{M,_F64,N}(_F64(x))
+@inline _PMFV{M,_F64,N}(x::_Fits64) where {M,N} = _PMFV{M,_F64,N}(_F64(x))
 
 
 # Int64, UInt64, Int128, and UInt128 cannot be directly converted to Float64
