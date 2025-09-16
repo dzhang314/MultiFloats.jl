@@ -156,34 +156,51 @@ const Vec8PreciseFloat64x4 = PreciseMultiFloatVec{8,Float64,4}
 ################################################################### CONSTRUCTORS
 
 
-# Construct from a single limb: pad remaining limbs with zeroes.
+# Construct MultiFloat scalar from single scalar limb.
 @inline _MF{T,N}(x::T) where {T,N} = _MF{T,N}(
     ntuple(i -> ifelse(isone(i), x, zero(T)), Val{N}()))
 @inline _PMF{T,N}(x::T) where {T,N} = _PMF{T,N}(
     ntuple(i -> ifelse(isone(i), x, zero(T)), Val{N}()))
+
+
+# Construct MultiFloat vector from single vector limb (SIMD.Vec).
 @inline _MFV{M,T,N}(x::Vec{M,T}) where {M,T,N} = _MFV{M,T,N}(
     ntuple(i -> ifelse(isone(i), x, zero(Vec{M,T})), Val{N}()))
 @inline _PMFV{M,T,N}(x::Vec{M,T}) where {M,T,N} = _PMFV{M,T,N}(
     ntuple(i -> ifelse(isone(i), x, zero(Vec{M,T})), Val{N}()))
+
+
+# Construct MultiFloat vector from single scalar limb.
+@inline _MFV{M,T,N}(x::T) where {M,T,N} = _MFV{M,T,N}(Vec{M,T}(x))
+@inline _PMFV{M,T,N}(x::T) where {M,T,N} = _PMFV{M,T,N}(Vec{M,T}(x))
+
+
+# Construct MultiFloat vector from single vector limb (NTuple/Vararg).
 @inline _MFV{M,T,N}(x::NTuple{M,T}) where {M,T,N} = _MFV{M,T,N}(Vec{M,T}(x))
 @inline _MFV{M,T,N}(x::Vararg{T,M}) where {M,T,N} = _MFV{M,T,N}(Vec{M,T}(x))
 @inline _PMFV{M,T,N}(x::NTuple{M,T}) where {M,T,N} = _PMFV{M,T,N}(Vec{M,T}(x))
 @inline _PMFV{M,T,N}(x::Vararg{T,M}) where {M,T,N} = _PMFV{M,T,N}(Vec{M,T}(x))
 
 
-# Construct from multiple limbs: truncate or pad with zeroes.
+# Construct MultiFloat scalar from MultiFloat scalar.
 @inline _MF{T,N1}(x::_GMF{T,N2}) where {T,N1,N2} = _MF{T,N1}(
     tuple(ntuple(i -> x._limbs[i], Val{min(N1, N2)}())...,
         ntuple(_ -> zero(T), Val{max(N1 - N2, 0)}())...))
 @inline _PMF{T,N1}(x::_GMF{T,N2}) where {T,N1,N2} = _PMF{T,N1}(
     tuple(ntuple(i -> x._limbs[i], Val{min(N1, N2)}())...,
         ntuple(_ -> zero(T), Val{max(N1 - N2, 0)}())...))
+
+
+# Construct MultiFloat vector from MultiFloat scalar.
 @inline _MFV{M,T,N1}(x::_GMF{T,N2}) where {M,T,N1,N2} = _MFV{M,T,N1}(
     tuple(ntuple(i -> Vec{M,T}(x._limbs[i]), Val{min(N1, N2)}())...,
         ntuple(_ -> zero(Vec{M,T}), Val{max(N1 - N2, 0)}())...))
 @inline _PMFV{M,T,N1}(x::_GMF{T,N2}) where {M,T,N1,N2} = _PMFV{M,T,N1}(
     tuple(ntuple(i -> Vec{M,T}(x._limbs[i]), Val{min(N1, N2)}())...,
         ntuple(_ -> zero(Vec{M,T}), Val{max(N1 - N2, 0)}())...))
+
+
+# Construct MultiFloat vector from MultiFloat vector.
 @inline _MFV{M,T,N1}(x::_GMFV{M,T,N2}) where {M,T,N1,N2} = _MFV{M,T,N1}(
     tuple(ntuple(i -> x._limbs[i], Val{min(N1, N2)}())...,
         ntuple(_ -> zero(Vec{M,T}), Val{max(N1 - N2, 0)}())...))
@@ -192,21 +209,7 @@ const Vec8PreciseFloat64x4 = PreciseMultiFloatVec{8,Float64,4}
         ntuple(_ -> zero(Vec{M,T}), Val{max(N1 - N2, 0)}())...))
 
 
-# Construct vector from scalar: broadcast.
-@inline _MFV{M,T,N}(x::T) where {M,T,N} = _MFV{M,T,N}(Vec{M,T}(x))
-@inline _PMFV{M,T,N}(x::T) where {M,T,N} = _PMFV{M,T,N}(Vec{M,T}(x))
-@inline _MFV{M,T,N}(x::_MF{T,N}) where {M,T,N} = _MFV{M,T,N}(
-    ntuple(i -> Vec{M,T}(x._limbs[i]), Val{N}()))
-@inline _PMFV{M,T,N}(x::_PMF{T,N}) where {M,T,N} = _PMFV{M,T,N}(
-    ntuple(i -> Vec{M,T}(x._limbs[i]), Val{N}()))
-# This method resolves ambiguity with the Vararg constructor when M == 1.
-@inline _MFV{1,T,N}(x::_MF{T,N}) where {T,N} = _MFV{1,T,N}(
-    ntuple(i -> Vec{1,T}(x._limbs[i]), Val{N}()))
-@inline _PMFV{1,T,N}(x::_PMF{T,N}) where {T,N} = _PMFV{1,T,N}(
-    ntuple(i -> Vec{1,T}(x._limbs[i]), Val{N}()))
-
-
-# Construct vector from tuple of scalars: transpose.
+# Construct MultiFloat vector from multiple MultiFloat scalars (NTuple/Vararg).
 @inline _MFV{M,T,N}(xs::NTuple{M,_GMF{T,N}}) where {M,T,N} = _MFV{M,T,N}(
     ntuple(j -> Vec{M,T}(ntuple(i -> xs[i]._limbs[j], Val{M}())), Val{N}()))
 @inline _MFV{M,T,N}(xs::Vararg{_GMF{T,N},M}) where {M,T,N} = _MFV{M,T,N}(
@@ -307,7 +310,7 @@ const _Fits64xN = Union{_Fits64x2,_Fits64x3}
 @inline _PMFV{M,_F64,N}(x::_Fits64) where {M,N} = _PMFV{M,_F64,N}(_F64(x))
 
 
-# Construct MultiFloat scalar from primitive scalar (multi-limb).
+# Construct MultiFloat scalar from primitive scalar (multiple limbs).
 @inline _MF{_F16,N}(x::_Fits16xN) where {N} =
     _MF{_F16,N}(_split(Val{N}(), _F16, x))
 @inline _MF{_F32,N}(x::_Fits32xN) where {N} =
@@ -322,7 +325,7 @@ const _Fits64xN = Union{_Fits64x2,_Fits64x3}
     _PMF{_F64,N}(_split(Val{N}(), _F64, x))
 
 
-# Construct MultiFloat vector from primitive scalar (multi-limb).
+# Construct MultiFloat vector from primitive scalar (multiple limbs).
 @inline _MFV{M,_F16,N}(x::_Fits16xN) where {M,N} =
     _MFV{M,_F16,N}(_MF{_F16,N}(x))
 @inline _MFV{M,_F32,N}(x::_Fits32xN) where {M,N} =
@@ -474,6 +477,33 @@ const _Fits64xN = Union{_Fits64x2,_Fits64x3}
 
 
 # _MFV{M,T,N}(x::Irrational) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
+
+
+############################################################## SIGN MANIPULATION
+
+
+@inline Base.:+(x::_MF{T,N}) where {T,N} = _MF{T,N}(
+    ntuple(i -> +x._limbs[i], Val{N}()))
+@inline Base.:+(x::_PMF{T,N}) where {T,N} = _PMF{T,N}(
+    ntuple(i -> +x._limbs[i], Val{N}()))
+@inline Base.:+(x::_MFV{M,T,N}) where {M,T,N} = _MFV{M,T,N}(
+    ntuple(i -> +x._limbs[i], Val{N}()))
+@inline Base.:+(x::_PMFV{M,T,N}) where {M,T,N} = _PMFV{M,T,N}(
+    ntuple(i -> +x._limbs[i], Val{N}()))
+
+
+@inline Base.:-(x::_MF{T,N}) where {T,N} = _MF{T,N}(
+    ntuple(i -> -x._limbs[i], Val{N}()))
+@inline Base.:-(x::_PMF{T,N}) where {T,N} = _PMF{T,N}(
+    ntuple(i -> -x._limbs[i], Val{N}()))
+@inline Base.:-(x::_MFV{M,T,N}) where {M,T,N} = _MFV{M,T,N}(
+    ntuple(i -> -x._limbs[i], Val{N}()))
+@inline Base.:-(x::_PMFV{M,T,N}) where {M,T,N} = _PMFV{M,T,N}(
+    ntuple(i -> -x._limbs[i], Val{N}()))
+
+
+@inline Base.signbit(x::_GMF{T,N}) where {T,N} = signbit(first(x._limbs))
+@inline Base.signbit(x::_GMFV{M,T,N}) where {M,T,N} = signbit(first(x._limbs))
 
 
 ######################################################################## SCALING

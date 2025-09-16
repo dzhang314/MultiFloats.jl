@@ -7,34 +7,6 @@ using SIMD: Vec
 const ENABLE_RUNTIME_ASSERTIONS = true
 
 
-################################################################### CONSTRUCTORS
-
-
-@inline MultiFloat{T,N}(x::T) where {T,N} =
-    MultiFloat{T,N}(ntuple(i -> ifelse(i == 1, x, zero(T)), Val{N}()))
-
-@inline PreciseMultiFloat{T,N}(x::T) where {T,N} =
-    PreciseMultiFloat{T,N}(ntuple(i -> ifelse(i == 1, x, zero(T)), Val{N}()))
-
-@inline MultiFloatVec{M,T,N}(x::Vec{M,T}) where {M,T,N} =
-    MultiFloatVec{M,T,N}(ntuple(
-        i -> ifelse(i == 1, x, zero(Vec{M,T})), Val{N}()))
-
-@inline PreciseMultiFloatVec{M,T,N}(x::Vec{M,T}) where {M,T,N} =
-    PreciseMultiFloatVec{M,T,N}(ntuple(
-        i -> ifelse(i == 1, x, zero(Vec{M,T})), Val{N}()))
-
-
-@inline MultiFloatVec{M,T,N}(x::T) where {M,T,N} =
-    MultiFloatVec{M,T,N}(Vec{M,T}(x))
-@inline PreciseMultiFloatVec{M,T,N}(x::T) where {M,T,N} =
-    PreciseMultiFloatVec{M,T,N}(Vec{M,T}(x))
-@inline MultiFloatVec{M,T,N}(xs::NTuple{M,T}) where {M,T,N} =
-    MultiFloatVec{M,T,N}(Vec{M,T}(xs))
-@inline PreciseMultiFloatVec{M,T,N}(xs::NTuple{M,T}) where {M,T,N} =
-    PreciseMultiFloatVec{M,T,N}(Vec{M,T}(xs))
-
-
 ################################################################################
 
 
