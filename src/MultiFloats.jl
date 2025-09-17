@@ -471,7 +471,7 @@ end
     ntuple(i -> vifelse(mask, x._limbs[i], y._limbs[i]), Val{N}()))
 
 
-# TODO: Add support for PreciseMultiFloatVec types.
+# TODO: Implement scatter/gather for PreciseMultiFloatVec types.
 
 
 # @inline function mfvgather(
@@ -594,18 +594,30 @@ _ge_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] >= y._limbs[$n]) : :(
     ((x._limbs[$i] == y._limbs[$i]) & $(_ge_expr(i + 1, n))))
 
 
-@generated Base.:(==)(x::_GMF{T,N}, y::_GMF{T,N}) where {T,N} = _eq_expr(N)
-@generated Base.:(==)(x::_GMFV{M,T,N}, y::_GMFV{M,T,N}) where {M,T,N} = _eq_expr(N)
-@generated Base.:(!=)(x::_GMF{T,N}, y::_GMF{T,N}) where {T,N} = _ne_expr(N)
-@generated Base.:(!=)(x::_GMFV{M,T,N}, y::_GMFV{M,T,N}) where {M,T,N} = _ne_expr(N)
-@generated Base.:(<)(x::_GMF{T,N}, y::_GMF{T,N}) where {T,N} = _lt_expr(1, N)
-@generated Base.:(<)(x::_GMFV{M,T,N}, y::_GMFV{M,T,N}) where {M,T,N} = _lt_expr(1, N)
-@generated Base.:(>)(x::_GMF{T,N}, y::_GMF{T,N}) where {T,N} = _gt_expr(1, N)
-@generated Base.:(>)(x::_GMFV{M,T,N}, y::_GMFV{M,T,N}) where {M,T,N} = _gt_expr(1, N)
-@generated Base.:(<=)(x::_GMF{T,N}, y::_GMF{T,N}) where {T,N} = _le_expr(1, N)
-@generated Base.:(<=)(x::_GMFV{M,T,N}, y::_GMFV{M,T,N}) where {M,T,N} = _le_expr(1, N)
-@generated Base.:(>=)(x::_GMF{T,N}, y::_GMF{T,N}) where {T,N} = _ge_expr(1, N)
-@generated Base.:(>=)(x::_GMFV{M,T,N}, y::_GMFV{M,T,N}) where {M,T,N} = _ge_expr(1, N)
+@generated Base.:(==)(x::_GMF{T,N}, y::_GMF{T,N}) where {T,N} =
+    _eq_expr(N)
+@generated Base.:(==)(x::_GMFV{M,T,N}, y::_GMFV{M,T,N}) where {M,T,N} =
+    _eq_expr(N)
+@generated Base.:(!=)(x::_GMF{T,N}, y::_GMF{T,N}) where {T,N} =
+    _ne_expr(N)
+@generated Base.:(!=)(x::_GMFV{M,T,N}, y::_GMFV{M,T,N}) where {M,T,N} =
+    _ne_expr(N)
+@generated Base.:(<)(x::_GMF{T,N}, y::_GMF{T,N}) where {T,N} =
+    _lt_expr(1, N)
+@generated Base.:(<)(x::_GMFV{M,T,N}, y::_GMFV{M,T,N}) where {M,T,N} =
+    _lt_expr(1, N)
+@generated Base.:(>)(x::_GMF{T,N}, y::_GMF{T,N}) where {T,N} =
+    _gt_expr(1, N)
+@generated Base.:(>)(x::_GMFV{M,T,N}, y::_GMFV{M,T,N}) where {M,T,N} =
+    _gt_expr(1, N)
+@generated Base.:(<=)(x::_GMF{T,N}, y::_GMF{T,N}) where {T,N} =
+    _le_expr(1, N)
+@generated Base.:(<=)(x::_GMFV{M,T,N}, y::_GMFV{M,T,N}) where {M,T,N} =
+    _le_expr(1, N)
+@generated Base.:(>=)(x::_GMF{T,N}, y::_GMF{T,N}) where {T,N} =
+    _ge_expr(1, N)
+@generated Base.:(>=)(x::_GMFV{M,T,N}, y::_GMFV{M,T,N}) where {M,T,N} =
+    _ge_expr(1, N)
 
 
 ################################################### LEVEL 0 ARITHMETIC OPERATORS
