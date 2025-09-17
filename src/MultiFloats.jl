@@ -1,8 +1,10 @@
 module MultiFloats
 
 using Base.MPFR: libmpfr, CdoubleMax, MPFRRoundingMode, MPFRRoundNearest
-using SIMD: Vec, vifelse, vgather, vscatter
+using SIMD: Vec, vgather, vscatter
 using SIMD.Intrinsics: extractelement
+
+import SIMD: vifelse
 
 
 ############################################################### TYPE DEFINITIONS
@@ -444,7 +446,7 @@ end
 # TODO: Implement conversion to BigInt and Rational.
 
 
-################################################################ VECTOR INDEXING
+############################################################## VECTOR OPERATIONS
 
 
 # export mfvgather, mfvscatter
@@ -457,6 +459,16 @@ end
     ntuple(j -> extractelement(x._limbs[j].data, i - one(I)), Val{N}()))
 @inline Base.getindex(x::_PMFV{M,T,N}, i::I) where {M,T,N,I} = _PMF{T,N}(
     ntuple(j -> extractelement(x._limbs[j].data, i - one(I)), Val{N}()))
+
+
+@inline vifelse(
+    mask::Vec{M,Bool}, x::_MFV{M,T,N}, y::_MFV{M,T,N},
+) where {M,T,N} = _MFV{M,T,N}(
+    ntuple(i -> vifelse(mask, x._limbs[i], y._limbs[i]), Val{N}()))
+@inline vifelse(
+    mask::Vec{M,Bool}, x::_PMFV{M,T,N}, y::_PMFV{M,T,N},
+) where {M,T,N} = _PMFV{M,T,N}(
+    ntuple(i -> vifelse(mask, x._limbs[i], y._limbs[i]), Val{N}()))
 
 
 # TODO: Add support for PreciseMultiFloatVec types.
@@ -574,6 +586,10 @@ end
 
 @inline Base.signbit(x::_GMF{T,N}) where {T,N} = signbit(first(x._limbs))
 @inline Base.signbit(x::_GMFV{M,T,N}) where {M,T,N} = signbit(first(x._limbs))
+
+
+@inline Base.abs(x::_GMF{T,N}) where {T,N} = ifelse(signbit(x), -x, x)
+@inline Base.abs(x::_GMFV{M,T,N}) where {M,T,N} = vifelse(signbit(x), -x, x)
 
 
 # NOTE: MultiFloats.scale is not exported to avoid name conflicts.
