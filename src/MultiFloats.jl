@@ -462,8 +462,8 @@ end
 ###################################################### CONVERSION TO OTHER TYPES
 
 
-(::Type{S})(x::_GMF{T,N}) where {S<:Number,T,N} =
-    S(BigFloat(x; precision=_full_precision(T)))
+(::Type{R})(x::_GMF{T,N}) where {R<:Real,T,N} =
+    R(BigFloat(x; precision=_full_precision(T)))
 
 
 ###################################################### FLOATING-POINT PROPERTIES
@@ -1322,20 +1322,14 @@ end
 ################################################# STANDARD LIBRARY COMPATIBILITY
 
 
-# (::Type{I})(x::_MF{T,N}) where {I<:Integer,T,N} =
-#     setrounding(BigFloat, RoundNearest) do
-#         I(BigFloat(x; precision=_full_precision(T)))
-#     end
-
-
 # MultiFloat{T,N}(z::Complex) where {T,N} =
 #     isreal(z) ? MultiFloat{T,N}(real(z)) :
 #     throw(InexactError(nameof(MultiFloat{T,N}), MultiFloat{T,N}, z))
 
 
-# import LinearAlgebra: floatmin2
-# @inline floatmin2(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(ldexp(one(T),
-#     div(exponent(floatmin(T)) - N * exponent(eps(T)), 2)))
+import LinearAlgebra: floatmin2
+@inline floatmin2(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(floatmin2(T))
+@inline floatmin2(::Type{_PMF{T,N}}) where {T,N} = _PMF{T,N}(floatmin2(T))
 
 
 # import Printf: tofloat
@@ -1364,24 +1358,36 @@ end
 ################################################################ PROMOTION RULES
 
 
-# Base.promote_rule(::Type{_MF{T,N}}, ::Type{T}) where {T,N} = _MF{T,N}
-# Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{T}) where {M,T,N} = _MFV{M,T,N}
-# Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{Vec{M,T}}) where {M,T,N} = _MFV{M,T,N}
-# Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{_MF{T,N}}) where {M,T,N} = _MFV{M,T,N}
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{T}) where {T,N} = _MF{T,N}
+Base.promote_rule(::Type{_PMF{T,N}}, ::Type{T}) where {T,N} = _PMF{T,N}
+Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{T}) where {M,T,N} = _MFV{M,T,N}
+Base.promote_rule(::Type{_PMFV{M,T,N}}, ::Type{T}) where {M,T,N} = _PMFV{M,T,N}
 
 
-const _FixedSizeReal = Union{
-    Bool,Int8,Int16,Int32,Int64,Int128,UInt8,UInt16,UInt32,UInt64,UInt128}
-
-
-Base.promote_rule(::Type{_MF{T,N}}, ::Type{_FixedSizeReal}) where {T,N} =
-    _MF{T,N}
-Base.promote_rule(::Type{_PMF{T,N}}, ::Type{_FixedSizeReal}) where {T,N} =
-    _PMF{T,N}
-Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{_FixedSizeReal}) where {M,T,N} =
+Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{Vec{M,T}}) where {M,T,N} =
     _MFV{M,T,N}
-Base.promote_rule(::Type{_PMFV{M,T,N}}, ::Type{_FixedSizeReal}) where {M,T,N} =
+Base.promote_rule(::Type{_PMFV{M,T,N}}, ::Type{Vec{M,T}}) where {M,T,N} =
     _PMFV{M,T,N}
+Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{_MF{T,N}}) where {M,T,N} =
+    _MFV{M,T,N}
+Base.promote_rule(::Type{_PMFV{M,T,N}}, ::Type{_PMF{T,N}}) where {M,T,N} =
+    _PMFV{M,T,N}
+
+
+for S in [
+    Bool,
+    Int8, Int16, Int32, Int64, Int128,
+    UInt8, UInt16, UInt32, UInt64, UInt128,
+]
+    Base.promote_rule(::Type{_MF{T,N}}, ::Type{S}) where {T,N} =
+        _MF{T,N}
+    Base.promote_rule(::Type{_PMF{T,N}}, ::Type{S}) where {T,N} =
+        _PMF{T,N}
+    Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{S}) where {M,T,N} =
+        _MFV{M,T,N}
+    Base.promote_rule(::Type{_PMFV{M,T,N}}, ::Type{S}) where {M,T,N} =
+        _PMFV{M,T,N}
+end
 
 
 Base.promote_rule(::Type{_GMF{T,N}}, ::Type{BigInt}) where {T,N} = BigFloat
