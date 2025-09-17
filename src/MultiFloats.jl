@@ -334,21 +334,6 @@ const _Fits64xN = Union{_Fits64x2,_Fits64x3}
     _PMF{_F64,N}(_split(x, _F64, Val{N}()))
 
 
-# Construct MultiFloat vector from primitive scalar (multiple limbs).
-@inline _MFV{M,_F16,N}(x::_Fits16xN) where {M,N} =
-    _MFV{M,_F16,N}(_MF{_F16,N}(x))
-@inline _MFV{M,_F32,N}(x::_Fits32xN) where {M,N} =
-    _MFV{M,_F32,N}(_MF{_F32,N}(x))
-@inline _MFV{M,_F64,N}(x::_Fits64xN) where {M,N} =
-    _MFV{M,_F64,N}(_MF{_F64,N}(x))
-@inline _PMFV{M,_F16,N}(x::_Fits16xN) where {M,N} =
-    _PMFV{M,_F16,N}(_PMFV{_F16,N}(x))
-@inline _PMFV{M,_F32,N}(x::_Fits32xN) where {M,N} =
-    _PMFV{M,_F32,N}(_PMFV{_F32,N}(x))
-@inline _PMFV{M,_F64,N}(x::_Fits64xN) where {M,N} =
-    _PMFV{M,_F64,N}(_PMFV{_F64,N}(x))
-
-
 ####################################################### CONVERSION FROM BIGFLOAT
 
 
@@ -393,11 +378,22 @@ _PMF{T,N}(x::BigFloat) where {T,N} = _PMF{T,N}(_split!(x, T, Val{N}()))
     exponent(floatmax(T)) - exponent(floatmin(T)) + precision(T)
 
 
-# Construct MultiFloat scalar from non-MultiFloat number or string.
-_MF{T,N}(x::Union{Number,AbstractString}) where {T,N} = _MF{T,N}(
-    BigFloat(x; rounding=RoundNearest, precision=_full_precision(T)))
-_PMF{T,N}(x::Union{Number,AbstractString}) where {T,N} = _PMF{T,N}(
-    BigFloat(x; rounding=RoundNearest, precision=_full_precision(T)))
+# Construct MultiFloat scalar from string.
+_MF{T,N}(x::AbstractString) where {T,N} = _MF{T,N}(
+    BigFloat(x, MPFRRoundNearest; precision=_full_precision(T)))
+_PMF{T,N}(x::AbstractString) where {T,N} = _PMF{T,N}(
+    BigFloat(x, MPFRRoundNearest; precision=_full_precision(T)))
+
+
+# # Construct MultiFloat scalar from any other type.
+# function _MF{T,N}(x::Any) where {T,N}
+#     println(stderr, "WARNING: Constructing $(_MF{T,N}) from $(typeof(x)).")
+#     return _MF{T,N}(BigFloat(x, MPFRRoundNearest; precision=_full_precision(T)))
+# end
+# function _PMF{T,N}(x::Any) where {T,N}
+#     println(stderr, "WARNING: Constructing $(_PMF{T,N}) from $(typeof(x)).")
+#     return _PMF{T,N}(BigFloat(x, MPFRRoundNearest; precision=_full_precision(T)))
+# end
 
 
 # Construct MultiFloat vector from non-MultiFloat scalar.
@@ -1166,6 +1162,12 @@ end
     _MF{T,N}(mfsqrt(x._limbs, Val{N}()))
 @inline unsafe_sqrt(x::_MFV{M,T,N}) where {M,T,N} =
     _MFV{M,T,N}(mfsqrt(x._limbs, Val{N}()))
+
+
+@inline Base.sqrt(x::_GMF{T,N}) where {T,N} =
+    ifelse(iszero(x), zero(x), unsafe_sqrt(x))
+@inline Base.sqrt(x::_GMFV{M,T,N}) where {M,T,N} =
+    vifelse(iszero(x), zero(x), unsafe_sqrt(x))
 
 
 ################################################## CONVERSION TO PRIMITIVE TYPES
