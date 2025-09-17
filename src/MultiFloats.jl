@@ -147,13 +147,13 @@ const Vec8PreciseFloat64x4 = PreciseMultiFloatVec{8,Float64,4}
 
 
 @inline Base.one(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(ntuple(
-    i -> ifelse(isone(i), one(T), zero(T)), Val{N}()))
+    i -> (isone(i) ? one(T) : zero(T)), Val{N}()))
 @inline Base.one(::Type{_PMF{T,N}}) where {T,N} = _PMF{T,N}(ntuple(
-    i -> ifelse(isone(i), one(T), zero(T)), Val{N}()))
+    i -> (isone(i) ? one(T) : zero(T)), Val{N}()))
 @inline Base.one(::Type{_MFV{M,T,N}}) where {M,T,N} = _MFV{M,T,N}(ntuple(
-    i -> ifelse(isone(i), one(Vec{M,T}), zero(Vec{M,T})), Val{N}()))
+    i -> (isone(i) ? one(Vec{M,T}) : zero(Vec{M,T})), Val{N}()))
 @inline Base.one(::Type{_PMFV{M,T,N}}) where {M,T,N} = _PMFV{M,T,N}(ntuple(
-    i -> ifelse(isone(i), one(Vec{M,T}), zero(Vec{M,T})), Val{N}()))
+    i -> (isone(i) ? one(Vec{M,T}) : zero(Vec{M,T})), Val{N}()))
 
 
 @inline Base.one(::_MF{T,N}) where {T,N} = one(_MF{T,N})
@@ -167,16 +167,16 @@ const Vec8PreciseFloat64x4 = PreciseMultiFloatVec{8,Float64,4}
 
 # Construct MultiFloat scalar from single scalar limb.
 @inline _MF{T,N}(x::T) where {T,N} = _MF{T,N}(
-    ntuple(i -> ifelse(isone(i), x, zero(T)), Val{N}()))
+    ntuple(i -> (isone(i) ? x : zero(T)), Val{N}()))
 @inline _PMF{T,N}(x::T) where {T,N} = _PMF{T,N}(
-    ntuple(i -> ifelse(isone(i), x, zero(T)), Val{N}()))
+    ntuple(i -> (isone(i) ? x : zero(T)), Val{N}()))
 
 
 # Construct MultiFloat vector from single vector limb (SIMD.Vec).
 @inline _MFV{M,T,N}(x::Vec{M,T}) where {M,T,N} = _MFV{M,T,N}(
-    ntuple(i -> ifelse(isone(i), x, zero(Vec{M,T})), Val{N}()))
+    ntuple(i -> (isone(i) ? x : zero(Vec{M,T})), Val{N}()))
 @inline _PMFV{M,T,N}(x::Vec{M,T}) where {M,T,N} = _PMFV{M,T,N}(
-    ntuple(i -> ifelse(isone(i), x, zero(Vec{M,T})), Val{N}()))
+    ntuple(i -> (isone(i) ? x : zero(Vec{M,T})), Val{N}()))
 
 
 # Construct MultiFloat vector from single scalar limb.
@@ -958,8 +958,10 @@ end
     ::Val{Z},
 ) where {T,X,U,Z}
     @assert 0 < U < Z
+    _zero = zero(T)
+    _one = one(T)
     if U + U >= Z
-        neg_one = ntuple(i -> ifelse(isone(i), -one(T), zero(T)), Val{Z}())
+        neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{Z}())
         # TODO: The full-width multiplication here is wasteful and should be
         # replaced once we find provably correct half-to-full algorithms.
         # Ideally, we would develop a special multiplication algorithm that
@@ -970,7 +972,7 @@ end
         correction = mfmul(residual, ru, Val{Z}())
         return mfadd(ru, (-).(correction), Val{Z}())
     else
-        neg_one = ntuple(i -> ifelse(isone(i), -one(T), zero(T)), Val{U + U}())
+        neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
         rx = _resize(x, Val{U + U}())
         ru = _resize(u, Val{U + U}())
         residual = mfadd(mfmul(rx, ru, Val{U + U}()), neg_one, Val{U + U}())
@@ -988,6 +990,8 @@ end
     ::Val{Z},
 ) where {T,X,Y,U,Z}
     @assert 0 < U < Z
+    _zero = zero(T)
+    _one = one(T)
     if U + U >= Z
         rx = _resize(x, Val{Z}())
         ry = _resize(y, Val{Z}())
@@ -997,7 +1001,7 @@ end
         correction = mfmul(residual, ru, Val{Z}())
         return mfadd(quotient, (-).(correction), Val{Z}())
     else
-        neg_one = ntuple(i -> ifelse(isone(i), -one(T), zero(T)), Val{U + U}())
+        neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
         ry = _resize(y, Val{U + U}())
         ru = _resize(u, Val{U + U}())
         residual = mfadd(mfmul(ry, ru, Val{U + U}()), neg_one, Val{U + U}())
@@ -1013,12 +1017,13 @@ end
     u::NTuple{U,T},
     ::Val{Z},
 ) where {T,X,U,Z}
+    @assert 0 < U < Z
+    _zero = zero(T)
     _one = one(T)
     _two = _one + _one
     _half = inv(_two)
-    @assert 0 < U < Z
     if U + U >= Z
-        neg_one = ntuple(i -> ifelse(isone(i), -one(T), zero(T)), Val{Z}())
+        neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{Z}())
         rx = _resize(x, Val{Z}())
         ru = _resize(u, Val{Z}())
         square = mfmul(ru, ru, Val{Z}())
@@ -1026,7 +1031,7 @@ end
         correction = mfmul(residual, scale(_half, ru), Val{Z}())
         return mfadd(ru, (-).(correction), Val{Z}())
     else
-        neg_one = ntuple(i -> ifelse(isone(i), -one(T), zero(T)), Val{U + U}())
+        neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
         rx = _resize(x, Val{U + U}())
         ru = _resize(u, Val{U + U}())
         square = mfmul(ru, ru, Val{U + U}())
@@ -1043,10 +1048,11 @@ end
     u::NTuple{U,T},
     ::Val{Z},
 ) where {T,X,U,Z}
+    @assert 0 < U < Z
+    _zero = zero(T)
     _one = one(T)
     _two = _one + _one
     _half = inv(_two)
-    @assert 0 < U < Z
     if U + U >= Z
         rx = _resize(x, Val{Z}())
         ru = _resize(u, Val{Z}())
@@ -1055,7 +1061,7 @@ end
         correction = mfmul(residual, scale(_half, ru), Val{Z}())
         return mfadd(root, (-).(correction), Val{Z}())
     else
-        neg_one = ntuple(i -> ifelse(isone(i), -one(T), zero(T)), Val{U + U}())
+        neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
         rx = _resize(x, Val{U + U}())
         ru = _resize(u, Val{U + U}())
         square = mfmul(ru, ru, Val{U + U}())
