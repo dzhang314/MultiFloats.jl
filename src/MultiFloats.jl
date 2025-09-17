@@ -477,7 +477,6 @@ end
 @inline Base.eps(::Type{_PMF{T,N}}) where {T,N} = _PMF{T,N}(eps(T)^N)
 
 
-# # Note: SIMD.jl does not define Base.precision for vectors.
 # if isdefined(Base, :_precision)
 #     @inline Base._precision(::Type{_MF{T,N}}) where {T,N} =
 #         N * precision(T) + (N - 1) # implicit bits of precision between limbs
@@ -485,21 +484,46 @@ end
 #     @inline Base.precision(::Type{_MF{T,N}}) where {T,N} =
 #         N * precision(T) + (N - 1) # implicit bits of precision between limbs
 # end
+# NOTE: SIMD.jl does not define Base.precision for vectors.
 
 
-# # Note: SIMD.jl does not define Base.floatmin or Base.floatmax for vectors.
-# @inline Base.floatmin(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(floatmin(T))
-# @inline Base.floatmax(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(floatmax(T))
+@inline Base.floatmin(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(floatmin(T))
+@inline Base.floatmin(::Type{_PMF{T,N}}) where {T,N} = _PMF{T,N}(floatmin(T))
+@inline Base.floatmax(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(floatmax(T))
+@inline Base.floatmax(::Type{_PMF{T,N}}) where {T,N} = _PMF{T,N}(floatmax(T))
+# NOTE: SIMD.jl does not define Base.floatmin or Base.floatmax for vectors.
 
 
-# # Note: SIMD.jl does not define Base.typemin or Base.typemax for vectors.
-# @inline Base.typemin(::Type{_MF{T,N}}) where {T,N} =
-#     _MF{T,N}(ntuple(_ -> typemin(T), Val{N}()))
-# @inline Base.typemax(::Type{_MF{T,N}}) where {T,N} =
-#     _MF{T,N}(ntuple(_ -> typemax(T), Val{N}()))
+@inline Base.typemin(::Type{_MF{T,N}}) where {T,N} =
+    _MF{T,N}(ntuple(_ -> typemin(T), Val{N}()))
+@inline Base.typemin(::Type{_PMF{T,N}}) where {T,N} =
+    _PMF{T,N}(ntuple(_ -> typemin(T), Val{N}()))
+@inline Base.typemax(::Type{_MF{T,N}}) where {T,N} =
+    _MF{T,N}(ntuple(_ -> typemax(T), Val{N}()))
+@inline Base.typemax(::Type{_PMF{T,N}}) where {T,N} =
+    _PMF{T,N}(ntuple(_ -> typemax(T), Val{N}()))
+# NOTE: SIMD.jl does not define Base.typemin or Base.typemax for vectors.
 
 
 ################################################## FLOATING-POINT CLASSIFICATION
+
+
+@inline Base.signbit(x::_GMF{T,N}) where {T,N} = signbit(first(x._limbs))
+@inline Base.signbit(x::_GMFV{M,T,N}) where {M,T,N} = signbit(first(x._limbs))
+@inline Base.exponent(x::_GMF{T,N}) where {T,N} = exponent(first(x._limbs))
+# NOTE: SIMD.jl does not define Base.exponent for vectors.
+@inline Base.issubnormal(x::_GMF{T,N}) where {T,N} =
+    issubnormal(first(x._limbs))
+@inline Base.issubnormal(x::_GMFV{M,T,N}) where {M,T,N} =
+    issubnormal(first(x._limbs))
+
+
+@inline Base.isfinite(x::_GMF{T,N}) where {T,N} = isfinite(sum(x._limbs))
+@inline Base.isfinite(x::_GMFV{M,T,N}) where {M,T,N} = isfinite(sum(x._limbs))
+@inline Base.isinf(x::_GMF{T,N}) where {T,N} = isinf(sum(x._limbs))
+@inline Base.isinf(x::_GMFV{M,T,N}) where {M,T,N} = isinf(sum(x._limbs))
+@inline Base.isnan(x::_GMF{T,N}) where {T,N} = isnan(sum(x._limbs))
+@inline Base.isnan(x::_GMFV{M,T,N}) where {M,T,N} = isnan(sum(x._limbs))
 
 
 @inline _vall(::Tuple{}, ::Val{M}) where {M} = one(Vec{M,Bool})
@@ -507,11 +531,8 @@ end
 @inline _vall(x::NTuple{N,Vec{M,Bool}}, ::Val{M}) where {M,N} = (&)(x...)
 
 
-@inline Base.signbit(x::_GMF{T,N}) where {T,N} = signbit(first(x._limbs))
-@inline Base.signbit(x::_GMFV{M,T,N}) where {M,T,N} = signbit(first(x._limbs))
-
-
-@inline Base.iszero(x::_GMF{T,N}) where {T,N} = all(iszero.(x._limbs))
+@inline Base.iszero(x::_GMF{T,N}) where {T,N} =
+    all(iszero.(x._limbs))
 @inline Base.iszero(x::_GMFV{M,T,N}) where {M,T,N} =
     _vall(iszero.(x._limbs), Val{M}())
 
@@ -524,29 +545,11 @@ end
         Val{N}()), Val{M}())
 
 
-@inline Base.isfinite(x::_GMF{T,N}) where {T,N} = isfinite(sum(x._limbs))
-@inline Base.isfinite(x::_GMFV{M,T,N}) where {M,T,N} = isfinite(sum(x._limbs))
-@inline Base.isinf(x::_GMF{T,N}) where {T,N} = isinf(sum(x._limbs))
-@inline Base.isinf(x::_GMFV{M,T,N}) where {M,T,N} = isinf(sum(x._limbs))
-@inline Base.isnan(x::_GMF{T,N}) where {T,N} = isnan(sum(x._limbs))
-@inline Base.isnan(x::_GMFV{M,T,N}) where {M,T,N} = isnan(sum(x._limbs))
-
-
-# TODO: issubnormal should consider the exponent of the trailing limb.
-# @inline Base.issubnormal(x::_MF{T,N}) where {T,N} = issubnormal(_head(x))
-# @inline Base.issubnormal(x::_MFV{M,T,N}) where {M,T,N} = issubnormal(_head(x))
-
-
-# # Note: SIMD.jl does not define Base.isinteger for vectors.
-# @inline Base.isinteger(x::_MF{T,N}) where {T,N} =
-#     all(isinteger.(renormalize(x)._limbs))
+@inline Base.isinteger(x::_GMF{T,N}) where {T,N} = all(isinteger.(x._limbs))
+# NOTE: SIMD.jl does not define Base.isinteger for vectors.
 
 
 #################################################### FLOATING-POINT MANIPULATION
-
-
-# # Note: SIMD.jl does not define Base.exponent for vectors.
-# @inline Base.exponent(x::_MF{T,N}) where {T,N} = exponent(_head(x))
 
 
 # # Note: SIMD.jl does not define Base.ldexp for vectors.
