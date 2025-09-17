@@ -850,6 +850,46 @@ end
     _MFV{M,T,N}(mfmul(x._limbs, y._limbs, Val{N}()))
 
 
+########################################################## SQUARE ROOT OPERATORS
+
+
+# In Julia, Base.sqrt throws a DomainError when given a negative real argument.
+# This is, in my opinion, a very unfortunate design choice. It forces otherwise
+# non-throwing programs to unnecessarily include exception handling code paths.
+# To facilitate the writing of branch-free code, MultiFloats.jl provides
+# unsafe_sqrt and rsqrt functions that return NaN instead of throwing.
+
+
+# NOTE: MultiFloats.unsafe_sqrt is not exported to avoid name conflicts.
+# Users are expected to call it as MultiFloats.unsafe_sqrt(x).
+
+@inline unsafe_sqrt(x::Any) = sqrt(x)
+
+@inline unsafe_sqrt(x::Union{Float16,Float32,Float64}) = Base.sqrt_llvm(x)
+
+function unsafe_sqrt(x::BigFloat)
+    result = BigFloat()
+    ccall((:mpfr_sqrt, libmpfr), Cint,
+        (Ref{BigFloat}, Ref{BigFloat}, MPFRRoundingMode),
+        result, x, MPFRRoundNearest)
+    return result
+end
+
+
+# NOTE: MultiFloats.rsqrt is not exported to avoid name conflicts.
+# Users are expected to call it as MultiFloats.rsqrt(x).
+
+@inline rsqrt(x::Any) = inv(unsafe_sqrt(x))
+
+function rsqrt(x::BigFloat)
+    result = BigFloat()
+    ccall((:mpfr_rec_sqrt, libmpfr), Cint,
+        (Ref{BigFloat}, Ref{BigFloat}, MPFRRoundingMode),
+        result, x, MPFRRoundNearest)
+    return result
+end
+
+
 ###################################################### KARP-MARKSTEIN ALGORITHMS
 
 
@@ -972,53 +1012,31 @@ end
 end
 
 
+@inline mfinv(x::NTuple{X,T}, ::Val{1}) where {T,X} =
+    (inv(first(x)),)
 @inline mfinv(x::NTuple{X,T}, ::Val{Z}) where {T,X,Z} =
     _mfinv_impl(x, (inv(first(x)),), Val{Z}())
 
 
+@inline mfdiv(x::NTuple{X,T}, y::NTuple{Y,T}, ::Val{1}) where {T,X,Y} =
+    (first(x) / first(y),)
 @inline mfdiv(x::NTuple{X,T}, y::NTuple{Y,T}, ::Val{Z}) where {T,X,Y,Z} =
     _mfdiv_impl(x, y, (inv(first(y)),), Val{Z}())
 
 
+@inline mfrsqrt(x::NTuple{X,T}, ::Val{1}) where {T,X} =
+    (rsqrt(first(x)),)
 @inline mfrsqrt(x::NTuple{X,T}, ::Val{Z}) where {T,X,Z} =
-    _mfrsqrt_impl(x, (inv(sqrt(first(x))),), Val{Z}())
+    _mfrsqrt_impl(x, (rsqrt(first(x)),), Val{Z}())
 
 
+@inline mfsqrt(x::NTuple{X,T}, ::Val{1}) where {T,X} =
+    (unsafe_sqrt(first(x)),)
 @inline mfsqrt(x::NTuple{X,T}, ::Val{Z}) where {T,X,Z} =
-    _mfsqrt_impl(x, (inv(sqrt(first(x))),), Val{Z}())
+    _mfsqrt_impl(x, (rsqrt(first(x)),), Val{Z}())
 
 
 ################################################### LEVEL 2 ARITHMETIC OPERATORS
-
-
-# NOTE: MultiFloats.unsafe_sqrt is not exported to avoid name conflicts.
-# Users are expected to call it as MultiFloats.unsafe_sqrt(x).
-
-@inline unsafe_sqrt(x::Any) = sqrt(x)
-
-@inline unsafe_sqrt(x::Union{Float16,Float32,Float64}) = Base.sqrt_llvm(x)
-
-function unsafe_sqrt(x::BigFloat)
-    result = BigFloat()
-    ccall((:mpfr_sqrt, libmpfr), Cint,
-        (Ref{BigFloat}, Ref{BigFloat}, MPFRRoundingMode),
-        result, x, MPFRRoundNearest)
-    return result
-end
-
-
-# NOTE: MultiFloats.rsqrt is not exported to avoid name conflicts.
-# Users are expected to call it as MultiFloats.rsqrt(x).
-
-@inline rsqrt(x::Any) = inv(unsafe_sqrt(x))
-
-function rsqrt(x::BigFloat)
-    result = BigFloat()
-    ccall((:mpfr_rec_sqrt, libmpfr), Cint,
-        (Ref{BigFloat}, Ref{BigFloat}, MPFRRoundingMode),
-        result, x, MPFRRoundNearest)
-    return result
-end
 
 
 @inline Base.inv(x::_MF{T,N}) where {T,N} =
