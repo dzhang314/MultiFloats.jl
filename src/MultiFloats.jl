@@ -349,31 +349,7 @@ const _Fits64xN = Union{_Fits64x2,_Fits64x3}
     _PMFV{M,_F64,N}(_PMFV{_F64,N}(x))
 
 
-# Construct MultiFloat vector from non-MultiFloat scalar.
-@inline _MFV{M,T,N}(x::Any) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
-@inline _PMFV{M,T,N}(x::Any) where {M,T,N} = _PMFV{M,T,N}(_PMF{T,N}(x))
-
-
-# Construct MultiFloat vector from multiple non-MultiFloat scalars.
-@inline _MFV{M,T,N}(xs::NTuple{M,Any}) where {M,T,N} =
-    _MFV{M,T,N}(_MF{T,N}.(xs))
-@inline _MFV{M,T,N}(xs::Vararg{Any,M}) where {M,T,N} =
-    _MFV{M,T,N}(_MF{T,N}.(xs))
-@inline _PMFV{M,T,N}(xs::NTuple{M,Any}) where {M,T,N} =
-    _PMFV{M,T,N}(_PMF{T,N}.(xs))
-@inline _PMFV{M,T,N}(xs::Vararg{Any,M}) where {M,T,N} =
-    _PMFV{M,T,N}(_PMF{T,N}.(xs))
-_MFV{M,T,N}(::NTuple{K,Any}) where {M,T,N,K} =
-    error("MultiFloatVec constructor requires tuple of length $M.")
-_MFV{M,T,N}(::Vararg{Any,K}) where {M,T,N,K} =
-    error("MultiFloatVec constructor requires 1 or $M arguments.")
-_PMFV{M,T,N}(::NTuple{K,Any}) where {M,T,N,K} =
-    error("PreciseMultiFloatVec constructor requires tuple of length $M.")
-_PMFV{M,T,N}(::Vararg{Any,K}) where {M,T,N,K} =
-    error("PreciseMultiFloatVec constructor requires 1 or $M arguments.")
-
-
-###################################################### CONVERSION FROM BIG TYPES
+####################################################### CONVERSION FROM BIGFLOAT
 
 
 @inline function mpfr_sub!(x::BigFloat, y::CdoubleMax)
@@ -410,10 +386,52 @@ _MF{T,N}(x::BigFloat) where {T,N} = _MF{T,N}(_split!(x, T, Val{N}()))
 _PMF{T,N}(x::BigFloat) where {T,N} = _PMF{T,N}(_split!(x, T, Val{N}()))
 
 
-# TODO: Implement conversion from BigInt and Rational.
+#################################################### CONVERSION FROM OTHER TYPES
 
 
-######################################################## CONVERSION TO BIG TYPES
+@inline _full_precision(::Type{T}) where {T} =
+    exponent(floatmax(T)) - exponent(floatmin(T)) + precision(T)
+
+
+# Construct MultiFloat scalar from non-MultiFloat number or string.
+_MF{T,N}(x::Union{Number,AbstractString}) where {T,N} = _MF{T,N}(
+    BigFloat(x; rounding=RoundNearest, precision=_full_precision(T)))
+_PMF{T,N}(x::Union{Number,AbstractString}) where {T,N} = _PMF{T,N}(
+    BigFloat(x; rounding=RoundNearest, precision=_full_precision(T)))
+
+
+# Construct MultiFloat vector from non-MultiFloat scalar.
+@inline _MFV{M,T,N}(x::Any) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
+@inline _PMFV{M,T,N}(x::Any) where {M,T,N} = _PMFV{M,T,N}(_PMF{T,N}(x))
+
+
+# Construct MultiFloat vector from multiple non-MultiFloat scalars.
+@inline _MFV{M,T,N}(xs::NTuple{M,Any}) where {M,T,N} =
+    _MFV{M,T,N}(_MF{T,N}.(xs))
+@inline _MFV{M,T,N}(xs::Vararg{Any,M}) where {M,T,N} =
+    _MFV{M,T,N}(_MF{T,N}.(xs))
+@inline _PMFV{M,T,N}(xs::NTuple{M,Any}) where {M,T,N} =
+    _PMFV{M,T,N}(_PMF{T,N}.(xs))
+@inline _PMFV{M,T,N}(xs::Vararg{Any,M}) where {M,T,N} =
+    _PMFV{M,T,N}(_PMF{T,N}.(xs))
+_MFV{M,T,N}(::NTuple{K,Any}) where {M,T,N,K} =
+    error("MultiFloatVec constructor requires tuple of length $M.")
+_MFV{M,T,N}(::Vararg{Any,K}) where {M,T,N,K} =
+    error("MultiFloatVec constructor requires 1 or $M arguments.")
+_PMFV{M,T,N}(::NTuple{K,Any}) where {M,T,N,K} =
+    error("PreciseMultiFloatVec constructor requires tuple of length $M.")
+_PMFV{M,T,N}(::Vararg{Any,K}) where {M,T,N,K} =
+    error("PreciseMultiFloatVec constructor requires 1 or $M arguments.")
+
+
+######################################################## CONVERSION TO LIMB TYPE
+
+
+@inline (::Type{T})(x::_GMF{T,N}) where {T,N} = first(x._limbs)
+@inline (::Type{Vec{M,T}})(x::_GMFV{M,T,N}) where {M,T,N} = first(x._limbs)
+
+
+######################################################### CONVERSION TO BIGFLOAT
 
 
 @inline function mpfr_zero!(x::BigFloat)
@@ -443,7 +461,11 @@ function Base.BigFloat(
 end
 
 
-# TODO: Implement conversion to BigInt and Rational.
+###################################################### CONVERSION TO OTHER TYPES
+
+
+(::Type{S})(x::_GMF{T,N}) where {S<:Number,T,N} =
+    S(BigFloat(x; precision=_full_precision(T)))
 
 
 ############################################################## VECTOR OPERATIONS
@@ -502,70 +524,92 @@ end
 # ) where {M,T,N,D,I<:Integer} = mfvscatter(x, pointer(array), index - one(I))
 
 
-###################################################### CONVERSION FROM BIG TYPES
-
-
-# @inline _extract_limbs(::Type{T}, x::BigInt, ::Val{0}) where {T} = ()
-# @inline _extract_limbs(::Type{T}, x::BigInt, ::Val{1}) where {T} = (T(x),)
-# @inline function _extract_limbs(::Type{T}, x::BigInt, ::Val{N}) where {T,N}
-#     head = T(x)
-#     tail = _extract_limbs(T, x - BigInt(head), Val{N - 1}())
-#     return (head, tail...)
-# end
-
-
-# @inline function _MF{T,N}(x::BigInt) where {T,N}
-#     if x > +floatmax(T)
-#         value = T(+Inf)
-#         return _MF{T,N}(ntuple(_ -> value, Val{N}()))
-#     elseif x < -floatmax(T)
-#         value = T(-Inf)
-#         return _MF{T,N}(ntuple(_ -> value, Val{N}()))
-#     else
-#         return _MF{T,N}(_extract_limbs(T, x, Val{N}()))
-#     end
-# end
-
-
-# @inline function _MF{T,N}(x::Rational{U}) where {T,N,U}
-#     return setrounding(BigFloat, RoundNearest) do
-#         _MF{T,N}(BigFloat(x; precision=_full_precision(T)))
-#     end
-# end
-
-
-########################################## CONVERSION FROM STRING AND IRRATIONAL
-
-
-# @inline _full_precision(::Type{T}) where {T} =
-#     exponent(floatmax(T)) - exponent(floatmin(T)) + precision(T)
-
-
-# function _MF{T,N}(s::AbstractString) where {T,N}
-#     return setrounding(BigFloat, RoundNearest) do
-#         _MF{T,N}(BigFloat(s; precision=_full_precision(T)))
-#     end
-# end
-
-
-# _MFV{M,T,N}(s::AbstractString) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(s))
-
-
-# function _MF{T,N}(x::Irrational) where {T,N}
-#     return setrounding(BigFloat, RoundNearest) do
-#         _MF{T,N}(BigFloat(x; precision=_full_precision(T)))
-#     end
-# end
-
-
-# _MFV{M,T,N}(x::Irrational) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
-
-
 ################################################## FLOATING-POINT CLASSIFICATION
+
+
+@inline _vall(::Tuple{}, ::Val{M}) where {M} = one(Vec{M,Bool})
+@inline _vall(x::Tuple{Vec{M,Bool}}, ::Val{M}) where {M} = x[1]
+@inline _vall(x::NTuple{N,Vec{M,Bool}}, ::Val{M}) where {M,N} = (&)(x...)
 
 
 @inline Base.signbit(x::_GMF{T,N}) where {T,N} = signbit(first(x._limbs))
 @inline Base.signbit(x::_GMFV{M,T,N}) where {M,T,N} = signbit(first(x._limbs))
+
+
+@inline Base.iszero(x::_GMF{T,N}) where {T,N} = all(iszero.(x._limbs))
+@inline Base.iszero(x::_GMFV{M,T,N}) where {M,T,N} =
+    _vall(iszero.(x._limbs), Val{M}())
+
+
+@inline Base.isone(x::_GMF{T,N}) where {T,N} = all(ntuple(
+    i -> (isone(i) ? isone(x._limbs[i]) : iszero(x._limbs[i])),
+    Val{N}()))
+@inline Base.isone(x::_GMFV{M,T,N}) where {M,T,N} = _vall(ntuple(
+        i -> (isone(i) ? isone(x._limbs[i]) : iszero(x._limbs[i])),
+        Val{N}()), Val{M}())
+
+
+@inline Base.isfinite(x::_GMF{T,N}) where {T,N} = isfinite(sum(x._limbs))
+@inline Base.isfinite(x::_GMFV{M,T,N}) where {M,T,N} = isfinite(sum(x._limbs))
+@inline Base.isinf(x::_GMF{T,N}) where {T,N} = isinf(sum(x._limbs))
+@inline Base.isinf(x::_GMFV{M,T,N}) where {M,T,N} = isinf(sum(x._limbs))
+@inline Base.isnan(x::_GMF{T,N}) where {T,N} = isnan(sum(x._limbs))
+@inline Base.isnan(x::_GMFV{M,T,N}) where {M,T,N} = isnan(sum(x._limbs))
+
+
+# TODO: issubnormal should consider the exponent of the trailing limb.
+# @inline Base.issubnormal(x::_MF{T,N}) where {T,N} = issubnormal(_head(x))
+# @inline Base.issubnormal(x::_MFV{M,T,N}) where {M,T,N} = issubnormal(_head(x))
+
+
+# # Note: SIMD.jl does not define Base.exponent or Base.isinteger for vectors.
+# @inline Base.exponent(x::_MF{T,N}) where {T,N} = exponent(_head(x))
+# @inline Base.isinteger(x::_MF{T,N}) where {T,N} =
+#     all(isinteger.(renormalize(x)._limbs))
+
+
+# # Note: SIMD.jl does not define Base.ldexp for vectors.
+# @inline function Base.ldexp(x::_MF{T,N}, n::I) where {T,N,I}
+#     x = renormalize(x)
+#     return _MF{T,N}(ntuple(i -> ldexp(x._limbs[i], n), Val{N}()))
+# end
+
+# # needed for hashing
+# Base.decompose(x::MultiFloat) = Base.decompose(BigFloat(x))
+
+# # Note: SIMD.jl does not define Base.prevfloat or Base.nextfloat for vectors.
+# _prevfloat(x::_MF{T,N}) where {T,N} = renormalize(_MF{T,N}((ntuple(
+#         i -> x._limbs[i], Val{N - 1}())..., prevfloat(x._limbs[N]))))
+# _nextfloat(x::_MF{T,N}) where {T,N} = renormalize(_MF{T,N}((ntuple(
+#         i -> x._limbs[i], Val{N - 1}())..., nextfloat(x._limbs[N]))))
+# @inline Base.prevfloat(x::_MF{T,N}) where {T,N} = _prevfloat(renormalize(x))
+# @inline Base.nextfloat(x::_MF{T,N}) where {T,N} = _nextfloat(renormalize(x))
+
+
+# # Note: SIMD.jl does not define Base.precision for vectors.
+# if isdefined(Base, :_precision)
+#     @inline Base._precision(::Type{_MF{T,N}}) where {T,N} =
+#         N * precision(T) + (N - 1) # implicit bits of precision between limbs
+# else
+#     @inline Base.precision(::Type{_MF{T,N}}) where {T,N} =
+#         N * precision(T) + (N - 1) # implicit bits of precision between limbs
+# end
+
+
+# # Note: SIMD.jl does not define Base.eps for vectors.
+# @inline Base.eps(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(eps(T)^N)
+
+
+# # Note: SIMD.jl does not define Base.floatmin or Base.floatmax for vectors.
+# @inline Base.floatmin(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(floatmin(T))
+# @inline Base.floatmax(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(floatmax(T))
+
+
+# # Note: SIMD.jl does not define Base.typemin or Base.typemax for vectors.
+# @inline Base.typemin(::Type{_MF{T,N}}) where {T,N} =
+#     _MF{T,N}(ntuple(_ -> typemin(T), Val{N}()))
+# @inline Base.typemax(::Type{_MF{T,N}}) where {T,N} =
+#     _MF{T,N}(ntuple(_ -> typemax(T), Val{N}()))
 
 
 ##################################################################### COMPARISON
@@ -1124,105 +1168,6 @@ end
     _MFV{M,T,N}(mfsqrt(x._limbs, Val{N}()))
 
 
-################################################### FLOATING-POINT INTROSPECTION
-
-
-# @inline _and(::Tuple{}) = true
-# @inline _and(x::NTuple{1,Bool}) = x[1]
-# @inline _and(x::NTuple{N,Bool}) where {N} = (&)(x...)
-
-
-# @inline _vand(::Val{M}, ::Tuple{}) where {M} = one(Vec{M,Bool})
-# @inline _vand(::Val{M}, x::NTuple{1,Vec{M,Bool}}) where {M} = x[1]
-# @inline _vand(::Val{M}, x::NTuple{N,Vec{M,Bool}}) where {M,N} = (&)(x...)
-
-
-# @inline _iszero(x::_MF{T,N}) where {T,N} = _and(
-#     ntuple(i -> iszero(x._limbs[i]), Val{N}()))
-# @inline _iszero(x::_MFV{M,T,N}) where {M,T,N} = _vand(
-#     Val{M}(), ntuple(i -> iszero(x._limbs[i]), Val{N}()))
-# @inline _isone(x::_MF{T,N}) where {T,N} = isone(x._limbs[1]) & _and(
-#     ntuple(i -> iszero(x._limbs[i+1]), Val{N - 1}()))
-# @inline _isone(x::_MFV{M,T,N}) where {M,T,N} = isone(x._limbs[1]) & _vand(
-#     Val{M}(), ntuple(i -> iszero(x._limbs[i+1]), Val{N - 1}()))
-
-
-# @inline Base.iszero(x::_MF{T,N}) where {T,N} = _iszero(renormalize(x))
-# @inline Base.iszero(x::_MFV{M,T,N}) where {M,T,N} = _iszero(renormalize(x))
-# @inline Base.isone(x::_MF{T,N}) where {T,N} = _isone(renormalize(x))
-# @inline Base.isone(x::_MFV{M,T,N}) where {M,T,N} = _isone(renormalize(x))
-# @inline Base.iszero(x::_MF{T,2}) where {T} = _iszero(x)
-# @inline Base.iszero(x::_MFV{M,T,2}) where {M,T} = _iszero(x)
-# @inline Base.isone(x::_MF{T,2}) where {T} = _isone(x)
-# @inline Base.isone(x::_MFV{M,T,2}) where {M,T} = _isone(x)
-
-
-# @inline _head(x::_MF{T,N}) where {T,N} = renormalize(x)._limbs[1]
-# @inline _head(x::_MFV{M,T,N}) where {M,T,N} = renormalize(x)._limbs[1]
-# @inline _head(x::_MF{T,2}) where {T} = x._limbs[1]
-# @inline _head(x::_MFV{M,T,2}) where {M,T} = x._limbs[1]
-
-
-# @inline Base.issubnormal(x::_MF{T,N}) where {T,N} = issubnormal(_head(x))
-# @inline Base.issubnormal(x::_MFV{M,T,N}) where {M,T,N} = issubnormal(_head(x))
-# @inline Base.isfinite(x::_MF{T,N}) where {T,N} = isfinite(_head(x))
-# @inline Base.isfinite(x::_MFV{M,T,N}) where {M,T,N} = isfinite(_head(x))
-# @inline Base.isinf(x::_MF{T,N}) where {T,N} = isinf(_head(x))
-# @inline Base.isinf(x::_MFV{M,T,N}) where {M,T,N} = isinf(_head(x))
-# @inline Base.isnan(x::_MF{T,N}) where {T,N} = isnan(_head(x))
-# @inline Base.isnan(x::_MFV{M,T,N}) where {M,T,N} = isnan(_head(x))
-
-
-# # Note: SIMD.jl does not define Base.exponent or Base.isinteger for vectors.
-# @inline Base.exponent(x::_MF{T,N}) where {T,N} = exponent(_head(x))
-# @inline Base.isinteger(x::_MF{T,N}) where {T,N} =
-#     all(isinteger.(renormalize(x)._limbs))
-
-
-# # Note: SIMD.jl does not define Base.ldexp for vectors.
-# @inline function Base.ldexp(x::_MF{T,N}, n::I) where {T,N,I}
-#     x = renormalize(x)
-#     return _MF{T,N}(ntuple(i -> ldexp(x._limbs[i], n), Val{N}()))
-# end
-
-# # needed for hashing
-# Base.decompose(x::MultiFloat) = Base.decompose(BigFloat(x))
-
-# # Note: SIMD.jl does not define Base.prevfloat or Base.nextfloat for vectors.
-# _prevfloat(x::_MF{T,N}) where {T,N} = renormalize(_MF{T,N}((ntuple(
-#         i -> x._limbs[i], Val{N - 1}())..., prevfloat(x._limbs[N]))))
-# _nextfloat(x::_MF{T,N}) where {T,N} = renormalize(_MF{T,N}((ntuple(
-#         i -> x._limbs[i], Val{N - 1}())..., nextfloat(x._limbs[N]))))
-# @inline Base.prevfloat(x::_MF{T,N}) where {T,N} = _prevfloat(renormalize(x))
-# @inline Base.nextfloat(x::_MF{T,N}) where {T,N} = _nextfloat(renormalize(x))
-
-
-# # Note: SIMD.jl does not define Base.precision for vectors.
-# if isdefined(Base, :_precision)
-#     @inline Base._precision(::Type{_MF{T,N}}) where {T,N} =
-#         N * precision(T) + (N - 1) # implicit bits of precision between limbs
-# else
-#     @inline Base.precision(::Type{_MF{T,N}}) where {T,N} =
-#         N * precision(T) + (N - 1) # implicit bits of precision between limbs
-# end
-
-
-# # Note: SIMD.jl does not define Base.eps for vectors.
-# @inline Base.eps(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(eps(T)^N)
-
-
-# # Note: SIMD.jl does not define Base.floatmin or Base.floatmax for vectors.
-# @inline Base.floatmin(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(floatmin(T))
-# @inline Base.floatmax(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(floatmax(T))
-
-
-# # Note: SIMD.jl does not define Base.typemin or Base.typemax for vectors.
-# @inline Base.typemin(::Type{_MF{T,N}}) where {T,N} =
-#     _MF{T,N}(ntuple(_ -> typemin(T), Val{N}()))
-# @inline Base.typemax(::Type{_MF{T,N}}) where {T,N} =
-#     _MF{T,N}(ntuple(_ -> typemax(T), Val{N}()))
-
-
 ################################################## CONVERSION TO PRIMITIVE TYPES
 
 
@@ -1403,34 +1348,10 @@ end
 ########################################################### ARITHMETIC OVERLOADS
 
 
-# @inline Base.:-(x::_MF{T,N}) where {T,N} =
-#     _MF{T,N}(ntuple(i -> -x._limbs[i], Val{N}()))
-# @inline Base.:-(x::_MFV{M,T,N}) where {M,T,N} =
-#     _MFV{M,T,N}(ntuple(i -> -x._limbs[i], Val{N}()))
-
-
-# @inline _abs(x::_MF{T,N}) where {T,N} =
-#     ifelse(signbit(x._limbs[1]), -x, x)
-# @inline _abs(x::_MFV{M,T,N}) where {M,T,N} =
-#     _MFV{M,T,N}(_mask_each(signbit(x._limbs[1]), (-x)._limbs, x._limbs))
-
-
-# @inline Base.abs(x::_MF{T,N}) where {T,N} = _abs(renormalize(x))
-# @inline Base.abs(x::_MFV{M,T,N}) where {M,T,N} = _abs(renormalize(x))
-# @inline Base.abs(x::_MF{T,2}) where {T} = _abs(x)
-# @inline Base.abs(x::_MFV{M,T,2}) where {M,T} = _abs(x)
-
-
 # @inline Base.abs2(x::_MF{T,N}) where {T,N} = x * x
 # @inline Base.abs2(x::_MFV{M,T,N}) where {M,T,N} = x * x
 # @inline Base.abs2(x::_MF{T,2}) where {T} = _abs2(x)
 # @inline Base.abs2(x::_MFV{M,T,2}) where {M,T} = _abs2(x)
-
-
-# @inline Base.inv(x::_MF{T,N}) where {T,N} = one(_MF{T,N}) / x
-# @inline Base.inv(x::_MFV{M,T,N}) where {M,T,N} = one(_MFV{M,T,N}) / x
-# @inline Base.inv(x::_MF{T,2}) where {T} = _inv(x)
-# @inline Base.inv(x::_MFV{M,T,2}) where {M,T} = _inv(x)
 
 
 # @inline Base.:^(x::_MF{T,N}, p::Integer) where {T,N} =
@@ -1441,66 +1362,6 @@ end
 
 # @inline Base.sum(x::_MFV{M,T,N}) where {M,T,N} =
 #     +(ntuple(i -> x[i], Val{M}())...)
-
-
-#################################################################### SQUARE ROOT
-
-
-# Note: MultiFloats.unsafe_sqrt and MultiFloats.rsqrt are not exported to avoid
-# potential name conflicts, but they are intended for external use by end users.
-
-
-# @inline unsafe_sqrt(x::Float16) = Base.sqrt_llvm(x)
-# @inline unsafe_sqrt(x::Float32) = Base.sqrt_llvm(x)
-# @inline unsafe_sqrt(x::Float64) = Base.sqrt_llvm(x)
-# @inline unsafe_sqrt(x::BigFloat) = sqrt(x)
-
-
-# @inline rsqrt(x::Float16) = inv(unsafe_sqrt(x))
-# @inline rsqrt(x::Float32) = inv(unsafe_sqrt(x))
-# @inline rsqrt(x::Float64) = inv(unsafe_sqrt(x))
-# @inline rsqrt(x::BigFloat) = inv(sqrt(x))
-
-
-# @inline function _rsqrt(x::_MF{T,N}, ::Val{I}) where {T,N,I}
-#     _one = one(T)
-#     _half = inv(_one + _one)
-#     r = _MF{T,N}(inv(unsafe_sqrt(x._limbs[1])))
-#     h = scale(_half, x)
-#     for _ = 1:I
-#         r += r * (_half - h * (r * r))
-#     end
-#     return r
-# end
-
-
-# @inline function _rsqrt(x::_MFV{M,T,N}, ::Val{I}) where {M,T,N,I}
-#     _one = one(T)
-#     _half = inv(_one + _one)
-#     _half_vec = Vec{M,T}(ntuple(_ -> _half, Val{M}()))
-#     r = _MFV{M,T,N}(inv(sqrt(x._limbs[1])))
-#     h = scale(_half, x)
-#     for _ = 1:I
-#         r += r * (_half_vec - h * (r * r))
-#     end
-#     return r
-# end
-
-
-# @inline rsqrt(x::_MF{T,1}) where {T} = _rsqrt(x, Val{0}())
-# @inline rsqrt(x::_MF{T,N}) where {T,N} = _rsqrt(x, Val{(N + 1) >> 1}())
-# @inline rsqrt(x::_MFV{M,T,1}) where {M,T} = _rsqrt(x, Val{0}())
-# @inline rsqrt(x::_MFV{M,T,N}) where {M,T,N} = _rsqrt(x, Val{(N + 1) >> 1}())
-
-
-# @inline unsafe_sqrt(x::_MF{T,N}) where {T,N} = inv(rsqrt(x))
-# @inline unsafe_sqrt(x::_MFV{M,T,N}) where {M,T,N} = inv(rsqrt(x))
-
-
-# @inline Base.sqrt(x::_MF{T,N}) where {T,N} =
-#     iszero(x) ? zero(_MF{T,N}) : unsafe_sqrt(x)
-# @inline Base.sqrt(x::_MFV{M,T,N}) where {M,T,N} =
-#     _MFV{M,T,N}(_mask_each(!iszero(x), unsafe_sqrt(x)._limbs, zero(Vec{M,T})))
 
 
 ################################################################ PROMOTION RULES

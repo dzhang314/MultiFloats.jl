@@ -19,6 +19,7 @@
         "mpfr",
         "PMFV",
         "rsqrt",
+        "vall",
         "Vararg",
         "vgather",
         "vifelse",
