@@ -345,7 +345,7 @@ const _Fits64xN = Union{_Fits64x2,_Fits64x3}
 end
 
 
-@inline function _split!(x::BigFloat, ::Type{T}, ::Val{N}) where {T,N}
+@inline function _split(x::BigFloat, ::Type{T}, ::Val{N}) where {T,N}
     if !isfinite(x)
         value = T(x)
         return ntuple(_ -> value, Val{N}())
@@ -357,18 +357,22 @@ end
         return ntuple(_ -> neg_inf, Val{N}())
     else
         result = ntuple(_ -> zero(T), Val{N}())
+        temp = BigFloat(; precision=precision(x))
+        ccall((:mpfr_set, libmpfr), Cint,
+            (Ref{BigFloat}, Ref{BigFloat}, MPFRRoundingMode),
+            temp, x, MPFRRoundNearest)
         for i = 1:N
-            limb = T(x)
+            limb = T(temp)
             result = Base.setindex(result, limb, i)
-            mpfr_sub!(x, limb)
+            mpfr_sub!(temp, limb)
         end
         return result
     end
 end
 
 
-_MF{T,N}(x::BigFloat) where {T,N} = _MF{T,N}(_split!(x, T, Val{N}()))
-_PMF{T,N}(x::BigFloat) where {T,N} = _PMF{T,N}(_split!(x, T, Val{N}()))
+_MF{T,N}(x::BigFloat) where {T,N} = _MF{T,N}(_split(x, T, Val{N}()))
+_PMF{T,N}(x::BigFloat) where {T,N} = _PMF{T,N}(_split(x, T, Val{N}()))
 
 
 #################################################### CONVERSION FROM OTHER TYPES
