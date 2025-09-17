@@ -561,6 +561,53 @@ end
 # _MFV{M,T,N}(x::Irrational) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
 
 
+################################################## FLOATING-POINT CLASSIFICATION
+
+
+@inline Base.signbit(x::_GMF{T,N}) where {T,N} = signbit(first(x._limbs))
+@inline Base.signbit(x::_GMFV{M,T,N}) where {M,T,N} = signbit(first(x._limbs))
+
+
+##################################################################### COMPARISON
+
+
+# TODO: MultiFloat-to-float comparison.
+# TODO: Scalar-to-vector comparison.
+# TODO: Implement Base.cmp.
+
+
+_eq_expr(n::Int) = (n == 1) ? :(x._limbs[1] == y._limbs[1]) : :(
+    $(_eq_expr(n - 1)) & (x._limbs[$n] == y._limbs[$n]))
+_ne_expr(n::Int) = (n == 1) ? :(x._limbs[1] != y._limbs[1]) : :(
+    $(_ne_expr(n - 1)) | (x._limbs[$n] != y._limbs[$n]))
+_lt_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] < y._limbs[$n]) : :(
+    (x._limbs[$i] < y._limbs[$i]) |
+    ((x._limbs[$i] == y._limbs[$i]) & $(_lt_expr(i + 1, n))))
+_gt_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] > y._limbs[$n]) : :(
+    (x._limbs[$i] > y._limbs[$i]) |
+    ((x._limbs[$i] == y._limbs[$i]) & $(_gt_expr(i + 1, n))))
+_le_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] <= y._limbs[$n]) : :(
+    (x._limbs[$i] < y._limbs[$i]) |
+    ((x._limbs[$i] == y._limbs[$i]) & $(_le_expr(i + 1, n))))
+_ge_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] >= y._limbs[$n]) : :(
+    (x._limbs[$i] > y._limbs[$i]) |
+    ((x._limbs[$i] == y._limbs[$i]) & $(_ge_expr(i + 1, n))))
+
+
+@generated Base.:(==)(x::_GMF{T,N}, y::_GMF{T,N}) where {T,N} = _eq_expr(N)
+@generated Base.:(==)(x::_GMFV{M,T,N}, y::_GMFV{M,T,N}) where {M,T,N} = _eq_expr(N)
+@generated Base.:(!=)(x::_GMF{T,N}, y::_GMF{T,N}) where {T,N} = _ne_expr(N)
+@generated Base.:(!=)(x::_GMFV{M,T,N}, y::_GMFV{M,T,N}) where {M,T,N} = _ne_expr(N)
+@generated Base.:(<)(x::_GMF{T,N}, y::_GMF{T,N}) where {T,N} = _lt_expr(1, N)
+@generated Base.:(<)(x::_GMFV{M,T,N}, y::_GMFV{M,T,N}) where {M,T,N} = _lt_expr(1, N)
+@generated Base.:(>)(x::_GMF{T,N}, y::_GMF{T,N}) where {T,N} = _gt_expr(1, N)
+@generated Base.:(>)(x::_GMFV{M,T,N}, y::_GMFV{M,T,N}) where {M,T,N} = _gt_expr(1, N)
+@generated Base.:(<=)(x::_GMF{T,N}, y::_GMF{T,N}) where {T,N} = _le_expr(1, N)
+@generated Base.:(<=)(x::_GMFV{M,T,N}, y::_GMFV{M,T,N}) where {M,T,N} = _le_expr(1, N)
+@generated Base.:(>=)(x::_GMF{T,N}, y::_GMF{T,N}) where {T,N} = _ge_expr(1, N)
+@generated Base.:(>=)(x::_GMFV{M,T,N}, y::_GMFV{M,T,N}) where {M,T,N} = _ge_expr(1, N)
+
+
 ################################################### LEVEL 0 ARITHMETIC OPERATORS
 
 
@@ -582,10 +629,6 @@ end
     ntuple(i -> -x._limbs[i], Val{N}()))
 @inline Base.:-(x::_PMFV{M,T,N}) where {M,T,N} = _PMFV{M,T,N}(
     ntuple(i -> -x._limbs[i], Val{N}()))
-
-
-@inline Base.signbit(x::_GMF{T,N}) where {T,N} = signbit(first(x._limbs))
-@inline Base.signbit(x::_GMFV{M,T,N}) where {M,T,N} = signbit(first(x._limbs))
 
 
 @inline Base.abs(x::_GMF{T,N}) where {T,N} = ifelse(signbit(x), -x, x)
@@ -1337,85 +1380,6 @@ end
 
 # import Printf: tofloat
 # @inline tofloat(x::_MF{T,N}) where {T,N} = _call_big(BigFloat, x)
-
-
-##################################################################### COMPARISON
-
-
-# # TODO: MultiFloat-to-Float comparison.
-# # TODO: Implement Base.cmp.
-
-
-# _eq_expr(n::Int) = (n == 1) ? :(x._limbs[1] == y._limbs[1]) : :(
-#     $(_eq_expr(n - 1)) & (x._limbs[$n] == y._limbs[$n]))
-# _ne_expr(n::Int) = (n == 1) ? :(x._limbs[1] != y._limbs[1]) : :(
-#     $(_ne_expr(n - 1)) | (x._limbs[$n] != y._limbs[$n]))
-# _lt_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$i] < y._limbs[$i]) : :(
-#     (x._limbs[$i] < y._limbs[$i]) |
-#     ((x._limbs[$i] == y._limbs[$i]) & $(_lt_expr(i + 1, n))))
-# _gt_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$i] > y._limbs[$i]) : :(
-#     (x._limbs[$i] > y._limbs[$i]) |
-#     ((x._limbs[$i] == y._limbs[$i]) & $(_gt_expr(i + 1, n))))
-# _le_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$i] <= y._limbs[$i]) : :(
-#     (x._limbs[$i] < y._limbs[$i]) |
-#     ((x._limbs[$i] == y._limbs[$i]) & $(_le_expr(i + 1, n))))
-# _ge_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$i] >= y._limbs[$i]) : :(
-#     (x._limbs[$i] > y._limbs[$i]) |
-#     ((x._limbs[$i] == y._limbs[$i]) & $(_ge_expr(i + 1, n))))
-
-
-# @generated _eq(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _eq_expr(N)
-# @generated _eq(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _eq_expr(N)
-# @generated _ne(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _ne_expr(N)
-# @generated _ne(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _ne_expr(N)
-# @generated _lt(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _lt_expr(1, N)
-# @generated _lt(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _lt_expr(1, N)
-# @generated _gt(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _gt_expr(1, N)
-# @generated _gt(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _gt_expr(1, N)
-# @generated _le(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _le_expr(1, N)
-# @generated _le(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _le_expr(1, N)
-# @generated _ge(x::_MF{T,N}, y::_MF{T,N}) where {T,N} = _ge_expr(1, N)
-# @generated _ge(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = _ge_expr(1, N)
-
-
-# @inline Base.:(==)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-#     _eq(renormalize(x), renormalize(y))
-# @inline Base.:(==)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-#     _eq(renormalize(x), renormalize(y))
-# @inline Base.:(!=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-#     _ne(renormalize(x), renormalize(y))
-# @inline Base.:(!=)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-#     _ne(renormalize(x), renormalize(y))
-# @inline Base.:(<)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-#     _lt(renormalize(x), renormalize(y))
-# @inline Base.:(<)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-#     _lt(renormalize(x), renormalize(y))
-# @inline Base.:(>)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-#     _gt(renormalize(x), renormalize(y))
-# @inline Base.:(>)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-#     _gt(renormalize(x), renormalize(y))
-# @inline Base.:(<=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-#     _le(renormalize(x), renormalize(y))
-# @inline Base.:(<=)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-#     _le(renormalize(x), renormalize(y))
-# @inline Base.:(>=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-#     _ge(renormalize(x), renormalize(y))
-# @inline Base.:(>=)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-#     _ge(renormalize(x), renormalize(y))
-
-
-# @inline Base.:(==)(x::_MF{T,2}, y::_MF{T,2}) where {T} = _eq(x, y)
-# @inline Base.:(==)(x::_MFV{M,T,2}, y::_MFV{M,T,2}) where {M,T} = _eq(x, y)
-# @inline Base.:(!=)(x::_MF{T,2}, y::_MF{T,2}) where {T} = _ne(x, y)
-# @inline Base.:(!=)(x::_MFV{M,T,2}, y::_MFV{M,T,2}) where {M,T} = _ne(x, y)
-# @inline Base.:(<)(x::_MF{T,2}, y::_MF{T,2}) where {T} = _lt(x, y)
-# @inline Base.:(<)(x::_MFV{M,T,2}, y::_MFV{M,T,2}) where {M,T} = _lt(x, y)
-# @inline Base.:(>)(x::_MF{T,2}, y::_MF{T,2}) where {T} = _gt(x, y)
-# @inline Base.:(>)(x::_MFV{M,T,2}, y::_MFV{M,T,2}) where {M,T} = _gt(x, y)
-# @inline Base.:(<=)(x::_MF{T,2}, y::_MF{T,2}) where {T} = _le(x, y)
-# @inline Base.:(<=)(x::_MFV{M,T,2}, y::_MFV{M,T,2}) where {M,T} = _le(x, y)
-# @inline Base.:(>=)(x::_MF{T,2}, y::_MF{T,2}) where {T} = _ge(x, y)
-# @inline Base.:(>=)(x::_MFV{M,T,2}, y::_MFV{M,T,2}) where {M,T} = _ge(x, y)
 
 
 ########################################################### ARITHMETIC OVERLOADS
