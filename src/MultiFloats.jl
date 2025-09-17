@@ -361,13 +361,13 @@ const _Fits64xN = Union{_Fits64x2,_Fits64x3}
     _PMFV{M,T,N}(_PMF{T,N}.(xs))
 @inline _PMFV{M,T,N}(xs::Vararg{Any,M}) where {M,T,N} =
     _PMFV{M,T,N}(_PMF{T,N}.(xs))
-_MFV{M,T,N}(xs::NTuple{K,Any}) where {M,T,N,K} =
+_MFV{M,T,N}(::NTuple{K,Any}) where {M,T,N,K} =
     error("MultiFloatVec constructor requires tuple of length $M.")
-_MFV{M,T,N}(xs::Vararg{Any,K}) where {M,T,N,K} =
+_MFV{M,T,N}(::Vararg{Any,K}) where {M,T,N,K} =
     error("MultiFloatVec constructor requires 1 or $M arguments.")
-_PMFV{M,T,N}(xs::NTuple{K,Any}) where {M,T,N,K} =
+_PMFV{M,T,N}(::NTuple{K,Any}) where {M,T,N,K} =
     error("PreciseMultiFloatVec constructor requires tuple of length $M.")
-_PMFV{M,T,N}(xs::Vararg{Any,K}) where {M,T,N,K} =
+_PMFV{M,T,N}(::Vararg{Any,K}) where {M,T,N,K} =
     error("PreciseMultiFloatVec constructor requires 1 or $M arguments.")
 
 
@@ -549,7 +549,7 @@ end
 # _MFV{M,T,N}(x::Irrational) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
 
 
-############################################################## SIGN MANIPULATION
+################################################### LEVEL 0 ARITHMETIC OPERATORS
 
 
 @inline Base.:+(x::_MF{T,N}) where {T,N} = _MF{T,N}(
@@ -576,22 +576,19 @@ end
 @inline Base.signbit(x::_GMFV{M,T,N}) where {M,T,N} = signbit(first(x._limbs))
 
 
-######################################################################## SCALING
-
-
-# Note: MultiFloats.scale is not exported because it is only useful for
-# MultiFloats. Users are expected to call it as MultiFloats.scale(a, x).
-
-
+# NOTE: MultiFloats.scale is not exported to avoid name conflicts.
+# Users are expected to call it as MultiFloats.scale(a, x).
 @inline scale(a, x) = a * x
-@inline scale(a::T, x::_MF{T,N}) where {T,N} = _MF{T,N}(
-    ntuple(i -> a * x._limbs[i], Val{N}()))
-@inline scale(a::T, x::_PMF{T,N}) where {T,N} = _PMF{T,N}(
-    ntuple(i -> a * x._limbs[i], Val{N}()))
-@inline scale(a::T, x::_MFV{M,T,N}) where {M,T,N} = _MFV{M,T,N}(
-    ntuple(i -> a * x._limbs[i], Val{N}()))
-@inline scale(a::T, x::_PMFV{M,T,N}) where {M,T,N} = _PMFV{M,T,N}(
-    ntuple(i -> a * x._limbs[i], Val{N}()))
+@inline scale(a::T, x::NTuple{N,T}) where {T,N} =
+    ntuple(i -> a * x[i], Val{N}())
+@inline scale(a::T, x::_MF{T,N}) where {T,N} =
+    _MF{T,N}(scale(a, x._limbs))
+@inline scale(a::T, x::_PMF{T,N}) where {T,N} =
+    _PMF{T,N}(scale(a, x._limbs))
+@inline scale(a::T, x::_MFV{M,T,N}) where {M,T,N} =
+    _MFV{M,T,N}(scale(a, x._limbs))
+@inline scale(a::T, x::_PMFV{M,T,N}) where {M,T,N} =
+    _PMFV{M,T,N}(scale(a, x._limbs))
 
 
 ############################################################## ADDITION NETWORKS
@@ -818,7 +815,7 @@ end
 end
 
 
-########################################################### ARITHMETIC OPERATORS
+################################################### LEVEL 1 ARITHMETIC OPERATORS
 
 
 @inline Base.:+(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
@@ -835,6 +832,201 @@ end
     _MF{T,N}(mfmul(x._limbs, y._limbs, Val{N}()))
 @inline Base.:*(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
     _MFV{M,T,N}(mfmul(x._limbs, y._limbs, Val{N}()))
+
+
+###################################################### KARP-MARKSTEIN ALGORITHMS
+
+
+@inline _resize(x::NTuple{N,T}, ::Val{M}) where {T,N,M} =
+    ntuple(i -> ((i <= N) ? x[i] : zero(T)), Val{M}())
+
+
+@inline function _mfinv_impl(
+    x::NTuple{X,T},
+    u::NTuple{U,T},
+    ::Val{Z},
+) where {T,X,U,Z}
+    @assert 0 < U < Z
+    if U + U >= Z
+        neg_one = ntuple(i -> ifelse(isone(i), -one(T), zero(T)), Val{Z}())
+        # TODO: The full-width multiplication here is wasteful and should be
+        # replaced once we find provably correct half-to-full algorithms.
+        # Ideally, we would develop a special multiplication algorithm that
+        # incorporates the (-1) term.
+        rx = _resize(x, Val{Z}())
+        ru = _resize(u, Val{Z}())
+        residual = mfadd(mfmul(rx, ru, Val{Z}()), neg_one, Val{Z}())
+        correction = mfmul(residual, ru, Val{Z}())
+        return mfadd(ru, (-).(correction), Val{Z}())
+    else
+        neg_one = ntuple(i -> ifelse(isone(i), -one(T), zero(T)), Val{U + U}())
+        rx = _resize(x, Val{U + U}())
+        ru = _resize(u, Val{U + U}())
+        residual = mfadd(mfmul(rx, ru, Val{U + U}()), neg_one, Val{U + U}())
+        correction = mfmul(residual, ru, Val{U + U}())
+        next_u = mfadd(ru, (-).(correction), Val{U + U}())
+        return _mfinv_impl(x, next_u, Val{Z}())
+    end
+end
+
+
+@inline function _mfdiv_impl(
+    x::NTuple{X,T},
+    y::NTuple{Y,T},
+    u::NTuple{U,T},
+    ::Val{Z},
+) where {T,X,Y,U,Z}
+    @assert 0 < U < Z
+    if U + U >= Z
+        rx = _resize(x, Val{Z}())
+        ry = _resize(y, Val{Z}())
+        ru = _resize(u, Val{Z}())
+        quotient = mfmul(rx, ru, Val{Z}())
+        residual = mfadd(mfmul(quotient, ry, Val{Z}()), (-).(rx), Val{Z}())
+        correction = mfmul(residual, ru, Val{Z}())
+        return mfadd(quotient, (-).(correction), Val{Z}())
+    else
+        neg_one = ntuple(i -> ifelse(isone(i), -one(T), zero(T)), Val{U + U}())
+        ry = _resize(y, Val{U + U}())
+        ru = _resize(u, Val{U + U}())
+        residual = mfadd(mfmul(ry, ru, Val{U + U}()), neg_one, Val{U + U}())
+        correction = mfmul(residual, ru, Val{U + U}())
+        next_u = mfadd(ru, (-).(correction), Val{U + U}())
+        return _mfdiv_impl(x, y, next_u, Val{Z}())
+    end
+end
+
+
+@inline function _mfrsqrt_impl(
+    x::NTuple{X,T},
+    u::NTuple{U,T},
+    ::Val{Z},
+) where {T,X,U,Z}
+    _one = one(T)
+    _two = _one + _one
+    _half = inv(_two)
+    @assert 0 < U < Z
+    if U + U >= Z
+        neg_one = ntuple(i -> ifelse(isone(i), -one(T), zero(T)), Val{Z}())
+        rx = _resize(x, Val{Z}())
+        ru = _resize(u, Val{Z}())
+        square = mfmul(ru, ru, Val{Z}())
+        residual = mfadd(mfmul(square, rx, Val{Z}()), neg_one, Val{Z}())
+        correction = mfmul(residual, scale(_half, ru), Val{Z}())
+        return mfadd(ru, (-).(correction), Val{Z}())
+    else
+        neg_one = ntuple(i -> ifelse(isone(i), -one(T), zero(T)), Val{U + U}())
+        rx = _resize(x, Val{U + U}())
+        ru = _resize(u, Val{U + U}())
+        square = mfmul(ru, ru, Val{U + U}())
+        residual = mfadd(mfmul(square, rx, Val{U + U}()), neg_one, Val{U + U}())
+        correction = mfmul(residual, scale(_half, ru), Val{U + U}())
+        next_u = mfadd(ru, (-).(correction), Val{U + U}())
+        return _mfrsqrt_impl(x, next_u, Val{Z}())
+    end
+end
+
+
+@inline function _mfsqrt_impl(
+    x::NTuple{X,T},
+    u::NTuple{U,T},
+    ::Val{Z},
+) where {T,X,U,Z}
+    _one = one(T)
+    _two = _one + _one
+    _half = inv(_two)
+    @assert 0 < U < Z
+    if U + U >= Z
+        rx = _resize(x, Val{Z}())
+        ru = _resize(u, Val{Z}())
+        root = mfmul(rx, ru, Val{Z}())
+        residual = mfadd(mfmul(root, root, Val{Z}()), (-).(rx), Val{Z}())
+        correction = mfmul(residual, scale(_half, ru), Val{Z}())
+        return mfadd(root, (-).(correction), Val{Z}())
+    else
+        neg_one = ntuple(i -> ifelse(isone(i), -one(T), zero(T)), Val{U + U}())
+        rx = _resize(x, Val{U + U}())
+        ru = _resize(u, Val{U + U}())
+        square = mfmul(ru, ru, Val{U + U}())
+        residual = mfadd(mfmul(square, rx, Val{U + U}()), neg_one, Val{U + U}())
+        correction = mfmul(residual, scale(_half, ru), Val{U + U}())
+        next_u = mfadd(ru, (-).(correction), Val{U + U}())
+        return _mfsqrt_impl(x, next_u, Val{Z}())
+    end
+end
+
+
+@inline mfinv(x::NTuple{X,T}, ::Val{Z}) where {T,X,Z} =
+    _mfinv_impl(x, (inv(first(x)),), Val{Z}())
+
+
+@inline mfdiv(x::NTuple{X,T}, y::NTuple{Y,T}, ::Val{Z}) where {T,X,Y,Z} =
+    _mfdiv_impl(x, y, (inv(first(y)),), Val{Z}())
+
+
+@inline mfrsqrt(x::NTuple{X,T}, ::Val{Z}) where {T,X,Z} =
+    _mfrsqrt_impl(x, (inv(sqrt(first(x))),), Val{Z}())
+
+
+@inline mfsqrt(x::NTuple{X,T}, ::Val{Z}) where {T,X,Z} =
+    _mfsqrt_impl(x, (inv(sqrt(first(x))),), Val{Z}())
+
+
+################################################### LEVEL 2 ARITHMETIC OPERATORS
+
+
+# NOTE: MultiFloats.unsafe_sqrt is not exported to avoid name conflicts.
+# Users are expected to call it as MultiFloats.unsafe_sqrt(x).
+
+@inline unsafe_sqrt(x::Any) = sqrt(x)
+
+@inline unsafe_sqrt(x::Union{Float16,Float32,Float64}) = Base.sqrt_llvm(x)
+
+function unsafe_sqrt(x::BigFloat)
+    result = BigFloat()
+    ccall((:mpfr_sqrt, libmpfr), Cint,
+        (Ref{BigFloat}, Ref{BigFloat}, MPFRRoundingMode),
+        result, x, MPFRRoundNearest)
+    return result
+end
+
+
+# NOTE: MultiFloats.rsqrt is not exported to avoid name conflicts.
+# Users are expected to call it as MultiFloats.rsqrt(x).
+
+@inline rsqrt(x::Any) = inv(unsafe_sqrt(x))
+
+function rsqrt(x::BigFloat)
+    result = BigFloat()
+    ccall((:mpfr_rec_sqrt, libmpfr), Cint,
+        (Ref{BigFloat}, Ref{BigFloat}, MPFRRoundingMode),
+        result, x, MPFRRoundNearest)
+    return result
+end
+
+
+@inline Base.inv(x::_MF{T,N}) where {T,N} =
+    _MF{T,N}(mfinv(x._limbs, Val{N}()))
+@inline Base.inv(x::_MFV{M,T,N}) where {M,T,N} =
+    _MFV{M,T,N}(mfinv(x._limbs, Val{N}()))
+
+
+@inline Base.:/(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
+    _MF{T,N}(mfdiv(x._limbs, y._limbs, Val{N}()))
+@inline Base.:/(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
+    _MFV{M,T,N}(mfdiv(x._limbs, y._limbs, Val{N}()))
+
+
+@inline rsqrt(x::_MF{T,N}) where {T,N} =
+    _MF{T,N}(mfrsqrt(x._limbs, Val{N}()))
+@inline rsqrt(x::_MFV{M,T,N}) where {M,T,N} =
+    _MFV{M,T,N}(mfrsqrt(x._limbs, Val{N}()))
+
+
+@inline unsafe_sqrt(x::_MF{T,N}) where {T,N} =
+    _MF{T,N}(mfsqrt(x._limbs, Val{N}()))
+@inline unsafe_sqrt(x::_MFV{M,T,N}) where {M,T,N} =
+    _MFV{M,T,N}(mfsqrt(x._limbs, Val{N}()))
 
 
 ################################################### FLOATING-POINT INTROSPECTION
@@ -884,8 +1076,6 @@ end
 # @inline Base.isinf(x::_MFV{M,T,N}) where {M,T,N} = isinf(_head(x))
 # @inline Base.isnan(x::_MF{T,N}) where {T,N} = isnan(_head(x))
 # @inline Base.isnan(x::_MFV{M,T,N}) where {M,T,N} = isnan(_head(x))
-# @inline Base.signbit(x::_MF{T,N}) where {T,N} = signbit(_head(x))
-# @inline Base.signbit(x::_MFV{M,T,N}) where {M,T,N} = signbit(_head(x))
 
 
 # # Note: SIMD.jl does not define Base.exponent or Base.isinteger for vectors.
@@ -954,21 +1144,6 @@ end
 # TODO: Conversion from Float32x{N} to Float64.
 # TODO: Conversion from Float16x{N} to Float32.
 # TODO: Conversion from Float16x{N} to Float64.
-
-
-######################################################## CONVERSION TO BIG TYPES
-
-
-# Base.BigFloat(x::_MF{T,N}; precision::Integer=precision(BigFloat)) where {T,N} =
-#     setprecision(BigFloat, precision) do
-#         setrounding(BigFloat, RoundNearest) do
-#             +(BigFloat.(renormalize(x)._limbs)...)
-#         end
-#     end
-
-
-# Base.Rational{BigInt}(x::_MF{T,N}) where {T,N} =
-#     +(Rational{BigInt}.(renormalize(x)._limbs)...)
 
 
 ####################################################################### PRINTING
