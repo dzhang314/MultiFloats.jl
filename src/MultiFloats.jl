@@ -53,20 +53,38 @@ const _GMFV{M,T,N} = Union{_MFV{M,T,N},_PMFV{M,T,N}}
 
 export Float16x, Float32x, Float64x,
     PreciseFloat16x, PreciseFloat32x, PreciseFloat64x,
+    Float32x1, Float32x2, Float32x3, Float32x4,
     Float64x1, Float64x2, Float64x3, Float64x4,
+    PreciseFloat32x1, PreciseFloat32x2, PreciseFloat32x3, PreciseFloat32x4,
     PreciseFloat64x1, PreciseFloat64x2, PreciseFloat64x3, PreciseFloat64x4,
+    Vec1Float32x1, Vec1Float32x2, Vec1Float32x3, Vec1Float32x4,
     Vec1Float64x1, Vec1Float64x2, Vec1Float64x3, Vec1Float64x4,
+    Vec2Float32x1, Vec2Float32x2, Vec2Float32x3, Vec2Float32x4,
     Vec2Float64x1, Vec2Float64x2, Vec2Float64x3, Vec2Float64x4,
+    Vec4Float32x1, Vec4Float32x2, Vec4Float32x3, Vec4Float32x4,
     Vec4Float64x1, Vec4Float64x2, Vec4Float64x3, Vec4Float64x4,
+    Vec8Float32x1, Vec8Float32x2, Vec8Float32x3, Vec8Float32x4,
     Vec8Float64x1, Vec8Float64x2, Vec8Float64x3, Vec8Float64x4,
+    Vec1PreciseFloat32x1, Vec1PreciseFloat32x2,
+    Vec1PreciseFloat32x3, Vec1PreciseFloat32x4,
     Vec1PreciseFloat64x1, Vec1PreciseFloat64x2,
     Vec1PreciseFloat64x3, Vec1PreciseFloat64x4,
+    Vec2PreciseFloat32x1, Vec2PreciseFloat32x2,
+    Vec2PreciseFloat32x3, Vec2PreciseFloat32x4,
     Vec2PreciseFloat64x1, Vec2PreciseFloat64x2,
     Vec2PreciseFloat64x3, Vec2PreciseFloat64x4,
+    Vec4PreciseFloat32x1, Vec4PreciseFloat32x2,
+    Vec4PreciseFloat32x3, Vec4PreciseFloat32x4,
     Vec4PreciseFloat64x1, Vec4PreciseFloat64x2,
     Vec4PreciseFloat64x3, Vec4PreciseFloat64x4,
+    Vec8PreciseFloat32x1, Vec8PreciseFloat32x2,
+    Vec8PreciseFloat32x3, Vec8PreciseFloat32x4,
     Vec8PreciseFloat64x1, Vec8PreciseFloat64x2,
-    Vec8PreciseFloat64x3, Vec8PreciseFloat64x4
+    Vec8PreciseFloat64x3, Vec8PreciseFloat64x4,
+    Vec16PreciseFloat32x1, Vec16PreciseFloat32x2,
+    Vec16PreciseFloat32x3, Vec16PreciseFloat32x4,
+    Vec16PreciseFloat64x1, Vec16PreciseFloat64x2,
+    Vec16PreciseFloat64x3, Vec16PreciseFloat64x4
 
 
 const Float16x{N} = MultiFloat{Float16,N}
@@ -79,52 +97,108 @@ const PreciseFloat32x{N} = PreciseMultiFloat{Float32,N}
 const PreciseFloat64x{N} = PreciseMultiFloat{Float64,N}
 
 
+const Float32x1 = MultiFloat{Float32,1}
+const Float32x2 = MultiFloat{Float32,2}
+const Float32x3 = MultiFloat{Float32,3}
+const Float32x4 = MultiFloat{Float32,4}
 const Float64x1 = MultiFloat{Float64,1}
 const Float64x2 = MultiFloat{Float64,2}
 const Float64x3 = MultiFloat{Float64,3}
 const Float64x4 = MultiFloat{Float64,4}
 
 
+const PreciseFloat32x1 = PreciseMultiFloat{Float32,1}
+const PreciseFloat32x2 = PreciseMultiFloat{Float32,2}
+const PreciseFloat32x3 = PreciseMultiFloat{Float32,3}
+const PreciseFloat32x4 = PreciseMultiFloat{Float32,4}
 const PreciseFloat64x1 = PreciseMultiFloat{Float64,1}
 const PreciseFloat64x2 = PreciseMultiFloat{Float64,2}
 const PreciseFloat64x3 = PreciseMultiFloat{Float64,3}
 const PreciseFloat64x4 = PreciseMultiFloat{Float64,4}
 
 
+const Vec1Float32x1 = MultiFloatVec{1,Float32,1}
+const Vec1Float32x2 = MultiFloatVec{1,Float32,2}
+const Vec1Float32x3 = MultiFloatVec{1,Float32,3}
+const Vec1Float32x4 = MultiFloatVec{1,Float32,4}
 const Vec1Float64x1 = MultiFloatVec{1,Float64,1}
 const Vec1Float64x2 = MultiFloatVec{1,Float64,2}
 const Vec1Float64x3 = MultiFloatVec{1,Float64,3}
 const Vec1Float64x4 = MultiFloatVec{1,Float64,4}
+const Vec2Float32x1 = MultiFloatVec{2,Float32,1}
+const Vec2Float32x2 = MultiFloatVec{2,Float32,2}
+const Vec2Float32x3 = MultiFloatVec{2,Float32,3}
+const Vec2Float32x4 = MultiFloatVec{2,Float32,4}
 const Vec2Float64x1 = MultiFloatVec{2,Float64,1}
 const Vec2Float64x2 = MultiFloatVec{2,Float64,2}
 const Vec2Float64x3 = MultiFloatVec{2,Float64,3}
 const Vec2Float64x4 = MultiFloatVec{2,Float64,4}
+const Vec4Float32x1 = MultiFloatVec{4,Float32,1}
+const Vec4Float32x2 = MultiFloatVec{4,Float32,2}
+const Vec4Float32x3 = MultiFloatVec{4,Float32,3}
+const Vec4Float32x4 = MultiFloatVec{4,Float32,4}
 const Vec4Float64x1 = MultiFloatVec{4,Float64,1}
 const Vec4Float64x2 = MultiFloatVec{4,Float64,2}
 const Vec4Float64x3 = MultiFloatVec{4,Float64,3}
 const Vec4Float64x4 = MultiFloatVec{4,Float64,4}
+const Vec8Float32x1 = MultiFloatVec{8,Float32,1}
+const Vec8Float32x2 = MultiFloatVec{8,Float32,2}
+const Vec8Float32x3 = MultiFloatVec{8,Float32,3}
+const Vec8Float32x4 = MultiFloatVec{8,Float32,4}
 const Vec8Float64x1 = MultiFloatVec{8,Float64,1}
 const Vec8Float64x2 = MultiFloatVec{8,Float64,2}
 const Vec8Float64x3 = MultiFloatVec{8,Float64,3}
 const Vec8Float64x4 = MultiFloatVec{8,Float64,4}
+const Vec16Float32x1 = MultiFloatVec{16,Float32,1}
+const Vec16Float32x2 = MultiFloatVec{16,Float32,2}
+const Vec16Float32x3 = MultiFloatVec{16,Float32,3}
+const Vec16Float32x4 = MultiFloatVec{16,Float32,4}
+const Vec16Float64x1 = MultiFloatVec{16,Float64,1}
+const Vec16Float64x2 = MultiFloatVec{16,Float64,2}
+const Vec16Float64x3 = MultiFloatVec{16,Float64,3}
+const Vec16Float64x4 = MultiFloatVec{16,Float64,4}
 
 
+const Vec1PreciseFloat32x1 = PreciseMultiFloatVec{1,Float32,1}
+const Vec1PreciseFloat32x2 = PreciseMultiFloatVec{1,Float32,2}
+const Vec1PreciseFloat32x3 = PreciseMultiFloatVec{1,Float32,3}
+const Vec1PreciseFloat32x4 = PreciseMultiFloatVec{1,Float32,4}
 const Vec1PreciseFloat64x1 = PreciseMultiFloatVec{1,Float64,1}
 const Vec1PreciseFloat64x2 = PreciseMultiFloatVec{1,Float64,2}
 const Vec1PreciseFloat64x3 = PreciseMultiFloatVec{1,Float64,3}
 const Vec1PreciseFloat64x4 = PreciseMultiFloatVec{1,Float64,4}
+const Vec2PreciseFloat32x1 = PreciseMultiFloatVec{2,Float32,1}
+const Vec2PreciseFloat32x2 = PreciseMultiFloatVec{2,Float32,2}
+const Vec2PreciseFloat32x3 = PreciseMultiFloatVec{2,Float32,3}
+const Vec2PreciseFloat32x4 = PreciseMultiFloatVec{2,Float32,4}
 const Vec2PreciseFloat64x1 = PreciseMultiFloatVec{2,Float64,1}
 const Vec2PreciseFloat64x2 = PreciseMultiFloatVec{2,Float64,2}
 const Vec2PreciseFloat64x3 = PreciseMultiFloatVec{2,Float64,3}
 const Vec2PreciseFloat64x4 = PreciseMultiFloatVec{2,Float64,4}
+const Vec4PreciseFloat32x1 = PreciseMultiFloatVec{4,Float32,1}
+const Vec4PreciseFloat32x2 = PreciseMultiFloatVec{4,Float32,2}
+const Vec4PreciseFloat32x3 = PreciseMultiFloatVec{4,Float32,3}
+const Vec4PreciseFloat32x4 = PreciseMultiFloatVec{4,Float32,4}
 const Vec4PreciseFloat64x1 = PreciseMultiFloatVec{4,Float64,1}
 const Vec4PreciseFloat64x2 = PreciseMultiFloatVec{4,Float64,2}
 const Vec4PreciseFloat64x3 = PreciseMultiFloatVec{4,Float64,3}
 const Vec4PreciseFloat64x4 = PreciseMultiFloatVec{4,Float64,4}
+const Vec8PreciseFloat32x1 = PreciseMultiFloatVec{8,Float32,1}
+const Vec8PreciseFloat32x2 = PreciseMultiFloatVec{8,Float32,2}
+const Vec8PreciseFloat32x3 = PreciseMultiFloatVec{8,Float32,3}
+const Vec8PreciseFloat32x4 = PreciseMultiFloatVec{8,Float32,4}
 const Vec8PreciseFloat64x1 = PreciseMultiFloatVec{8,Float64,1}
 const Vec8PreciseFloat64x2 = PreciseMultiFloatVec{8,Float64,2}
 const Vec8PreciseFloat64x3 = PreciseMultiFloatVec{8,Float64,3}
 const Vec8PreciseFloat64x4 = PreciseMultiFloatVec{8,Float64,4}
+const Vec16PreciseFloat32x1 = PreciseMultiFloatVec{16,Float32,1}
+const Vec16PreciseFloat32x2 = PreciseMultiFloatVec{16,Float32,2}
+const Vec16PreciseFloat32x3 = PreciseMultiFloatVec{16,Float32,3}
+const Vec16PreciseFloat32x4 = PreciseMultiFloatVec{16,Float32,4}
+const Vec16PreciseFloat64x1 = PreciseMultiFloatVec{16,Float64,1}
+const Vec16PreciseFloat64x2 = PreciseMultiFloatVec{16,Float64,2}
+const Vec16PreciseFloat64x3 = PreciseMultiFloatVec{16,Float64,3}
+const Vec16PreciseFloat64x4 = PreciseMultiFloatVec{16,Float64,4}
 
 
 ###################################################################### CONSTANTS
