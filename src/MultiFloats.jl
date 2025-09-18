@@ -552,11 +552,11 @@ end
 #################################################### FLOATING-POINT MANIPULATION
 
 
-# # Note: SIMD.jl does not define Base.ldexp for vectors.
-# @inline function Base.ldexp(x::_MF{T,N}, n::I) where {T,N,I}
-#     x = renormalize(x)
-#     return _MF{T,N}(ntuple(i -> ldexp(x._limbs[i], n), Val{N}()))
-# end
+@inline Base.ldexp(x::_MF{T,N}, n::Integer) where {T,N} =
+    _MF{T,N}(ntuple(i -> ldexp(x._limbs[i], n), Val{N}()))
+@inline Base.ldexp(x::_PMF{T,N}, n::Integer) where {T,N} =
+    _PMF{T,N}(ntuple(i -> ldexp(x._limbs[i], n), Val{N}()))
+# NOTE: SIMD.jl does not define Base.ldexp for vectors.
 
 
 # # needed for hashing
@@ -1365,16 +1365,31 @@ import LinearAlgebra: floatmin2
 ################################################################ PROMOTION RULES
 
 
+# Promote MultiFloat scalar with scalar limb type.
 Base.promote_rule(::Type{_MF{T,N}}, ::Type{T}) where {T,N} = _MF{T,N}
 Base.promote_rule(::Type{_PMF{T,N}}, ::Type{T}) where {T,N} = _PMF{T,N}
+
+
+# Promote MultiFloat scalar with vector limb type.
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{Vec{M,T}}) where {M,T,N} =
+    _MFV{M,T,N}
+Base.promote_rule(::Type{_PMF{T,N}}, ::Type{Vec{M,T}}) where {M,T,N} =
+    _PMFV{M,T,N}
+
+
+# Promote MultiFloat vector with scalar limb type.
 Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{T}) where {M,T,N} = _MFV{M,T,N}
 Base.promote_rule(::Type{_PMFV{M,T,N}}, ::Type{T}) where {M,T,N} = _PMFV{M,T,N}
 
 
+# Promote MultiFloat vector with vector limb type.
 Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{Vec{M,T}}) where {M,T,N} =
     _MFV{M,T,N}
 Base.promote_rule(::Type{_PMFV{M,T,N}}, ::Type{Vec{M,T}}) where {M,T,N} =
     _PMFV{M,T,N}
+
+
+# Promote MultiFloat vector with MultiFloat scalar.
 Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{_MF{T,N}}) where {M,T,N} =
     _MFV{M,T,N}
 Base.promote_rule(::Type{_PMFV{M,T,N}}, ::Type{_PMF{T,N}}) where {M,T,N} =
@@ -1385,11 +1400,15 @@ for S in [
     Bool,
     Int8, Int16, Int32, Int64, Int128,
     UInt8, UInt16, UInt32, UInt64, UInt128,
+    Float16, Float32, Float64,
 ]
+    # Promote MultiFloat scalar with fixed-precision real type.
     Base.promote_rule(::Type{_MF{T,N}}, ::Type{S}) where {T,N} =
         _MF{T,N}
     Base.promote_rule(::Type{_PMF{T,N}}, ::Type{S}) where {T,N} =
         _PMF{T,N}
+
+    # Promote MultiFloat vector with fixed-precision real type.
     Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{S}) where {M,T,N} =
         _MFV{M,T,N}
     Base.promote_rule(::Type{_PMFV{M,T,N}}, ::Type{S}) where {M,T,N} =
@@ -1397,26 +1416,29 @@ for S in [
 end
 
 
+# Promote MultiFloat scalar with arbitrary-precision real type.
 Base.promote_rule(::Type{_GMF{T,N}}, ::Type{BigInt}) where {T,N} = BigFloat
 Base.promote_rule(::Type{_GMF{T,N}}, ::Type{BigFloat}) where {T,N} = BigFloat
 
 
-# Base.promote_rule(::Type{Float32x{N}}, ::Type{Float16}) where {N} = Float32x{N}
-# Base.promote_rule(::Type{Float64x{N}}, ::Type{Float16}) where {N} = Float64x{N}
-# Base.promote_rule(::Type{Float64x{N}}, ::Type{Float32}) where {N} = Float64x{N}
+# Allow MultiFloat vector types to participate in the conversion system.
+@inline Base.convert(::Type{_MFV{M,T,N}}, x::_MFV{M,T,N}) where {M,T,N} = x
+@inline Base.convert(::Type{_PMFV{M,T,N}}, x::_PMFV{M,T,N}) where {M,T,N} = x
+@inline Base.convert(::Type{_MFV{M,T,N}}, x::Any) where {M,T,N} =
+    _MFV{M,T,N}(x)
+@inline Base.convert(::Type{_PMFV{M,T,N}}, x::Any) where {M,T,N} =
+    _PMFV{M,T,N}(x)
 
 
-# @inline Base.:+(x::_MFV{M,T,N}, y::Number) where {M,T,N} = +(promote(x, y)...)
-# @inline Base.:+(x::Number, y::_MFV{M,T,N}) where {M,T,N} = +(promote(x, y)...)
-# @inline Base.:-(x::_MFV{M,T,N}, y::Number) where {M,T,N} = -(promote(x, y)...)
-# @inline Base.:-(x::Number, y::_MFV{M,T,N}) where {M,T,N} = -(promote(x, y)...)
-# @inline Base.:*(x::_MFV{M,T,N}, y::Number) where {M,T,N} = *(promote(x, y)...)
-# @inline Base.:*(x::Number, y::_MFV{M,T,N}) where {M,T,N} = *(promote(x, y)...)
-# @inline Base.:/(x::_MFV{M,T,N}, y::Number) where {M,T,N} = /(promote(x, y)...)
-# @inline Base.:/(x::Number, y::_MFV{M,T,N}) where {M,T,N} = /(promote(x, y)...)
-
-
-# @inline Base.convert(::Type{_MFV{M,T,N}}, x::Number) where {M,T,N} = _MFV{M,T,N}(x)
+# Allow MultiFloat vector types to participate in the promotion system.
+@inline Base.:+(x::_GMFV{M,T,N}, y::Any) where {M,T,N} = +(promote(x, y)...)
+@inline Base.:+(x::Any, y::_GMFV{M,T,N}) where {M,T,N} = +(promote(x, y)...)
+@inline Base.:-(x::_GMFV{M,T,N}, y::Any) where {M,T,N} = -(promote(x, y)...)
+@inline Base.:-(x::Any, y::_GMFV{M,T,N}) where {M,T,N} = -(promote(x, y)...)
+@inline Base.:*(x::_GMFV{M,T,N}, y::Any) where {M,T,N} = *(promote(x, y)...)
+@inline Base.:*(x::Any, y::_GMFV{M,T,N}) where {M,T,N} = *(promote(x, y)...)
+@inline Base.:/(x::_GMFV{M,T,N}, y::Any) where {M,T,N} = /(promote(x, y)...)
+@inline Base.:/(x::Any, y::_GMFV{M,T,N}) where {M,T,N} = /(promote(x, y)...)
 
 
 ####################################################### TRANSCENDENTAL FUNCTIONS
