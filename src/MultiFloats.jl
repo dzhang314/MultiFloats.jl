@@ -1,7 +1,7 @@
 module MultiFloats
 
 using Base.MPFR: libmpfr, CdoubleMax, MPFRRoundingMode, MPFRRoundNearest
-using SIMD: Vec, vgather, vscatter
+using SIMD: Vec
 using SIMD.Intrinsics: extractelement
 
 import SIMD: vifelse
@@ -477,6 +477,7 @@ end
 @inline Base.eps(::Type{_PMF{T,N}}) where {T,N} = _PMF{T,N}(eps(T)^N)
 
 
+# TODO: Implement Base.precision.
 # if isdefined(Base, :_precision)
 #     @inline Base._precision(::Type{_MF{T,N}}) where {T,N} =
 #         N * precision(T) + (N - 1) # implicit bits of precision between limbs
@@ -559,17 +560,18 @@ end
 # NOTE: SIMD.jl does not define Base.ldexp for vectors.
 
 
-# # needed for hashing
+# TODO: Implement Base.decompose.
 # Base.decompose(x::MultiFloat) = Base.decompose(BigFloat(x))
 
 
-# # Note: SIMD.jl does not define Base.prevfloat or Base.nextfloat for vectors.
+# TODO: Implement renormalization, prevfloat, and nextfloat.
 # _prevfloat(x::_MF{T,N}) where {T,N} = renormalize(_MF{T,N}((ntuple(
 #         i -> x._limbs[i], Val{N - 1}())..., prevfloat(x._limbs[N]))))
 # _nextfloat(x::_MF{T,N}) where {T,N} = renormalize(_MF{T,N}((ntuple(
 #         i -> x._limbs[i], Val{N - 1}())..., nextfloat(x._limbs[N]))))
 # @inline Base.prevfloat(x::_MF{T,N}) where {T,N} = _prevfloat(renormalize(x))
 # @inline Base.nextfloat(x::_MF{T,N}) where {T,N} = _nextfloat(renormalize(x))
+# NOTE: SIMD.jl does not define Base.prevfloat or Base.nextfloat for vectors.
 
 
 ############################################################## VECTOR OPERATIONS
@@ -683,24 +685,24 @@ _ge_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] >= y._limbs[$n]) : :(
 ################################################### LEVEL 0 ARITHMETIC OPERATORS
 
 
-@inline Base.:+(x::_MF{T,N}) where {T,N} = _MF{T,N}(
-    ntuple(i -> +x._limbs[i], Val{N}()))
-@inline Base.:+(x::_PMF{T,N}) where {T,N} = _PMF{T,N}(
-    ntuple(i -> +x._limbs[i], Val{N}()))
-@inline Base.:+(x::_MFV{M,T,N}) where {M,T,N} = _MFV{M,T,N}(
-    ntuple(i -> +x._limbs[i], Val{N}()))
-@inline Base.:+(x::_PMFV{M,T,N}) where {M,T,N} = _PMFV{M,T,N}(
-    ntuple(i -> +x._limbs[i], Val{N}()))
+@inline Base.copy(x::_MF{T,N}) where {T,N} = _MF{T,N}((copy).(x._limbs))
+@inline Base.copy(x::_PMF{T,N}) where {T,N} = _PMF{T,N}((copy).(x._limbs))
+@inline Base.copy(x::_MFV{M,T,N}) where {M,T,N} =
+    _MFV{M,T,N}((copy).(x._limbs))
+@inline Base.copy(x::_PMFV{M,T,N}) where {M,T,N} =
+    _PMFV{M,T,N}((copy).(x._limbs))
 
 
-@inline Base.:-(x::_MF{T,N}) where {T,N} = _MF{T,N}(
-    ntuple(i -> -x._limbs[i], Val{N}()))
-@inline Base.:-(x::_PMF{T,N}) where {T,N} = _PMF{T,N}(
-    ntuple(i -> -x._limbs[i], Val{N}()))
-@inline Base.:-(x::_MFV{M,T,N}) where {M,T,N} = _MFV{M,T,N}(
-    ntuple(i -> -x._limbs[i], Val{N}()))
-@inline Base.:-(x::_PMFV{M,T,N}) where {M,T,N} = _PMFV{M,T,N}(
-    ntuple(i -> -x._limbs[i], Val{N}()))
+@inline Base.:+(x::_MF{T,N}) where {T,N} = _MF{T,N}((+).(x._limbs))
+@inline Base.:+(x::_PMF{T,N}) where {T,N} = _PMF{T,N}((+).(x._limbs))
+@inline Base.:+(x::_MFV{M,T,N}) where {M,T,N} = _MFV{M,T,N}((+).(x._limbs))
+@inline Base.:+(x::_PMFV{M,T,N}) where {M,T,N} = _PMFV{M,T,N}((+).(x._limbs))
+
+
+@inline Base.:-(x::_MF{T,N}) where {T,N} = _MF{T,N}((-).(x._limbs))
+@inline Base.:-(x::_PMF{T,N}) where {T,N} = _PMF{T,N}((-).(x._limbs))
+@inline Base.:-(x::_MFV{M,T,N}) where {M,T,N} = _MFV{M,T,N}((-).(x._limbs))
+@inline Base.:-(x::_PMFV{M,T,N}) where {M,T,N} = _PMFV{M,T,N}((-).(x._limbs))
 
 
 @inline Base.abs(x::_GMF{T,N}) where {T,N} = ifelse(signbit(x), -x, x)
@@ -965,6 +967,21 @@ end
     _MFV{M,T,N}(mfmul(x._limbs, y._limbs, Val{N}()))
 
 
+@inline Base.sum(x::_GMFV{M,T,N}) where {M,T,N} =
+    +(ntuple(i -> x[i], Val{M}())...)
+@inline Base.abs2(x::_GMFV{M,T,N}) where {M,T,N} = x * x
+
+
+@inline Base.:^(x::_GMF{T,N}, p::Integer) where {T,N} =
+    signbit(p) ?
+    Base.power_by_squaring(inv(x), -p) :
+    Base.power_by_squaring(x, p)
+@inline Base.:^(x::_GMFV{M,T,N}, p::Integer) where {M,T,N} =
+    signbit(p) ?
+    Base.power_by_squaring(inv(x), -p) :
+    Base.power_by_squaring(x, p)
+
+
 ########################################################## SQUARE ROOT OPERATORS
 
 
@@ -1012,6 +1029,10 @@ end
     ntuple(i -> ((i <= N) ? x[i] : zero(T)), Val{M}())
 
 
+# TODO: Develop half-to-full-width multiplication algorithms.
+# TODO: Develop residual multiplication algorithms with built-in subtraction.
+
+
 @inline function _mfinv_impl(
     x::NTuple{X,T},
     u::NTuple{U,T},
@@ -1022,10 +1043,6 @@ end
     _one = one(T)
     if U + U >= Z
         neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{Z}())
-        # TODO: The full-width multiplication here is wasteful and should be
-        # replaced once we find provably correct half-to-full algorithms.
-        # Ideally, we would develop a special multiplication algorithm that
-        # incorporates the (-1) term.
         rx = _resize(x, Val{Z}())
         ru = _resize(u, Val{Z}())
         residual = mfadd(mfmul(rx, ru, Val{Z}()), neg_one, Val{Z}())
@@ -1193,6 +1210,9 @@ end
 ####################################################################### PRINTING
 
 
+# TODO: Implement printing and test for round-trip correctness.
+
+
 # function _call_big(f::F, x::_MF{T,N}) where {F,T,N}
 #     x = renormalize(x)
 #     total = +(x._limbs...)
@@ -1329,6 +1349,7 @@ end
 ################################################# STANDARD LIBRARY COMPATIBILITY
 
 
+# TODO: Implement conversion from complex types.
 # MultiFloat{T,N}(z::Complex) where {T,N} =
 #     isreal(z) ? MultiFloat{T,N}(real(z)) :
 #     throw(InexactError(nameof(MultiFloat{T,N}), MultiFloat{T,N}, z))
@@ -1339,27 +1360,9 @@ import LinearAlgebra: floatmin2
 @inline floatmin2(::Type{_PMF{T,N}}) where {T,N} = _PMF{T,N}(floatmin2(T))
 
 
+# TODO: Implement compatibility with Printf.
 # import Printf: tofloat
 # @inline tofloat(x::_MF{T,N}) where {T,N} = _call_big(BigFloat, x)
-
-
-########################################################### ARITHMETIC OVERLOADS
-
-
-# @inline Base.abs2(x::_MF{T,N}) where {T,N} = x * x
-# @inline Base.abs2(x::_MFV{M,T,N}) where {M,T,N} = x * x
-# @inline Base.abs2(x::_MF{T,2}) where {T} = _abs2(x)
-# @inline Base.abs2(x::_MFV{M,T,2}) where {M,T} = _abs2(x)
-
-
-# @inline Base.:^(x::_MF{T,N}, p::Integer) where {T,N} =
-#     signbit(p) ? Base.power_by_squaring(inv(x), -p) : Base.power_by_squaring(x, p)
-# @inline Base.:^(x::_MFV{M,T,N}, p::Integer) where {M,T,N} =
-#     signbit(p) ? Base.power_by_squaring(inv(x), -p) : Base.power_by_squaring(x, p)
-
-
-# @inline Base.sum(x::_MFV{M,T,N}) where {M,T,N} =
-#     +(ntuple(i -> x[i], Val{M}())...)
 
 
 ################################################################ PROMOTION RULES
@@ -1444,7 +1447,8 @@ Base.promote_rule(::Type{_GMF{T,N}}, ::Type{BigFloat}) where {T,N} = BigFloat
 ####################################################### TRANSCENDENTAL FUNCTIONS
 
 
-# # TODO: frexp, modf, isqrt
+# TODO: Implement transcendental functions.
+# TODO: frexp, modf, isqrt
 # const _BASE_TRANSCENDENTAL_FUNCTIONS = Symbol[
 #     :cbrt, :exp, :exp2, :exp10, :expm1, :log, :log2, :log10, :log1p,
 #     :sin, :cos, :tan, :sec, :csc, :cot,
@@ -1497,6 +1501,7 @@ Base.promote_rule(::Type{_GMF{T,N}}, ::Type{BigFloat}) where {T,N} = BigFloat
 ################################################################# RANDOM NUMBERS
 
 
+# TODO: Implement random numbers.
 # using Random: AbstractRNG, CloseOpen01, SamplerTrivial, UInt52
 # import Random: rand
 
