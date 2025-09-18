@@ -543,12 +543,6 @@ end
 @inline Base.AbstractFloat(x::_GMF{T,N}) where {T,N} = x
 
 
-function (::Type{R})(x::_GMF{T,N}) where {R<:Real,T,N}
-    println(stderr, "WARNING: Converting $(typeof(x)) to $R.")
-    return R(BigFloat(x; precision=_full_precision(T)))
-end
-
-
 ###################################################### FLOATING-POINT PROPERTIES
 
 
