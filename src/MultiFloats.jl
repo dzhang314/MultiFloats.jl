@@ -1036,6 +1036,46 @@ end
 end
 
 
+@inline function _mfcbrt_impl(
+    x::NTuple{X,T},
+    u::NTuple{U,T},
+    ::Val{Z},
+) where {T,X,U,Z}
+    # Newton iterations solving
+    #   u^2 - x/u == 0
+    # with update
+    #   t <- t + t * (x/t^2 - t) / (3*t)
+    @assert 0 < U < Z
+    _one = one(T)
+    _two = _one + _one
+
+    if U + U >= Z
+        rx = _resize(x, Val{Z}())
+        ru = _resize(u, Val{Z}())
+        s = mfmul(ru, ru, Val{Z}())
+        r = mfdiv(rx, s, Val{Z}())
+        w = scale(_two, r)
+        num = mfadd(r, scale(-_one, ru), Val{Z}())
+        den = mfadd(w, r, Val{Z}())
+        quot = mfdiv(num, den, Val{Z}())
+        residual = mfmul(quot, ru, Val{Z}())
+        return mfadd(residual, ru, Val{Z}())
+    else
+        rx = _resize(x, Val{U+U}())
+        ru = _resize(u, Val{U+U}())
+        s = mfmul(ru, ru, Val{U+U}())
+        r = mfdiv(rx, s, Val{U+U}())
+        w = scale(_two, r)
+        num = mfsub(r, scale(-_one, ru), Val{U+U}())
+        den = mfadd(w, r, Val{U+U}())
+        quot = mfdiv(num, Val{U+U}())
+        residual = mfmul(quot, ru, Val{U+U}())
+        next_u = mfadd(residual, ru, Val{U+U}())
+        return _mfcbrt_impl(x, next_u, Val{Z}())
+    end
+end
+
+
 @inline mfinv(x::NTuple{X,T}, ::Val{1}) where {T,X} =
     (inv(first(x)),)
 @inline mfinv(x::NTuple{X,T}, ::Val{Z}) where {T,X,Z} =
@@ -1060,6 +1100,11 @@ end
     _mfsqrt_impl(x, (rsqrt(first(x)),), Val{Z}())
 
 
+@inline mfcbrt(x::NTuple{X,T}, ::Val{1}) where {T,X} =
+    (cbrt(first(x)),)
+@inline mfcbrt(x::NTuple{X,T}, ::Val{Z}) where {T,X,Z} =
+    _mfcbrt_impl(x, (cbrt(first(x)),), Val{Z}())
+    
 ################################################### LEVEL 2 ARITHMETIC OPERATORS
 
 
@@ -1091,6 +1136,12 @@ end
     ifelse(iszero(x), zero(x), unsafe_sqrt(x))
 @inline Base.sqrt(x::_MFV{M,T,N}) where {M,T,N} =
     vifelse(iszero(x), zero(x), unsafe_sqrt(x))
+
+
+@inline Base.cbrt(x::_MF{T,N}) where {T,N} =
+    _MF{T,N}(mfcbrt(x._limbs, Val{N}()))
+@inline Base.cbrt(x::_MFV{M,T,N}) where {M,T,N} =
+    _MFV{M,T,N}(mfcbrt(x._limbs, Val{N}()))
 
 
 ####################################################################### PRINTING
