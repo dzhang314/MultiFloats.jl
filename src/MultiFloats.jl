@@ -10,18 +10,12 @@ import SIMD: vifelse
 ############################################################### TYPE DEFINITIONS
 
 
-export MultiFloat, MultiFloatVec, PreciseMultiFloat, PreciseMultiFloatVec
+export MultiFloat, MultiFloatVec
 
 
 struct MultiFloat{T,N} <: AbstractFloat
     _limbs::NTuple{N,T}
     @inline MultiFloat{T,N}(limbs::NTuple{N,T}) where {T,N} = new(limbs)
-end
-
-
-struct PreciseMultiFloat{T,N} <: AbstractFloat
-    _limbs::NTuple{N,T}
-    @inline PreciseMultiFloat{T,N}(limbs::NTuple{N,T}) where {T,N} = new(limbs)
 end
 
 
@@ -32,31 +26,19 @@ struct MultiFloatVec{M,T,N}
 end
 
 
-struct PreciseMultiFloatVec{M,T,N}
-    _limbs::NTuple{N,Vec{M,T}}
-    @inline PreciseMultiFloatVec{M,T,N}(
-        limbs::NTuple{N,Vec{M,T}}) where {M,T,N} = new(limbs)
-end
-
-
 # Private aliases for brevity.
 const _MF = MultiFloat
 const _MFV = MultiFloatVec
-const _PMF = PreciseMultiFloat
-const _PMFV = PreciseMultiFloatVec
-const _GMF{T,N} = Union{_MF{T,N},_PMF{T,N}}
-const _GMFV{M,T,N} = Union{_MFV{M,T,N},_PMFV{M,T,N}}
+const _MF{T,N} = Union{_MF{T,N},_PMF{T,N}}
+const _MFV{M,T,N} = Union{_MFV{M,T,N},_PMFV{M,T,N}}
 
 
 ################################################################### TYPE ALIASES
 
 
 export Float16x, Float32x, Float64x,
-    PreciseFloat16x, PreciseFloat32x, PreciseFloat64x,
     Float32x1, Float32x2, Float32x3, Float32x4,
     Float64x1, Float64x2, Float64x3, Float64x4,
-    PreciseFloat32x1, PreciseFloat32x2, PreciseFloat32x3, PreciseFloat32x4,
-    PreciseFloat64x1, PreciseFloat64x2, PreciseFloat64x3, PreciseFloat64x4,
     Vec1Float32x1, Vec1Float32x2, Vec1Float32x3, Vec1Float32x4,
     Vec1Float64x1, Vec1Float64x2, Vec1Float64x3, Vec1Float64x4,
     Vec2Float32x1, Vec2Float32x2, Vec2Float32x3, Vec2Float32x4,
@@ -64,37 +46,12 @@ export Float16x, Float32x, Float64x,
     Vec4Float32x1, Vec4Float32x2, Vec4Float32x3, Vec4Float32x4,
     Vec4Float64x1, Vec4Float64x2, Vec4Float64x3, Vec4Float64x4,
     Vec8Float32x1, Vec8Float32x2, Vec8Float32x3, Vec8Float32x4,
-    Vec8Float64x1, Vec8Float64x2, Vec8Float64x3, Vec8Float64x4,
-    Vec1PreciseFloat32x1, Vec1PreciseFloat32x2,
-    Vec1PreciseFloat32x3, Vec1PreciseFloat32x4,
-    Vec1PreciseFloat64x1, Vec1PreciseFloat64x2,
-    Vec1PreciseFloat64x3, Vec1PreciseFloat64x4,
-    Vec2PreciseFloat32x1, Vec2PreciseFloat32x2,
-    Vec2PreciseFloat32x3, Vec2PreciseFloat32x4,
-    Vec2PreciseFloat64x1, Vec2PreciseFloat64x2,
-    Vec2PreciseFloat64x3, Vec2PreciseFloat64x4,
-    Vec4PreciseFloat32x1, Vec4PreciseFloat32x2,
-    Vec4PreciseFloat32x3, Vec4PreciseFloat32x4,
-    Vec4PreciseFloat64x1, Vec4PreciseFloat64x2,
-    Vec4PreciseFloat64x3, Vec4PreciseFloat64x4,
-    Vec8PreciseFloat32x1, Vec8PreciseFloat32x2,
-    Vec8PreciseFloat32x3, Vec8PreciseFloat32x4,
-    Vec8PreciseFloat64x1, Vec8PreciseFloat64x2,
-    Vec8PreciseFloat64x3, Vec8PreciseFloat64x4,
-    Vec16PreciseFloat32x1, Vec16PreciseFloat32x2,
-    Vec16PreciseFloat32x3, Vec16PreciseFloat32x4,
-    Vec16PreciseFloat64x1, Vec16PreciseFloat64x2,
-    Vec16PreciseFloat64x3, Vec16PreciseFloat64x4
+    Vec8Float64x1, Vec8Float64x2, Vec8Float64x3, Vec8Float64x4
 
 
 const Float16x{N} = MultiFloat{Float16,N}
 const Float32x{N} = MultiFloat{Float32,N}
 const Float64x{N} = MultiFloat{Float64,N}
-
-
-const PreciseFloat16x{N} = PreciseMultiFloat{Float16,N}
-const PreciseFloat32x{N} = PreciseMultiFloat{Float32,N}
-const PreciseFloat64x{N} = PreciseMultiFloat{Float64,N}
 
 
 const Float32x1 = MultiFloat{Float32,1}
@@ -105,16 +62,6 @@ const Float64x1 = MultiFloat{Float64,1}
 const Float64x2 = MultiFloat{Float64,2}
 const Float64x3 = MultiFloat{Float64,3}
 const Float64x4 = MultiFloat{Float64,4}
-
-
-const PreciseFloat32x1 = PreciseMultiFloat{Float32,1}
-const PreciseFloat32x2 = PreciseMultiFloat{Float32,2}
-const PreciseFloat32x3 = PreciseMultiFloat{Float32,3}
-const PreciseFloat32x4 = PreciseMultiFloat{Float32,4}
-const PreciseFloat64x1 = PreciseMultiFloat{Float64,1}
-const PreciseFloat64x2 = PreciseMultiFloat{Float64,2}
-const PreciseFloat64x3 = PreciseMultiFloat{Float64,3}
-const PreciseFloat64x4 = PreciseMultiFloat{Float64,4}
 
 
 const Vec1Float32x1 = MultiFloatVec{1,Float32,1}
@@ -159,81 +106,27 @@ const Vec16Float64x3 = MultiFloatVec{16,Float64,3}
 const Vec16Float64x4 = MultiFloatVec{16,Float64,4}
 
 
-const Vec1PreciseFloat32x1 = PreciseMultiFloatVec{1,Float32,1}
-const Vec1PreciseFloat32x2 = PreciseMultiFloatVec{1,Float32,2}
-const Vec1PreciseFloat32x3 = PreciseMultiFloatVec{1,Float32,3}
-const Vec1PreciseFloat32x4 = PreciseMultiFloatVec{1,Float32,4}
-const Vec1PreciseFloat64x1 = PreciseMultiFloatVec{1,Float64,1}
-const Vec1PreciseFloat64x2 = PreciseMultiFloatVec{1,Float64,2}
-const Vec1PreciseFloat64x3 = PreciseMultiFloatVec{1,Float64,3}
-const Vec1PreciseFloat64x4 = PreciseMultiFloatVec{1,Float64,4}
-const Vec2PreciseFloat32x1 = PreciseMultiFloatVec{2,Float32,1}
-const Vec2PreciseFloat32x2 = PreciseMultiFloatVec{2,Float32,2}
-const Vec2PreciseFloat32x3 = PreciseMultiFloatVec{2,Float32,3}
-const Vec2PreciseFloat32x4 = PreciseMultiFloatVec{2,Float32,4}
-const Vec2PreciseFloat64x1 = PreciseMultiFloatVec{2,Float64,1}
-const Vec2PreciseFloat64x2 = PreciseMultiFloatVec{2,Float64,2}
-const Vec2PreciseFloat64x3 = PreciseMultiFloatVec{2,Float64,3}
-const Vec2PreciseFloat64x4 = PreciseMultiFloatVec{2,Float64,4}
-const Vec4PreciseFloat32x1 = PreciseMultiFloatVec{4,Float32,1}
-const Vec4PreciseFloat32x2 = PreciseMultiFloatVec{4,Float32,2}
-const Vec4PreciseFloat32x3 = PreciseMultiFloatVec{4,Float32,3}
-const Vec4PreciseFloat32x4 = PreciseMultiFloatVec{4,Float32,4}
-const Vec4PreciseFloat64x1 = PreciseMultiFloatVec{4,Float64,1}
-const Vec4PreciseFloat64x2 = PreciseMultiFloatVec{4,Float64,2}
-const Vec4PreciseFloat64x3 = PreciseMultiFloatVec{4,Float64,3}
-const Vec4PreciseFloat64x4 = PreciseMultiFloatVec{4,Float64,4}
-const Vec8PreciseFloat32x1 = PreciseMultiFloatVec{8,Float32,1}
-const Vec8PreciseFloat32x2 = PreciseMultiFloatVec{8,Float32,2}
-const Vec8PreciseFloat32x3 = PreciseMultiFloatVec{8,Float32,3}
-const Vec8PreciseFloat32x4 = PreciseMultiFloatVec{8,Float32,4}
-const Vec8PreciseFloat64x1 = PreciseMultiFloatVec{8,Float64,1}
-const Vec8PreciseFloat64x2 = PreciseMultiFloatVec{8,Float64,2}
-const Vec8PreciseFloat64x3 = PreciseMultiFloatVec{8,Float64,3}
-const Vec8PreciseFloat64x4 = PreciseMultiFloatVec{8,Float64,4}
-const Vec16PreciseFloat32x1 = PreciseMultiFloatVec{16,Float32,1}
-const Vec16PreciseFloat32x2 = PreciseMultiFloatVec{16,Float32,2}
-const Vec16PreciseFloat32x3 = PreciseMultiFloatVec{16,Float32,3}
-const Vec16PreciseFloat32x4 = PreciseMultiFloatVec{16,Float32,4}
-const Vec16PreciseFloat64x1 = PreciseMultiFloatVec{16,Float64,1}
-const Vec16PreciseFloat64x2 = PreciseMultiFloatVec{16,Float64,2}
-const Vec16PreciseFloat64x3 = PreciseMultiFloatVec{16,Float64,3}
-const Vec16PreciseFloat64x4 = PreciseMultiFloatVec{16,Float64,4}
-
-
 ###################################################################### CONSTANTS
 
 
 @inline Base.zero(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(ntuple(
     _ -> zero(T), Val{N}()))
-@inline Base.zero(::Type{_PMF{T,N}}) where {T,N} = _PMF{T,N}(ntuple(
-    _ -> zero(T), Val{N}()))
 @inline Base.zero(::Type{_MFV{M,T,N}}) where {M,T,N} = _MFV{M,T,N}(ntuple(
-    _ -> zero(Vec{M,T}), Val{N}()))
-@inline Base.zero(::Type{_PMFV{M,T,N}}) where {M,T,N} = _PMFV{M,T,N}(ntuple(
     _ -> zero(Vec{M,T}), Val{N}()))
 
 
 @inline Base.zero(::_MF{T,N}) where {T,N} = zero(_MF{T,N})
-@inline Base.zero(::_PMF{T,N}) where {T,N} = zero(_PMF{T,N})
 @inline Base.zero(::_MFV{M,T,N}) where {M,T,N} = zero(_MFV{M,T,N})
-@inline Base.zero(::_PMFV{M,T,N}) where {M,T,N} = zero(_PMFV{M,T,N})
 
 
 @inline Base.one(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(ntuple(
     i -> (isone(i) ? one(T) : zero(T)), Val{N}()))
-@inline Base.one(::Type{_PMF{T,N}}) where {T,N} = _PMF{T,N}(ntuple(
-    i -> (isone(i) ? one(T) : zero(T)), Val{N}()))
 @inline Base.one(::Type{_MFV{M,T,N}}) where {M,T,N} = _MFV{M,T,N}(ntuple(
-    i -> (isone(i) ? one(Vec{M,T}) : zero(Vec{M,T})), Val{N}()))
-@inline Base.one(::Type{_PMFV{M,T,N}}) where {M,T,N} = _PMFV{M,T,N}(ntuple(
     i -> (isone(i) ? one(Vec{M,T}) : zero(Vec{M,T})), Val{N}()))
 
 
 @inline Base.one(::_MF{T,N}) where {T,N} = one(_MF{T,N})
-@inline Base.one(::_PMF{T,N}) where {T,N} = one(_PMF{T,N})
 @inline Base.one(::_MFV{M,T,N}) where {M,T,N} = one(_MFV{M,T,N})
-@inline Base.one(::_PMFV{M,T,N}) where {M,T,N} = one(_PMFV{M,T,N})
 
 
 ################################################################### CONSTRUCTORS
@@ -242,64 +135,44 @@ const Vec16PreciseFloat64x4 = PreciseMultiFloatVec{16,Float64,4}
 # Construct MultiFloat scalar from single scalar limb.
 @inline _MF{T,N}(x::T) where {T,N} = _MF{T,N}(
     ntuple(i -> (isone(i) ? x : zero(T)), Val{N}()))
-@inline _PMF{T,N}(x::T) where {T,N} = _PMF{T,N}(
-    ntuple(i -> (isone(i) ? x : zero(T)), Val{N}()))
 
 
 # Construct MultiFloat vector from single vector limb (SIMD.Vec).
 @inline _MFV{M,T,N}(x::Vec{M,T}) where {M,T,N} = _MFV{M,T,N}(
     ntuple(i -> (isone(i) ? x : zero(Vec{M,T})), Val{N}()))
-@inline _PMFV{M,T,N}(x::Vec{M,T}) where {M,T,N} = _PMFV{M,T,N}(
-    ntuple(i -> (isone(i) ? x : zero(Vec{M,T})), Val{N}()))
 
 
 # Construct MultiFloat vector from single scalar limb.
 @inline _MFV{M,T,N}(x::T) where {M,T,N} = _MFV{M,T,N}(Vec{M,T}(x))
-@inline _PMFV{M,T,N}(x::T) where {M,T,N} = _PMFV{M,T,N}(Vec{M,T}(x))
 
 
 # Construct MultiFloat vector from single vector limb (NTuple/Vararg).
 @inline _MFV{M,T,N}(x::NTuple{M,T}) where {M,T,N} = _MFV{M,T,N}(Vec{M,T}(x))
 @inline _MFV{M,T,N}(x::Vararg{T,M}) where {M,T,N} = _MFV{M,T,N}(Vec{M,T}(x))
-@inline _PMFV{M,T,N}(x::NTuple{M,T}) where {M,T,N} = _PMFV{M,T,N}(Vec{M,T}(x))
-@inline _PMFV{M,T,N}(x::Vararg{T,M}) where {M,T,N} = _PMFV{M,T,N}(Vec{M,T}(x))
 
 
 # Construct MultiFloat scalar from MultiFloat scalar.
-@inline _MF{T,N1}(x::_GMF{T,N2}) where {T,N1,N2} = _MF{T,N1}(
-    tuple(ntuple(i -> x._limbs[i], Val{min(N1, N2)}())...,
-        ntuple(_ -> zero(T), Val{max(N1 - N2, 0)}())...))
-@inline _PMF{T,N1}(x::_GMF{T,N2}) where {T,N1,N2} = _PMF{T,N1}(
+@inline _MF{T,N1}(x::_MF{T,N2}) where {T,N1,N2} = _MF{T,N1}(
     tuple(ntuple(i -> x._limbs[i], Val{min(N1, N2)}())...,
         ntuple(_ -> zero(T), Val{max(N1 - N2, 0)}())...))
 
 
 # Construct MultiFloat vector from MultiFloat scalar.
-@inline _MFV{M,T,N1}(x::_GMF{T,N2}) where {M,T,N1,N2} = _MFV{M,T,N1}(
-    tuple(ntuple(i -> Vec{M,T}(x._limbs[i]), Val{min(N1, N2)}())...,
-        ntuple(_ -> zero(Vec{M,T}), Val{max(N1 - N2, 0)}())...))
-@inline _PMFV{M,T,N1}(x::_GMF{T,N2}) where {M,T,N1,N2} = _PMFV{M,T,N1}(
+@inline _MFV{M,T,N1}(x::_MF{T,N2}) where {M,T,N1,N2} = _MFV{M,T,N1}(
     tuple(ntuple(i -> Vec{M,T}(x._limbs[i]), Val{min(N1, N2)}())...,
         ntuple(_ -> zero(Vec{M,T}), Val{max(N1 - N2, 0)}())...))
 
 
 # Construct MultiFloat vector from MultiFloat vector.
-@inline _MFV{M,T,N1}(x::_GMFV{M,T,N2}) where {M,T,N1,N2} = _MFV{M,T,N1}(
-    tuple(ntuple(i -> x._limbs[i], Val{min(N1, N2)}())...,
-        ntuple(_ -> zero(Vec{M,T}), Val{max(N1 - N2, 0)}())...))
-@inline _PMFV{M,T,N1}(x::_GMFV{M,T,N2}) where {M,T,N1,N2} = _PMFV{M,T,N1}(
+@inline _MFV{M,T,N1}(x::_MFV{M,T,N2}) where {M,T,N1,N2} = _MFV{M,T,N1}(
     tuple(ntuple(i -> x._limbs[i], Val{min(N1, N2)}())...,
         ntuple(_ -> zero(Vec{M,T}), Val{max(N1 - N2, 0)}())...))
 
 
 # Construct MultiFloat vector from multiple MultiFloat scalars.
-@inline _MFV{M,T,N}(xs::NTuple{M,_GMF{T,N}}) where {M,T,N} = _MFV{M,T,N}(
+@inline _MFV{M,T,N}(xs::NTuple{M,_MF{T,N}}) where {M,T,N} = _MFV{M,T,N}(
     ntuple(j -> Vec{M,T}(ntuple(i -> xs[i]._limbs[j], Val{M}())), Val{N}()))
-@inline _MFV{M,T,N}(xs::Vararg{_GMF{T,N},M}) where {M,T,N} = _MFV{M,T,N}(
-    ntuple(j -> Vec{M,T}(ntuple(i -> xs[i]._limbs[j], Val{M}())), Val{N}()))
-@inline _PMFV{M,T,N}(xs::NTuple{M,_GMF{T,N}}) where {M,T,N} = _PMFV{M,T,N}(
-    ntuple(j -> Vec{M,T}(ntuple(i -> xs[i]._limbs[j], Val{M}())), Val{N}()))
-@inline _PMFV{M,T,N}(xs::Vararg{_GMF{T,N},M}) where {M,T,N} = _PMFV{M,T,N}(
+@inline _MFV{M,T,N}(xs::Vararg{_MF{T,N},M}) where {M,T,N} = _MFV{M,T,N}(
     ntuple(j -> Vec{M,T}(ntuple(i -> xs[i]._limbs[j], Val{M}())), Val{N}()))
 
 
@@ -379,18 +252,12 @@ const _Fits64xN = Union{_Fits64x2,_Fits64x3}
 @inline _MF{_F16,N}(x::_Fits16) where {N} = _MF{_F16,N}(_F16(x))
 @inline _MF{_F32,N}(x::_Fits32) where {N} = _MF{_F32,N}(_F32(x))
 @inline _MF{_F64,N}(x::_Fits64) where {N} = _MF{_F64,N}(_F64(x))
-@inline _PMF{_F16,N}(x::_Fits16) where {N} = _PMF{_F16,N}(_F16(x))
-@inline _PMF{_F32,N}(x::_Fits32) where {N} = _PMF{_F32,N}(_F32(x))
-@inline _PMF{_F64,N}(x::_Fits64) where {N} = _PMF{_F64,N}(_F64(x))
 
 
 # Construct MultiFloat vector from primitive scalar (single limb).
 @inline _MFV{M,_F16,N}(x::_Fits16) where {M,N} = _MFV{M,_F16,N}(_F16(x))
 @inline _MFV{M,_F32,N}(x::_Fits32) where {M,N} = _MFV{M,_F32,N}(_F32(x))
 @inline _MFV{M,_F64,N}(x::_Fits64) where {M,N} = _MFV{M,_F64,N}(_F64(x))
-@inline _PMFV{M,_F16,N}(x::_Fits16) where {M,N} = _PMFV{M,_F16,N}(_F16(x))
-@inline _PMFV{M,_F32,N}(x::_Fits32) where {M,N} = _PMFV{M,_F32,N}(_F32(x))
-@inline _PMFV{M,_F64,N}(x::_Fits64) where {M,N} = _PMFV{M,_F64,N}(_F64(x))
 
 
 # Construct MultiFloat scalar from primitive scalar (multiple limbs).
@@ -400,12 +267,6 @@ const _Fits64xN = Union{_Fits64x2,_Fits64x3}
     _MF{_F32,N}(_split(x, _F32, Val{N}()))
 @inline _MF{_F64,N}(x::_Fits64xN) where {N} =
     _MF{_F64,N}(_split(x, _F64, Val{N}()))
-@inline _PMF{_F16,N}(x::_Fits16xN) where {N} =
-    _PMF{_F16,N}(_split(x, _F16, Val{N}()))
-@inline _PMF{_F32,N}(x::_Fits32xN) where {N} =
-    _PMF{_F32,N}(_split(x, _F32, Val{N}()))
-@inline _PMF{_F64,N}(x::_Fits64xN) where {N} =
-    _PMF{_F64,N}(_split(x, _F64, Val{N}()))
 
 
 ####################################################### CONVERSION FROM BIGFLOAT
@@ -446,7 +307,6 @@ end
 
 
 _MF{T,N}(x::BigFloat) where {T,N} = _MF{T,N}(_split(x, T, Val{N}()))
-_PMF{T,N}(x::BigFloat) where {T,N} = _PMF{T,N}(_split(x, T, Val{N}()))
 
 
 #################################################### CONVERSION FROM OTHER TYPES
@@ -459,8 +319,6 @@ _PMF{T,N}(x::BigFloat) where {T,N} = _PMF{T,N}(_split(x, T, Val{N}()))
 # Construct MultiFloat scalar from string.
 _MF{T,N}(x::AbstractString) where {T,N} = _MF{T,N}(
     BigFloat(x, MPFRRoundNearest; precision=_full_precision(T)))
-_PMF{T,N}(x::AbstractString) where {T,N} = _PMF{T,N}(
-    BigFloat(x, MPFRRoundNearest; precision=_full_precision(T)))
 
 
 # Construct MultiFloat scalar from any other type.
@@ -469,16 +327,10 @@ function _MF{T,N}(x::Any) where {T,N}
     return _MF{T,N}(BigFloat(x,
         MPFRRoundNearest; precision=_full_precision(T)))
 end
-function _PMF{T,N}(x::Any) where {T,N}
-    println(stderr, "WARNING: Constructing $(_PMF{T,N}) from $(typeof(x)).")
-    return _PMF{T,N}(BigFloat(x,
-        MPFRRoundNearest; precision=_full_precision(T)))
-end
 
 
 # Construct MultiFloat vector from non-MultiFloat scalar.
 @inline _MFV{M,T,N}(x::Any) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
-@inline _PMFV{M,T,N}(x::Any) where {M,T,N} = _PMFV{M,T,N}(_PMF{T,N}(x))
 
 
 # Construct MultiFloat vector from multiple non-MultiFloat scalars.
@@ -486,25 +338,17 @@ end
     _MFV{M,T,N}(_MF{T,N}.(xs))
 @inline _MFV{M,T,N}(xs::Vararg{Any,M}) where {M,T,N} =
     _MFV{M,T,N}(_MF{T,N}.(xs))
-@inline _PMFV{M,T,N}(xs::NTuple{M,Any}) where {M,T,N} =
-    _PMFV{M,T,N}(_PMF{T,N}.(xs))
-@inline _PMFV{M,T,N}(xs::Vararg{Any,M}) where {M,T,N} =
-    _PMFV{M,T,N}(_PMF{T,N}.(xs))
 _MFV{M,T,N}(::NTuple{K,Any}) where {M,T,N,K} =
     error("MultiFloatVec constructor requires tuple of length $M.")
 _MFV{M,T,N}(::Vararg{Any,K}) where {M,T,N,K} =
     error("MultiFloatVec constructor requires 1 or $M arguments.")
-_PMFV{M,T,N}(::NTuple{K,Any}) where {M,T,N,K} =
-    error("PreciseMultiFloatVec constructor requires tuple of length $M.")
-_PMFV{M,T,N}(::Vararg{Any,K}) where {M,T,N,K} =
-    error("PreciseMultiFloatVec constructor requires 1 or $M arguments.")
 
 
 ######################################################## CONVERSION TO LIMB TYPE
 
 
-@inline (::Type{T})(x::_GMF{T,N}) where {T,N} = first(x._limbs)
-@inline (::Type{Vec{M,T}})(x::_GMFV{M,T,N}) where {M,T,N} = first(x._limbs)
+@inline (::Type{T})(x::_MF{T,N}) where {T,N} = first(x._limbs)
+@inline (::Type{Vec{M,T}})(x::_MFV{M,T,N}) where {M,T,N} = first(x._limbs)
 
 
 ######################################################### CONVERSION TO BIGFLOAT
@@ -525,7 +369,7 @@ end
 
 
 function Base.BigFloat(
-    x::_GMF{T,N};
+    x::_MF{T,N};
     precision::Integer=precision(BigFloat),
 ) where {T,N}
     result = BigFloat(; precision)
@@ -540,14 +384,13 @@ end
 ###################################################### CONVERSION TO OTHER TYPES
 
 
-@inline Base.AbstractFloat(x::_GMF{T,N}) where {T,N} = x
+@inline Base.AbstractFloat(x::_MF{T,N}) where {T,N} = x
 
 
 ###################################################### FLOATING-POINT PROPERTIES
 
 
 @inline Base.eps(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(eps(T)^N)
-@inline Base.eps(::Type{_PMF{T,N}}) where {T,N} = _PMF{T,N}(eps(T)^N)
 
 
 # TODO: Implement Base.precision.
@@ -562,42 +405,36 @@ end
 
 
 @inline Base.floatmin(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(floatmin(T))
-@inline Base.floatmin(::Type{_PMF{T,N}}) where {T,N} = _PMF{T,N}(floatmin(T))
 @inline Base.floatmax(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(floatmax(T))
-@inline Base.floatmax(::Type{_PMF{T,N}}) where {T,N} = _PMF{T,N}(floatmax(T))
 # NOTE: SIMD.jl does not define Base.floatmin or Base.floatmax for vectors.
 
 
 @inline Base.typemin(::Type{_MF{T,N}}) where {T,N} =
     _MF{T,N}(ntuple(_ -> typemin(T), Val{N}()))
-@inline Base.typemin(::Type{_PMF{T,N}}) where {T,N} =
-    _PMF{T,N}(ntuple(_ -> typemin(T), Val{N}()))
 @inline Base.typemax(::Type{_MF{T,N}}) where {T,N} =
     _MF{T,N}(ntuple(_ -> typemax(T), Val{N}()))
-@inline Base.typemax(::Type{_PMF{T,N}}) where {T,N} =
-    _PMF{T,N}(ntuple(_ -> typemax(T), Val{N}()))
 # NOTE: SIMD.jl does not define Base.typemin or Base.typemax for vectors.
 
 
 ################################################## FLOATING-POINT CLASSIFICATION
 
 
-@inline Base.signbit(x::_GMF{T,N}) where {T,N} = signbit(first(x._limbs))
-@inline Base.signbit(x::_GMFV{M,T,N}) where {M,T,N} = signbit(first(x._limbs))
-@inline Base.exponent(x::_GMF{T,N}) where {T,N} = exponent(first(x._limbs))
+@inline Base.signbit(x::_MF{T,N}) where {T,N} = signbit(first(x._limbs))
+@inline Base.signbit(x::_MFV{M,T,N}) where {M,T,N} = signbit(first(x._limbs))
+@inline Base.exponent(x::_MF{T,N}) where {T,N} = exponent(first(x._limbs))
 # NOTE: SIMD.jl does not define Base.exponent for vectors.
-@inline Base.issubnormal(x::_GMF{T,N}) where {T,N} =
+@inline Base.issubnormal(x::_MF{T,N}) where {T,N} =
     issubnormal(first(x._limbs))
-@inline Base.issubnormal(x::_GMFV{M,T,N}) where {M,T,N} =
+@inline Base.issubnormal(x::_MFV{M,T,N}) where {M,T,N} =
     issubnormal(first(x._limbs))
 
 
-@inline Base.isfinite(x::_GMF{T,N}) where {T,N} = isfinite(sum(x._limbs))
-@inline Base.isfinite(x::_GMFV{M,T,N}) where {M,T,N} = isfinite(sum(x._limbs))
-@inline Base.isinf(x::_GMF{T,N}) where {T,N} = isinf(sum(x._limbs))
-@inline Base.isinf(x::_GMFV{M,T,N}) where {M,T,N} = isinf(sum(x._limbs))
-@inline Base.isnan(x::_GMF{T,N}) where {T,N} = isnan(sum(x._limbs))
-@inline Base.isnan(x::_GMFV{M,T,N}) where {M,T,N} = isnan(sum(x._limbs))
+@inline Base.isfinite(x::_MF{T,N}) where {T,N} = isfinite(sum(x._limbs))
+@inline Base.isfinite(x::_MFV{M,T,N}) where {M,T,N} = isfinite(sum(x._limbs))
+@inline Base.isinf(x::_MF{T,N}) where {T,N} = isinf(sum(x._limbs))
+@inline Base.isinf(x::_MFV{M,T,N}) where {M,T,N} = isinf(sum(x._limbs))
+@inline Base.isnan(x::_MF{T,N}) where {T,N} = isnan(sum(x._limbs))
+@inline Base.isnan(x::_MFV{M,T,N}) where {M,T,N} = isnan(sum(x._limbs))
 
 
 @inline _vall(::Tuple{}, ::Val{M}) where {M} = one(Vec{M,Bool})
@@ -605,21 +442,21 @@ end
 @inline _vall(x::NTuple{N,Vec{M,Bool}}, ::Val{M}) where {M,N} = (&)(x...)
 
 
-@inline Base.iszero(x::_GMF{T,N}) where {T,N} =
+@inline Base.iszero(x::_MF{T,N}) where {T,N} =
     all(iszero.(x._limbs))
-@inline Base.iszero(x::_GMFV{M,T,N}) where {M,T,N} =
+@inline Base.iszero(x::_MFV{M,T,N}) where {M,T,N} =
     _vall(iszero.(x._limbs), Val{M}())
 
 
-@inline Base.isone(x::_GMF{T,N}) where {T,N} = all(ntuple(
+@inline Base.isone(x::_MF{T,N}) where {T,N} = all(ntuple(
     i -> (isone(i) ? isone(x._limbs[i]) : iszero(x._limbs[i])),
     Val{N}()))
-@inline Base.isone(x::_GMFV{M,T,N}) where {M,T,N} = _vall(ntuple(
+@inline Base.isone(x::_MFV{M,T,N}) where {M,T,N} = _vall(ntuple(
         i -> (isone(i) ? isone(x._limbs[i]) : iszero(x._limbs[i])),
         Val{N}()), Val{M}())
 
 
-@inline Base.isinteger(x::_GMF{T,N}) where {T,N} = all(isinteger.(x._limbs))
+@inline Base.isinteger(x::_MF{T,N}) where {T,N} = all(isinteger.(x._limbs))
 # NOTE: SIMD.jl does not define Base.isinteger for vectors.
 
 
@@ -628,8 +465,6 @@ end
 
 @inline Base.ldexp(x::_MF{T,N}, n::Integer) where {T,N} =
     _MF{T,N}(ntuple(i -> ldexp(x._limbs[i], n), Val{N}()))
-@inline Base.ldexp(x::_PMF{T,N}, n::Integer) where {T,N} =
-    _PMF{T,N}(ntuple(i -> ldexp(x._limbs[i], n), Val{N}()))
 # NOTE: SIMD.jl does not define Base.ldexp for vectors.
 
 
@@ -653,12 +488,10 @@ end
 # export mfvgather, mfvscatter
 
 
-@inline Base.length(::_GMFV{M,T,N}) where {M,T,N} = M
+@inline Base.length(::_MFV{M,T,N}) where {M,T,N} = M
 
 
 @inline Base.getindex(x::_MFV{M,T,N}, i::I) where {M,T,N,I} = _MF{T,N}(
-    ntuple(j -> extractelement(x._limbs[j].data, i - one(I)), Val{N}()))
-@inline Base.getindex(x::_PMFV{M,T,N}, i::I) where {M,T,N,I} = _PMF{T,N}(
     ntuple(j -> extractelement(x._limbs[j].data, i - one(I)), Val{N}()))
 
 
@@ -666,13 +499,6 @@ end
     mask::Vec{M,Bool}, x::_MFV{M,T,N}, y::_MFV{M,T,N},
 ) where {M,T,N} = _MFV{M,T,N}(
     ntuple(i -> vifelse(mask, x._limbs[i], y._limbs[i]), Val{N}()))
-@inline vifelse(
-    mask::Vec{M,Bool}, x::_PMFV{M,T,N}, y::_PMFV{M,T,N},
-) where {M,T,N} = _PMFV{M,T,N}(
-    ntuple(i -> vifelse(mask, x._limbs[i], y._limbs[i]), Val{N}()))
-
-
-# TODO: Implement scatter/gather for PreciseMultiFloatVec types.
 
 
 # @inline function mfvgather(
@@ -729,29 +555,29 @@ _ge_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] >= y._limbs[$n]) : :(
     ((x._limbs[$i] == y._limbs[$i]) & $(_ge_expr(i + 1, n))))
 
 
-@generated Base.:(==)(x::_GMF{T,N}, y::_GMF{T,N}) where {T,N} =
+@generated Base.:(==)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
     _eq_expr(N)
-@generated Base.:(==)(x::_GMFV{M,T,N}, y::_GMFV{M,T,N}) where {M,T,N} =
+@generated Base.:(==)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
     _eq_expr(N)
-@generated Base.:(!=)(x::_GMF{T,N}, y::_GMF{T,N}) where {T,N} =
+@generated Base.:(!=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
     _ne_expr(N)
-@generated Base.:(!=)(x::_GMFV{M,T,N}, y::_GMFV{M,T,N}) where {M,T,N} =
+@generated Base.:(!=)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
     _ne_expr(N)
-@generated Base.:(<)(x::_GMF{T,N}, y::_GMF{T,N}) where {T,N} =
+@generated Base.:(<)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
     _lt_expr(1, N)
-@generated Base.:(<)(x::_GMFV{M,T,N}, y::_GMFV{M,T,N}) where {M,T,N} =
+@generated Base.:(<)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
     _lt_expr(1, N)
-@generated Base.:(>)(x::_GMF{T,N}, y::_GMF{T,N}) where {T,N} =
+@generated Base.:(>)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
     _gt_expr(1, N)
-@generated Base.:(>)(x::_GMFV{M,T,N}, y::_GMFV{M,T,N}) where {M,T,N} =
+@generated Base.:(>)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
     _gt_expr(1, N)
-@generated Base.:(<=)(x::_GMF{T,N}, y::_GMF{T,N}) where {T,N} =
+@generated Base.:(<=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
     _le_expr(1, N)
-@generated Base.:(<=)(x::_GMFV{M,T,N}, y::_GMFV{M,T,N}) where {M,T,N} =
+@generated Base.:(<=)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
     _le_expr(1, N)
-@generated Base.:(>=)(x::_GMF{T,N}, y::_GMF{T,N}) where {T,N} =
+@generated Base.:(>=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
     _ge_expr(1, N)
-@generated Base.:(>=)(x::_GMFV{M,T,N}, y::_GMFV{M,T,N}) where {M,T,N} =
+@generated Base.:(>=)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
     _ge_expr(1, N)
 
 
@@ -759,27 +585,20 @@ _ge_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] >= y._limbs[$n]) : :(
 
 
 @inline Base.copy(x::_MF{T,N}) where {T,N} = _MF{T,N}((copy).(x._limbs))
-@inline Base.copy(x::_PMF{T,N}) where {T,N} = _PMF{T,N}((copy).(x._limbs))
 @inline Base.copy(x::_MFV{M,T,N}) where {M,T,N} =
     _MFV{M,T,N}((copy).(x._limbs))
-@inline Base.copy(x::_PMFV{M,T,N}) where {M,T,N} =
-    _PMFV{M,T,N}((copy).(x._limbs))
 
 
 @inline Base.:+(x::_MF{T,N}) where {T,N} = _MF{T,N}((+).(x._limbs))
-@inline Base.:+(x::_PMF{T,N}) where {T,N} = _PMF{T,N}((+).(x._limbs))
 @inline Base.:+(x::_MFV{M,T,N}) where {M,T,N} = _MFV{M,T,N}((+).(x._limbs))
-@inline Base.:+(x::_PMFV{M,T,N}) where {M,T,N} = _PMFV{M,T,N}((+).(x._limbs))
 
 
 @inline Base.:-(x::_MF{T,N}) where {T,N} = _MF{T,N}((-).(x._limbs))
-@inline Base.:-(x::_PMF{T,N}) where {T,N} = _PMF{T,N}((-).(x._limbs))
 @inline Base.:-(x::_MFV{M,T,N}) where {M,T,N} = _MFV{M,T,N}((-).(x._limbs))
-@inline Base.:-(x::_PMFV{M,T,N}) where {M,T,N} = _PMFV{M,T,N}((-).(x._limbs))
 
 
-@inline Base.abs(x::_GMF{T,N}) where {T,N} = ifelse(signbit(x), -x, x)
-@inline Base.abs(x::_GMFV{M,T,N}) where {M,T,N} = vifelse(signbit(x), -x, x)
+@inline Base.abs(x::_MF{T,N}) where {T,N} = ifelse(signbit(x), -x, x)
+@inline Base.abs(x::_MFV{M,T,N}) where {M,T,N} = vifelse(signbit(x), -x, x)
 
 
 # NOTE: MultiFloats.scale is not exported to avoid name conflicts.
@@ -789,12 +608,8 @@ _ge_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] >= y._limbs[$n]) : :(
     ntuple(i -> a * x[i], Val{N}())
 @inline scale(a::T, x::_MF{T,N}) where {T,N} =
     _MF{T,N}(scale(a, x._limbs))
-@inline scale(a::T, x::_PMF{T,N}) where {T,N} =
-    _PMF{T,N}(scale(a, x._limbs))
 @inline scale(a::T, x::_MFV{M,T,N}) where {M,T,N} =
     _MFV{M,T,N}(scale(a, x._limbs))
-@inline scale(a::T, x::_PMFV{M,T,N}) where {M,T,N} =
-    _PMFV{M,T,N}(scale(a, x._limbs))
 
 
 ############################################################## ADDITION NETWORKS
@@ -1040,16 +855,16 @@ end
     _MFV{M,T,N}(mfmul(x._limbs, y._limbs, Val{N}()))
 
 
-@inline Base.sum(x::_GMFV{M,T,N}) where {M,T,N} =
+@inline Base.sum(x::_MFV{M,T,N}) where {M,T,N} =
     +(ntuple(i -> x[i], Val{M}())...)
-@inline Base.abs2(x::_GMFV{M,T,N}) where {M,T,N} = x * x
+@inline Base.abs2(x::_MFV{M,T,N}) where {M,T,N} = x * x
 
 
-@inline Base.:^(x::_GMF{T,N}, p::Integer) where {T,N} =
+@inline Base.:^(x::_MF{T,N}, p::Integer) where {T,N} =
     signbit(p) ?
     Base.power_by_squaring(inv(x), -p) :
     Base.power_by_squaring(x, p)
-@inline Base.:^(x::_GMFV{M,T,N}, p::Integer) where {M,T,N} =
+@inline Base.:^(x::_MFV{M,T,N}, p::Integer) where {M,T,N} =
     signbit(p) ?
     Base.power_by_squaring(inv(x), -p) :
     Base.power_by_squaring(x, p)
@@ -1274,9 +1089,9 @@ end
     _MFV{M,T,N}(mfsqrt(x._limbs, Val{N}()))
 
 
-@inline Base.sqrt(x::_GMF{T,N}) where {T,N} =
+@inline Base.sqrt(x::_MF{T,N}) where {T,N} =
     ifelse(iszero(x), zero(x), unsafe_sqrt(x))
-@inline Base.sqrt(x::_GMFV{M,T,N}) where {M,T,N} =
+@inline Base.sqrt(x::_MFV{M,T,N}) where {M,T,N} =
     vifelse(iszero(x), zero(x), unsafe_sqrt(x))
 
 
@@ -1430,7 +1245,6 @@ end
 
 import LinearAlgebra: floatmin2
 @inline floatmin2(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(floatmin2(T))
-@inline floatmin2(::Type{_PMF{T,N}}) where {T,N} = _PMF{T,N}(floatmin2(T))
 
 
 # TODO: Implement compatibility with Printf.
@@ -1443,33 +1257,25 @@ import LinearAlgebra: floatmin2
 
 # Promote MultiFloat scalar with scalar limb type.
 Base.promote_rule(::Type{_MF{T,N}}, ::Type{T}) where {T,N} = _MF{T,N}
-Base.promote_rule(::Type{_PMF{T,N}}, ::Type{T}) where {T,N} = _PMF{T,N}
 
 
 # Promote MultiFloat scalar with vector limb type.
 Base.promote_rule(::Type{_MF{T,N}}, ::Type{Vec{M,T}}) where {M,T,N} =
     _MFV{M,T,N}
-Base.promote_rule(::Type{_PMF{T,N}}, ::Type{Vec{M,T}}) where {M,T,N} =
-    _PMFV{M,T,N}
 
 
 # Promote MultiFloat vector with scalar limb type.
 Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{T}) where {M,T,N} = _MFV{M,T,N}
-Base.promote_rule(::Type{_PMFV{M,T,N}}, ::Type{T}) where {M,T,N} = _PMFV{M,T,N}
 
 
 # Promote MultiFloat vector with vector limb type.
 Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{Vec{M,T}}) where {M,T,N} =
     _MFV{M,T,N}
-Base.promote_rule(::Type{_PMFV{M,T,N}}, ::Type{Vec{M,T}}) where {M,T,N} =
-    _PMFV{M,T,N}
 
 
 # Promote MultiFloat vector with MultiFloat scalar.
 Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{_MF{T,N}}) where {M,T,N} =
     _MFV{M,T,N}
-Base.promote_rule(::Type{_PMFV{M,T,N}}, ::Type{_PMF{T,N}}) where {M,T,N} =
-    _PMFV{M,T,N}
 
 
 for S in [
@@ -1481,40 +1287,32 @@ for S in [
     # Promote MultiFloat scalar with fixed-precision real type.
     Base.promote_rule(::Type{_MF{T,N}}, ::Type{S}) where {T,N} =
         _MF{T,N}
-    Base.promote_rule(::Type{_PMF{T,N}}, ::Type{S}) where {T,N} =
-        _PMF{T,N}
 
     # Promote MultiFloat vector with fixed-precision real type.
     Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{S}) where {M,T,N} =
         _MFV{M,T,N}
-    Base.promote_rule(::Type{_PMFV{M,T,N}}, ::Type{S}) where {M,T,N} =
-        _PMFV{M,T,N}
 end
 
 
 # Promote MultiFloat scalar with arbitrary-precision real type.
-Base.promote_rule(::Type{_GMF{T,N}}, ::Type{BigInt}) where {T,N} = BigFloat
-Base.promote_rule(::Type{_GMF{T,N}}, ::Type{BigFloat}) where {T,N} = BigFloat
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{BigInt}) where {T,N} = BigFloat
+Base.promote_rule(::Type{_MF{T,N}}, ::Type{BigFloat}) where {T,N} = BigFloat
 
 
 # Allow MultiFloat vector types to participate in the conversion system.
 @inline Base.convert(::Type{_MFV{M,T,N}}, x::_MFV{M,T,N}) where {M,T,N} = x
-@inline Base.convert(::Type{_PMFV{M,T,N}}, x::_PMFV{M,T,N}) where {M,T,N} = x
-@inline Base.convert(::Type{_MFV{M,T,N}}, x::Any) where {M,T,N} =
-    _MFV{M,T,N}(x)
-@inline Base.convert(::Type{_PMFV{M,T,N}}, x::Any) where {M,T,N} =
-    _PMFV{M,T,N}(x)
+@inline Base.convert(::Type{_MFV{M,T,N}}, x::Any) where {M,T,N} = _MFV{M,T,N}(x)
 
 
 # Allow MultiFloat vector types to participate in the promotion system.
-@inline Base.:+(x::_GMFV{M,T,N}, y::Any) where {M,T,N} = +(promote(x, y)...)
-@inline Base.:+(x::Any, y::_GMFV{M,T,N}) where {M,T,N} = +(promote(x, y)...)
-@inline Base.:-(x::_GMFV{M,T,N}, y::Any) where {M,T,N} = -(promote(x, y)...)
-@inline Base.:-(x::Any, y::_GMFV{M,T,N}) where {M,T,N} = -(promote(x, y)...)
-@inline Base.:*(x::_GMFV{M,T,N}, y::Any) where {M,T,N} = *(promote(x, y)...)
-@inline Base.:*(x::Any, y::_GMFV{M,T,N}) where {M,T,N} = *(promote(x, y)...)
-@inline Base.:/(x::_GMFV{M,T,N}, y::Any) where {M,T,N} = /(promote(x, y)...)
-@inline Base.:/(x::Any, y::_GMFV{M,T,N}) where {M,T,N} = /(promote(x, y)...)
+@inline Base.:+(x::_MFV{M,T,N}, y::Any) where {M,T,N} = +(promote(x, y)...)
+@inline Base.:+(x::Any, y::_MFV{M,T,N}) where {M,T,N} = +(promote(x, y)...)
+@inline Base.:-(x::_MFV{M,T,N}, y::Any) where {M,T,N} = -(promote(x, y)...)
+@inline Base.:-(x::Any, y::_MFV{M,T,N}) where {M,T,N} = -(promote(x, y)...)
+@inline Base.:*(x::_MFV{M,T,N}, y::Any) where {M,T,N} = *(promote(x, y)...)
+@inline Base.:*(x::Any, y::_MFV{M,T,N}) where {M,T,N} = *(promote(x, y)...)
+@inline Base.:/(x::_MFV{M,T,N}, y::Any) where {M,T,N} = /(promote(x, y)...)
+@inline Base.:/(x::Any, y::_MFV{M,T,N}) where {M,T,N} = /(promote(x, y)...)
 
 
 ####################################################### TRANSCENDENTAL FUNCTIONS

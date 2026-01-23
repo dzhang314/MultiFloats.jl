@@ -23,6 +23,7 @@
         "Vararg",
         "vgather",
         "vifelse",
-        "vscatter"
+        "vscatter",
+        "Zhang"
     ]
 }
