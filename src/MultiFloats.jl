@@ -29,8 +29,6 @@ end
 # Private aliases for brevity.
 const _MF = MultiFloat
 const _MFV = MultiFloatVec
-const _MF{T,N} = Union{_MF{T,N},_PMF{T,N}}
-const _MFV{M,T,N} = Union{_MFV{M,T,N},_PMFV{M,T,N}}
 
 
 ################################################################### TYPE ALIASES
