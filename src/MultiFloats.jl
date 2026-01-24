@@ -1,6 +1,7 @@
 module MultiFloats
 
-using Base.MPFR: libmpfr, CdoubleMax, MPFRRoundingMode, MPFRRoundNearest
+using Base.MPFR: CdoubleMax, MPFRRoundingMode, MPFRRoundNearest
+using MPFR_jll: libmpfr
 using SIMD: Vec
 using SIMD.Intrinsics: extractelement
 
