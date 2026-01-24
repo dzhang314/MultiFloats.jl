@@ -45,7 +45,11 @@ export Float16x, Float32x, Float64x,
     Vec4Float32x1, Vec4Float32x2, Vec4Float32x3, Vec4Float32x4,
     Vec4Float64x1, Vec4Float64x2, Vec4Float64x3, Vec4Float64x4,
     Vec8Float32x1, Vec8Float32x2, Vec8Float32x3, Vec8Float32x4,
-    Vec8Float64x1, Vec8Float64x2, Vec8Float64x3, Vec8Float64x4
+    Vec8Float64x1, Vec8Float64x2, Vec8Float64x3, Vec8Float64x4,
+    Vec16Float32x1, Vec16Float32x2, Vec16Float32x3, Vec16Float32x4,
+    Vec16Float64x1, Vec16Float64x2, Vec16Float64x3, Vec16Float64x4,
+    Vec32Float32x1, Vec32Float32x2, Vec32Float32x3, Vec32Float32x4,
+    Vec32Float64x1, Vec32Float64x2, Vec32Float64x3, Vec32Float64x4
 
 
 const Float16x{N} = MultiFloat{Float16,N}
@@ -103,6 +107,14 @@ const Vec16Float64x1 = MultiFloatVec{16,Float64,1}
 const Vec16Float64x2 = MultiFloatVec{16,Float64,2}
 const Vec16Float64x3 = MultiFloatVec{16,Float64,3}
 const Vec16Float64x4 = MultiFloatVec{16,Float64,4}
+const Vec32Float32x1 = MultiFloatVec{32,Float32,1}
+const Vec32Float32x2 = MultiFloatVec{32,Float32,2}
+const Vec32Float32x3 = MultiFloatVec{32,Float32,3}
+const Vec32Float32x4 = MultiFloatVec{32,Float32,4}
+const Vec32Float64x1 = MultiFloatVec{32,Float64,1}
+const Vec32Float64x2 = MultiFloatVec{32,Float64,2}
+const Vec32Float64x3 = MultiFloatVec{32,Float64,3}
+const Vec32Float64x4 = MultiFloatVec{32,Float64,4}
 
 
 ###################################################################### CONSTANTS
