@@ -406,14 +406,16 @@ end
 @inline Base.eps(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(eps(T)^N)
 
 
-# TODO: Implement Base.precision.
-# if isdefined(Base, :_precision)
-#     @inline Base._precision(::Type{_MF{T,N}}) where {T,N} =
-#         N * precision(T) + (N - 1) # implicit bits of precision between limbs
-# else
-#     @inline Base.precision(::Type{_MF{T,N}}) where {T,N} =
-#         N * precision(T) + (N - 1) # implicit bits of precision between limbs
-# end
+@static if isdefined(Base, :_precision_with_base_2) # Julia 1.11+
+    @inline Base._precision_with_base_2(::Type{_MF{T,N}}) where {T,N} =
+        N * precision(T) - (N - 1)
+elseif isdefined(Base, :_precision) # Julia 1.8-1.10
+    @inline Base._precision(::Type{_MF{T,N}}) where {T,N} =
+        N * precision(T) - (N - 1)
+else # Julia 1.7 and earlier
+    @inline Base.precision(::Type{_MF{T,N}}) where {T,N} =
+        N * precision(T) - (N - 1)
+end
 # NOTE: SIMD.jl does not define Base.precision for vectors.
 
 
