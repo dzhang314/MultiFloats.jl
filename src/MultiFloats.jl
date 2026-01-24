@@ -319,8 +319,9 @@ _MF{T,N}(x::AbstractString) where {T,N} = _MF{T,N}(
     BigFloat(x, MPFRRoundNearest; precision=_full_precision(T)))
 
 
-# Construct MultiFloat scalar from any other type.
-function _MF{T,N}(x::Any) where {T,N}
+# Construct MultiFloat scalar from any other numeric type.
+function _MF{T,N}(x::Number) where {T,N}
+    # TODO: Remove this print statement before release.
     println(stderr, "WARNING: Constructing $(_MF{T,N}) from $(typeof(x)).")
     return _MF{T,N}(BigFloat(x,
         MPFRRoundNearest; precision=_full_precision(T)))
@@ -328,17 +329,18 @@ end
 
 
 # Construct MultiFloat vector from non-MultiFloat scalar.
-@inline _MFV{M,T,N}(x::Any) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
+@inline _MFV{M,T,N}(x::Union{AbstractString,Number}) where {M,T,N} =
+    _MFV{M,T,N}(_MF{T,N}(x))
 
 
 # Construct MultiFloat vector from multiple non-MultiFloat scalars.
-@inline _MFV{M,T,N}(xs::NTuple{M,Any}) where {M,T,N} =
+@inline _MFV{M,T,N}(xs::NTuple{M,Union{AbstractString,Number}}) where {M,T,N} =
     _MFV{M,T,N}(_MF{T,N}.(xs))
-@inline _MFV{M,T,N}(xs::Vararg{Any,M}) where {M,T,N} =
+@inline _MFV{M,T,N}(xs::Vararg{Union{AbstractString,Number},M}) where {M,T,N} =
     _MFV{M,T,N}(_MF{T,N}.(xs))
-_MFV{M,T,N}(::NTuple{K,Any}) where {M,T,N,K} =
+_MFV{M,T,N}(::NTuple{K,Union{AbstractString,Number}}) where {M,T,N,K} =
     error("MultiFloatVec constructor requires tuple of length $M.")
-_MFV{M,T,N}(::Vararg{Any,K}) where {M,T,N,K} =
+_MFV{M,T,N}(::Vararg{Union{AbstractString,Number},K}) where {M,T,N,K} =
     error("MultiFloatVec constructor requires 1 or $M arguments.")
 
 
