@@ -283,10 +283,10 @@ const _Fits64xN = Union{_Fits64x2,_Fits64x3}
 ####################################################### CONVERSION FROM BIGFLOAT
 
 
-@inline function mpfr_sub!(x::BigFloat, y::CdoubleMax)
+@inline function mpfr_sub!(x::BigFloat, y::CdoubleMax, rounding::RoundingMode)
     ccall((:mpfr_sub_d, libmpfr), Cint,
         (Ref{BigFloat}, Ref{BigFloat}, Cdouble, MPFRRoundingMode),
-        x, x, y, MPFRRoundNearest)
+        x, x, y, convert(MPFRRoundingMode, rounding))
     return x
 end
 
@@ -310,7 +310,7 @@ end
         for i = 1:N
             limb = T(temp)
             result = Base.setindex(result, limb, i)
-            mpfr_sub!(temp, limb)
+            mpfr_sub!(temp, limb, RoundNearest)
         end
         return result
     end
@@ -329,7 +329,7 @@ _MF{T,N}(x::BigFloat) where {T,N} = _MF{T,N}(_split(x, T, Val{N}()))
 
 # Construct MultiFloat scalar from string.
 _MF{T,N}(x::AbstractString) where {T,N} = _MF{T,N}(
-    BigFloat(x, MPFRRoundNearest; precision=_full_precision(T)))
+    BigFloat(x, RoundNearest; precision=_full_precision(T)))
 
 
 # Construct MultiFloat scalar from any other numeric type.
@@ -337,7 +337,7 @@ function _MF{T,N}(x::Number) where {T,N}
     # TODO: Remove this print statement before release.
     println(stderr, "WARNING: Constructing $(_MF{T,N}) from $(typeof(x)).")
     return _MF{T,N}(BigFloat(x,
-        MPFRRoundNearest; precision=_full_precision(T)))
+        RoundNearest; precision=_full_precision(T)))
 end
 
 
@@ -373,22 +373,23 @@ _MFV{M,T,N}(::Vararg{Union{AbstractString,Number},K}) where {M,T,N,K} =
 end
 
 
-@inline function mpfr_add!(x::BigFloat, y::CdoubleMax)
+@inline function mpfr_add!(x::BigFloat, y::CdoubleMax, rounding::RoundingMode)
     ccall((:mpfr_add_d, libmpfr), Cint,
         (Ref{BigFloat}, Ref{BigFloat}, Cdouble, MPFRRoundingMode),
-        x, x, y, MPFRRoundNearest)
+        x, x, y, convert(MPFRRoundingMode, rounding))
     return x
 end
 
 
 function Base.BigFloat(
-    x::_MF{T,N};
+    x::_MF{T,N},
+    rounding::RoundingMode=rounding(BigFloat);
     precision::Integer=precision(BigFloat),
 ) where {T,N}
     result = BigFloat(; precision)
     mpfr_zero!(result)
     for limb in x._limbs
-        mpfr_add!(result, limb)
+        mpfr_add!(result, limb, rounding)
     end
     return result
 end
