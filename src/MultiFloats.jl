@@ -754,7 +754,7 @@ end
     p01, e01 = two_prod(x[1], x[2])
     e00, p01 = two_sum(e00, 2*p01)
     p00, e00 = fast_two_sum(p00, e00)
-    e00, p01 = two_sum(e00, muladd(2, muladd(x[1], x[3], e01), muladd(x[2], x[3], p01))
+    e00, p01 = two_sum(e00, muladd(2, muladd(x[1], x[3], e01), muladd(x[2], x[3], p01)))
     p00, e00 = fast_two_sum(p00, e00)
     e00, p01 = fast_two_sum(e00, p01)
     p00, e00 = fast_two_sum(p00, e00)
