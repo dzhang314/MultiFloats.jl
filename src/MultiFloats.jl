@@ -401,6 +401,11 @@ end
 @inline Base.AbstractFloat(x::_MF{T,N}) where {T,N} = x
 
 
+@inline Base.Rational{I}(x::_MF{T,N}) where {I,T,N} =
+    sum(Rational{I}.(x._limbs); init=zero(Rational{I}))
+@inline Base.Rational(x::_MF{T,N}) where {T,N} = Rational{BigInt}(x)
+
+
 ###################################################### FLOATING-POINT PROPERTIES
 
 
