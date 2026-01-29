@@ -756,6 +756,67 @@ end
     return (prod, err)
 end
 
+@inline function mfsqr(
+    x::NTuple{1,T},
+    ::Val{1},
+) where {T}
+    return (x[1] * x[1],)
+end
+
+@inline function mfsqr(
+    x::NTuple{2,T},
+    ::Val{2},
+) where {T}
+    p00, e00 = two_prod(x[1], x[1])
+    e00 = muladd(2*x[1], x[2], e00)
+    p00, e00 = fast_two_sum(p00, e00)
+    return (p00, e00)
+end
+
+@inline function mfsqr(
+    x::NTuple{3,T},
+    ::Val{3},
+) where {T}
+    p00, e00 = two_prod(x[1], x[1])
+    p01, e01 = two_prod(x[1], x[2])
+    e00, p01 = two_sum(e00, 2*p01)
+    p00, e00 = fast_two_sum(p00, e00)
+    e00, p01 = two_sum(e00, muladd(2, muladd(x[1], x[3], e01), muladd(x[2], x[3], p01)))
+    p00, e00 = fast_two_sum(p00, e00)
+    e00, p01 = fast_two_sum(e00, p01)
+    p00, e00 = fast_two_sum(p00, e00)
+    return (p00, e00, p01)
+end
+
+@inline function mfsqr(
+    x::NTuple{4,T},
+    ::Val{4},
+) where {T}
+    p00, e00 = two_prod(x[1], x[1])
+    p01, e01 = two_prod(x[1], x[2])
+    p02, e02 = two_prod(x[1], x[3])
+    p11, e11 = two_prod(x[2], x[2])
+    e00, p01 = two_sum(e00, 2*p01)
+    e01, p11 = two_sum(2*e01, p11)
+    e10 = muladd(2, e02, e01)
+    p00, e00 = fast_two_sum(p00, e00)
+    e01, p02 = two_sum(e01, 2*p02)
+    e10 = muladd(2, muladd(x[1], x[4], x[2]*x[3]), e10)
+    p01, e01 = two_sum(p01, e01)
+    p01, p10 = two_sum(p01, e11 + p11 + e01)
+    e00, p01 = two_sum(e00, p01)
+    p00, e00 = fast_two_sum(p00, e00)
+    p01, p10 = two_sum(p01, p02 + e10 + p10)
+    e00, p01 = two_sum(e00, p01)
+    p00, e00 = fast_two_sum(p00, e00)
+    p01, p10 = fast_two_sum(p01, p10)
+    e00, p01 = fast_two_sum(e00, p01)
+    p00, e00 = fast_two_sum(p00, e00)
+    p01, p10 = fast_two_sum(p01, p10)
+    e00, p01 = fast_two_sum(e00, p01)
+    p01, p10 = fast_two_sum(p01, p10)
+    return (p00, e00, p01, p10)
+end
 
 @inline function mfmul(
     x::NTuple{1,T},
@@ -1016,7 +1077,7 @@ end
         neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{Z}())
         rx = _resize(x, Val{Z}())
         ru = _resize(u, Val{Z}())
-        square = mfmul(ru, ru, Val{Z}())
+        square = mfsqr(ru, Val{Z}())
         residual = mfadd(mfmul(square, rx, Val{Z}()), neg_one, Val{Z}())
         correction = mfmul(residual, scale(_half, ru), Val{Z}())
         return mfadd(ru, (-).(correction), Val{Z}())
@@ -1024,7 +1085,7 @@ end
         neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
         rx = _resize(x, Val{U + U}())
         ru = _resize(u, Val{U + U}())
-        square = mfmul(ru, ru, Val{U + U}())
+        square = mfsqr(ru, Val{U + U}())
         residual = mfadd(mfmul(square, rx, Val{U + U}()), neg_one, Val{U + U}())
         correction = mfmul(residual, scale(_half, ru), Val{U + U}())
         next_u = mfadd(ru, (-).(correction), Val{U + U}())
@@ -1047,18 +1108,58 @@ end
         rx = _resize(x, Val{Z}())
         ru = _resize(u, Val{Z}())
         root = mfmul(rx, ru, Val{Z}())
-        residual = mfadd(mfmul(root, root, Val{Z}()), (-).(rx), Val{Z}())
+        residual = mfadd(mfsqr(root, Val{Z}()), (-).(rx), Val{Z}())
         correction = mfmul(residual, scale(_half, ru), Val{Z}())
         return mfadd(root, (-).(correction), Val{Z}())
     else
         neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
         rx = _resize(x, Val{U + U}())
         ru = _resize(u, Val{U + U}())
-        square = mfmul(ru, ru, Val{U + U}())
+        square = mfsqr(ru, Val{U + U}())
         residual = mfadd(mfmul(square, rx, Val{U + U}()), neg_one, Val{U + U}())
         correction = mfmul(residual, scale(_half, ru), Val{U + U}())
         next_u = mfadd(ru, (-).(correction), Val{U + U}())
         return _mfsqrt_impl(x, next_u, Val{Z}())
+    end
+end
+
+
+@inline function _mfcbrt_impl(
+    x::NTuple{X,T},
+    u::NTuple{U,T},
+    ::Val{Z},
+) where {T,X,U,Z}
+    # Newton iterations solving
+    #   u^2 - x/u == 0
+    # with update
+    #   t <- t + t * (x/t^2 - t) / (3*t)
+    @assert 0 < U < Z
+    _one = one(T)
+    _two = _one + _one
+
+    if U + U >= Z
+        rx = _resize(x, Val{Z}())
+        ru = _resize(u, Val{Z}())
+        s = mfsqr(ru, Val{Z}())
+        r = mfdiv(rx, s, Val{Z}())
+        w = scale(_two, r)
+        num = mfadd(r, scale(-_one, ru), Val{Z}())
+        den = mfadd(w, r, Val{Z}())
+        quot = mfdiv(num, den, Val{Z}())
+        residual = mfmul(quot, ru, Val{Z}())
+        return mfadd(residual, ru, Val{Z}())
+    else
+        rx = _resize(x, Val{U+U}())
+        ru = _resize(u, Val{U+U}())
+        s = mfsqr(ru, Val{U+U}())
+        r = mfdiv(rx, s, Val{U+U}())
+        w = scale(_two, r)
+        num = mfsub(r, scale(-_one, ru), Val{U+U}())
+        den = mfadd(w, r, Val{U+U}())
+        quot = mfdiv(num, Val{U+U}())
+        residual = mfmul(quot, ru, Val{U+U}())
+        next_u = mfadd(residual, ru, Val{U+U}())
+        return _mfcbrt_impl(x, next_u, Val{Z}())
     end
 end
 
@@ -1087,6 +1188,11 @@ end
     _mfsqrt_impl(x, (rsqrt(first(x)),), Val{Z}())
 
 
+@inline mfcbrt(x::NTuple{X,T}, ::Val{1}) where {T,X} =
+    (cbrt(first(x)),)
+@inline mfcbrt(x::NTuple{X,T}, ::Val{Z}) where {T,X,Z} =
+    _mfcbrt_impl(x, (cbrt(first(x)),), Val{Z}())
+    
 ################################################### LEVEL 2 ARITHMETIC OPERATORS
 
 
@@ -1118,6 +1224,12 @@ end
     ifelse(iszero(x), zero(x), unsafe_sqrt(x))
 @inline Base.sqrt(x::_MFV{M,T,N}) where {M,T,N} =
     vifelse(iszero(x), zero(x), unsafe_sqrt(x))
+
+
+@inline Base.cbrt(x::_MF{T,N}) where {T,N} =
+    _MF{T,N}(mfcbrt(x._limbs, Val{N}()))
+@inline Base.cbrt(x::_MFV{M,T,N}) where {M,T,N} =
+    _MFV{M,T,N}(mfcbrt(x._limbs, Val{N}()))
 
 
 ####################################################################### PRINTING
