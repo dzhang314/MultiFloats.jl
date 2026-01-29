@@ -403,6 +403,10 @@ end
 
 @inline Base.Rational{I}(x::_MF{T,N}) where {I,T,N} =
     sum(Rational{I}.(x._limbs); init=zero(Rational{I}))
+# This specialization eliminates ambiguity with the
+# Rational{BigInt}(::AbstractFloat) method defined in Base.MPFR.
+@inline Base.Rational{BigInt}(x::_MF{T,N}) where {T,N} =
+    sum(Rational{BigInt}.(x._limbs); init=zero(Rational{BigInt}))
 @inline Base.Rational(x::_MF{T,N}) where {T,N} = Rational{BigInt}(x)
 
 
