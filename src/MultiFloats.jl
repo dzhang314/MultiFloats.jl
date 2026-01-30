@@ -703,6 +703,7 @@ end
     c += d
     b, c = fast_two_sum(b, c)
     a, b = fast_two_sum(a, b)
+    b, c = fast_two_sum(b, c)
     return (a, b, c)
 end
 
