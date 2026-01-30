@@ -2,7 +2,7 @@ module MultiFloats
 
 using Base.MPFR: CdoubleMax, MPFRRoundingMode, MPFRRoundNearest
 using MPFR_jll: libmpfr
-using SIMD: Vec
+using SIMD: FastContiguousArray, Vec, vgather, vscatter
 using SIMD.Intrinsics: extractelement
 
 import SIMD: vifelse
@@ -575,7 +575,7 @@ end
 ############################################################## VECTOR OPERATIONS
 
 
-# export mfvgather, mfvscatter
+export mfvgather, mfvscatter
 
 
 @inline Base.length(::_MFV{M,T,N}) where {M,T,N} = M
@@ -591,32 +591,37 @@ end
     ntuple(i -> vifelse(mask, x._limbs[i], y._limbs[i]), Val{N}()))
 
 
-# @inline function mfvgather(
-#     pointer::Ptr{_MF{T,N}}, index::Vec{M,I}
-# ) where {M,T,N,I<:Integer}
-#     base = reinterpret(Ptr{T}, pointer) + N * sizeof(T) * index
-#     return _MFV{M,T,N}(ntuple(
-#         i -> vgather(base + (i - 1) * sizeof(T)), Val{N}()))
-# end
+@inline function mfvgather(
+    pointer::Ptr{_MF{T,N}}, index::Vec{M,I}
+) where {M,T,N,I<:Integer}
+    base = reinterpret(Ptr{T}, pointer) + N * sizeof(T) * index
+    return _MFV{M,T,N}(ntuple(
+        i -> vgather(base + (i - 1) * sizeof(T)), Val{N}()))
+end
 
 
-# @inline function mfvscatter(
-#     x::_MFV{M,T,N}, pointer::Ptr{_MF{T,N}}, index::Vec{M,I}
-# ) where {M,T,N,I<:Integer}
-#     base = reinterpret(Ptr{T}, pointer) + N * sizeof(T) * index
-#     for i = 1:N
-#         vscatter(x._limbs[i], base + (i - 1) * sizeof(T), nothing)
-#     end
-#     return nothing
-# end
+@inline function mfvscatter(
+    x::_MFV{M,T,N}, pointer::Ptr{_MF{T,N}}, index::Vec{M,I}
+) where {M,T,N,I<:Integer}
+    base = reinterpret(Ptr{T}, pointer) + N * sizeof(T) * index
+    for i = 1:N
+        vscatter(x._limbs[i], base + (i - 1) * sizeof(T), nothing)
+    end
+    return nothing
+end
 
 
-# @inline mfvgather(array::Array{_MF{T,N},D}, index::Vec{M,I}
-# ) where {M,T,N,D,I<:Integer} = mfvgather(pointer(array), index - one(I))
+@inline mfvgather(
+    array::FastContiguousArray{_MF{T,N},D},
+    index::Vec{M,I},
+) where {M,T,N,D,I<:Integer} = mfvgather(pointer(array), index - one(I))
 
 
-# @inline mfvscatter(x::_MFV{M,T,N}, array::Array{_MF{T,N},D}, index::Vec{M,I}
-# ) where {M,T,N,D,I<:Integer} = mfvscatter(x, pointer(array), index - one(I))
+@inline mfvscatter(
+    x::_MFV{M,T,N},
+    array::FastContiguousArray{_MF{T,N},D},
+    index::Vec{M,I},
+) where {M,T,N,D,I<:Integer} = mfvscatter(x, pointer(array), index - one(I))
 
 
 ##################################################################### COMPARISON
