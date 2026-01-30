@@ -562,13 +562,43 @@ function Base.decompose(x::_MF{T,N}) where {T,N}
 end
 
 
-# TODO: Implement renormalization, prevfloat, and nextfloat.
-# _prevfloat(x::_MF{T,N}) where {T,N} = renormalize(_MF{T,N}((ntuple(
-#         i -> x._limbs[i], Val{N - 1}())..., prevfloat(x._limbs[N]))))
-# _nextfloat(x::_MF{T,N}) where {T,N} = renormalize(_MF{T,N}((ntuple(
-#         i -> x._limbs[i], Val{N - 1}())..., nextfloat(x._limbs[N]))))
-# @inline Base.prevfloat(x::_MF{T,N}) where {T,N} = _prevfloat(renormalize(x))
-# @inline Base.nextfloat(x::_MF{T,N}) where {T,N} = _nextfloat(renormalize(x))
+@generated function _renorm_pass(x::NTuple{N,T}) where {N,T}
+    xs = [Symbol('x', i) for i = 1:N]
+    body = Expr[]
+    push!(body, Expr(:meta, :inline))
+    push!(body, Expr(:(=), Expr(:tuple, xs...), :x))
+    for i = 1:2:N-1
+        push!(body, Expr(:(=), Expr(:tuple, xs[i], xs[i+1]),
+            Expr(:call, MultiFloats.two_sum, xs[i], xs[i+1])))
+    end
+    for i = 2:2:N-1
+        push!(body, Expr(:(=), Expr(:tuple, xs[i], xs[i+1]),
+            Expr(:call, MultiFloats.two_sum, xs[i], xs[i+1])))
+    end
+    push!(body, Expr(:return, Expr(:tuple, xs...)))
+    return Expr(:block, body...)
+end
+
+@inline function renormalize(x::NTuple{N,T}) where {N,T}
+    while true
+        x_next = _renorm_pass(x)
+        if x_next === x
+            return x
+        end
+        x = x_next
+    end
+end
+
+@inline renormalize(x::_MF{T,N}) where {T,N} =
+    _MF{T,N}(renormalize(x._limbs))
+@inline renormalize(x::_MFV{M,T,N}) where {M,T,N} =
+    _MFV{M,T,N}(renormalize(x._limbs))
+
+
+@inline Base.prevfloat(x::_MF{T,N}) where {T,N} =
+    renormalize(_MF{T,N}(Base.setindex(x._limbs, prevfloat(x._limbs[N]), N)))
+@inline Base.nextfloat(x::_MF{T,N}) where {T,N} =
+    renormalize(_MF{T,N}(Base.setindex(x._limbs, nextfloat(x._limbs[N]), N)))
 # NOTE: SIMD.jl does not define Base.prevfloat or Base.nextfloat for vectors.
 
 

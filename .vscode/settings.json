@@ -18,6 +18,7 @@
         "mfvscatter",
         "mpfr",
         "PMFV",
+        "renorm",
         "rsqrt",
         "vall",
         "vany",
