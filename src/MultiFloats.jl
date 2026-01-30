@@ -530,8 +530,36 @@ end
 # NOTE: SIMD.jl does not define Base.ldexp for vectors.
 
 
-# TODO: Implement Base.decompose.
-# Base.decompose(x::MultiFloat) = Base.decompose(BigFloat(x))
+function Base.decompose(x::_MF{T,N}) where {T,N}
+    if iszero(x)
+        return (zero(BigInt), 0, ifelse(signbit(x), -1, +1))
+    end
+    has_pos_inf = _has_pos_inf(x)
+    has_neg_inf = _has_neg_inf(x)
+    if _has_nan(x) | (has_pos_inf & has_neg_inf)
+        return (zero(BigInt), 0, 0)
+    elseif has_pos_inf
+        return (+one(BigInt), 0, 0)
+    elseif has_neg_inf
+        return (-one(BigInt), 0, 0)
+    end
+    p = precision(T)
+    e_min = typemax(Int)
+    for limb in x._limbs
+        if !iszero(limb)
+            e_min = min(e_min, exponent(limb) - (p - 1))
+        end
+    end
+    num = zero(BigInt)
+    for limb in x._limbs
+        if !iszero(limb)
+            e = exponent(limb) - (p - 1)
+            m = BigInt(ldexp(significand(limb), p - 1))
+            num += m << (e - e_min)
+        end
+    end
+    return (num, e_min, 1)
+end
 
 
 # TODO: Implement renormalization, prevfloat, and nextfloat.
