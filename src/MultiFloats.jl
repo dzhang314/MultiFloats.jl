@@ -1328,10 +1328,10 @@ end
 ################################################# STANDARD LIBRARY COMPATIBILITY
 
 
-# TODO: Implement conversion from complex types.
-# MultiFloat{T,N}(z::Complex) where {T,N} =
-#     isreal(z) ? MultiFloat{T,N}(real(z)) :
-#     throw(InexactError(nameof(MultiFloat{T,N}), MultiFloat{T,N}, z))
+_MF{T,N}(z::Complex) where {T,N} =
+    isreal(z) ? _MF{T,N}(real(z)) :
+    throw(InexactError(nameof(_MF{T,N}), _MF{T,N}, z))
+# NOTE: SIMD.jl does not support complex vectors.
 
 
 import LinearAlgebra: floatmin2
