@@ -291,7 +291,7 @@ const _Fits64xN = Union{_Fits64x2,_Fits64x3}
 end
 
 
-@inline function _split(x::BigFloat, ::Type{T}, ::Val{N}) where {T,N}
+function _split(x::BigFloat, ::Type{T}, ::Val{N}) where {T,N}
     if !isfinite(x)
         value = T(x)
         return ntuple(_ -> value, Val{N}())
@@ -454,12 +454,9 @@ end
     issubnormal(first(x._limbs))
 
 
-@inline Base.isfinite(x::_MF{T,N}) where {T,N} = isfinite(sum(x._limbs))
-@inline Base.isfinite(x::_MFV{M,T,N}) where {M,T,N} = isfinite(sum(x._limbs))
-@inline Base.isinf(x::_MF{T,N}) where {T,N} = isinf(sum(x._limbs))
-@inline Base.isinf(x::_MFV{M,T,N}) where {M,T,N} = isinf(sum(x._limbs))
-@inline Base.isnan(x::_MF{T,N}) where {T,N} = isnan(sum(x._limbs))
-@inline Base.isnan(x::_MFV{M,T,N}) where {M,T,N} = isnan(sum(x._limbs))
+@inline _vany(::Tuple{}, ::Val{M}) where {M} = zero(Vec{M,Bool})
+@inline _vany(x::Tuple{Vec{M,Bool}}, ::Val{M}) where {M} = x[1]
+@inline _vany(x::NTuple{N,Vec{M,Bool}}, ::Val{M}) where {M,N} = (|)(x...)
 
 
 @inline _vall(::Tuple{}, ::Val{M}) where {M} = one(Vec{M,Bool})
@@ -479,6 +476,46 @@ end
 @inline Base.isone(x::_MFV{M,T,N}) where {M,T,N} = _vall(ntuple(
         i -> (isone(i) ? isone(x._limbs[i]) : iszero(x._limbs[i])),
         Val{N}()), Val{M}())
+
+
+@inline Base.isfinite(x::_MF{T,N}) where {T,N} =
+    all(isfinite.(x._limbs))
+@inline Base.isfinite(x::_MFV{M,T,N}) where {M,T,N} =
+    _vall(isfinite.(x._limbs), Val{M}())
+
+
+@inline _has_pos_inf(x::_MF{T,N}) where {T,N} = any(ntuple(
+    i -> isinf(x._limbs[i]) & !signbit(x._limbs[i]),
+    Val{N}()))
+@inline _has_pos_inf(x::_MFV{M,T,N}) where {M,T,N} = _vany(ntuple(
+        i -> isinf(x._limbs[i]) & !signbit(x._limbs[i]),
+        Val{N}()), Val{M}())
+
+
+@inline _has_neg_inf(x::_MF{T,N}) where {T,N} = any(ntuple(
+    i -> isinf(x._limbs[i]) & signbit(x._limbs[i]),
+    Val{N}()))
+@inline _has_neg_inf(x::_MFV{M,T,N}) where {M,T,N} = _vany(ntuple(
+        i -> isinf(x._limbs[i]) & signbit(x._limbs[i]),
+        Val{N}()), Val{M}())
+
+
+@inline _has_nan(x::_MF{T,N}) where {T,N} =
+    any(isnan.(x._limbs))
+@inline _has_nan(x::_MFV{M,T,N}) where {M,T,N} =
+    _vany(isnan.(x._limbs), Val{M}())
+
+
+@inline Base.isinf(x::_MF{T,N}) where {T,N} =
+    xor(_has_pos_inf(x), _has_neg_inf(x)) & !_has_nan(x)
+@inline Base.isinf(x::_MFV{M,T,N}) where {M,T,N} =
+    xor(_has_pos_inf(x), _has_neg_inf(x)) & !_has_nan(x)
+
+
+@inline Base.isnan(x::_MF{T,N}) where {T,N} =
+    _has_nan(x) | (_has_pos_inf(x) & _has_neg_inf(x))
+@inline Base.isnan(x::_MFV{M,T,N}) where {M,T,N} =
+    _has_nan(x) | (_has_pos_inf(x) & _has_neg_inf(x))
 
 
 @inline Base.isinteger(x::_MF{T,N}) where {T,N} = all(isinteger.(x._limbs))

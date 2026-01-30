@@ -20,6 +20,7 @@
         "PMFV",
         "rsqrt",
         "vall",
+        "vany",
         "Vararg",
         "vgather",
         "vifelse",
