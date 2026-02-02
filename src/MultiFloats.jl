@@ -280,6 +280,55 @@ const _Fits64xN = Union{_Fits64x2,_Fits64x3}
     _MF{_F64,N}(_split(x, _F64, Val{N}()))
 
 
+################################################################ RENORMALIZATION
+
+
+@inline function two_sum(a::T, b::T) where {T}
+    sum = a + b
+    a_prime = sum - b
+    b_prime = sum - a_prime
+    a_err = a - a_prime
+    b_err = b - b_prime
+    err = a_err + b_err
+    return (sum, err)
+end
+
+
+@generated function _renorm_pass(x::NTuple{N,T}) where {N,T}
+    xs = [Symbol('x', i) for i = 1:N]
+    body = Expr[]
+    push!(body, Expr(:meta, :inline))
+    push!(body, Expr(:(=), Expr(:tuple, xs...), :x))
+    for i = 1:2:N-1
+        push!(body, Expr(:(=), Expr(:tuple, xs[i], xs[i+1]),
+            Expr(:call, two_sum, xs[i], xs[i+1])))
+    end
+    for i = 2:2:N-1
+        push!(body, Expr(:(=), Expr(:tuple, xs[i], xs[i+1]),
+            Expr(:call, two_sum, xs[i], xs[i+1])))
+    end
+    push!(body, Expr(:return, Expr(:tuple, xs...)))
+    return Expr(:block, body...)
+end
+
+
+@inline function renormalize(x::NTuple{N,T}) where {N,T}
+    while true
+        x_next = _renorm_pass(x)
+        if x_next === x
+            return x
+        end
+        x = x_next
+    end
+end
+
+
+@inline renormalize(x::_MF{T,N}) where {T,N} =
+    _MF{T,N}(renormalize(x._limbs))
+@inline renormalize(x::_MFV{M,T,N}) where {M,T,N} =
+    _MFV{M,T,N}(renormalize(x._limbs))
+
+
 ####################################################### CONVERSION FROM BIGFLOAT
 
 
@@ -296,13 +345,14 @@ function _split(x::BigFloat, ::Type{T}, ::Val{N}) where {T,N}
         value = T(x)
         return ntuple(_ -> value, Val{N}())
     elseif x > +floatmax(T)
-        pos_inf = typemax(T)
-        return ntuple(_ -> pos_inf, Val{N}())
+        _pos_inf = typemax(T)
+        return ntuple(_ -> _pos_inf, Val{N}())
     elseif x < -floatmax(T)
-        neg_inf = typemin(T)
-        return ntuple(_ -> neg_inf, Val{N}())
+        _neg_inf = typemin(T)
+        return ntuple(_ -> _neg_inf, Val{N}())
     else
-        result = ntuple(_ -> zero(T), Val{N}())
+        _zero = zero(T)
+        result = ntuple(_ -> _zero, Val{N}())
         temp = BigFloat(; precision=precision(x))
         ccall((:mpfr_set, libmpfr), Cint,
             (Ref{BigFloat}, Ref{BigFloat}, MPFRRoundingMode),
@@ -312,7 +362,7 @@ function _split(x::BigFloat, ::Type{T}, ::Val{N}) where {T,N}
             result = Base.setindex(result, limb, i)
             mpfr_sub!(temp, limb, RoundNearest)
         end
-        return result
+        return renormalize(result)
     end
 end
 
@@ -329,7 +379,7 @@ _MF{T,N}(x::BigFloat) where {T,N} = _MF{T,N}(_split(x, T, Val{N}()))
 
 # Construct MultiFloat scalar from string.
 _MF{T,N}(x::AbstractString) where {T,N} = _MF{T,N}(
-    BigFloat(x, RoundNearest; precision=_full_precision(T)))
+    BigFloat(x, RoundNearest; precision=2 * _full_precision(T)))
 
 
 # Construct MultiFloat scalar from any other type.
@@ -337,7 +387,7 @@ function _MF{T,N}(x) where {T,N}
     # TODO: Remove this print statement before release.
     println(stderr, "WARNING: Constructing $(_MF{T,N}) from $(typeof(x)) " *
                     "using slow generic conversion path.")
-    return _MF{T,N}(BigFloat(x, RoundNearest; precision=_full_precision(T)))
+    return _MF{T,N}(BigFloat(x, RoundNearest; precision=2 * _full_precision(T)))
 end
 
 
@@ -524,55 +574,6 @@ end
 # NOTE: SIMD.jl does not define Base.isinteger for vectors.
 
 
-################################################################ RENORMALIZATION
-
-
-@inline function two_sum(a::T, b::T) where {T}
-    sum = a + b
-    a_prime = sum - b
-    b_prime = sum - a_prime
-    a_err = a - a_prime
-    b_err = b - b_prime
-    err = a_err + b_err
-    return (sum, err)
-end
-
-
-@generated function _renorm_pass(x::NTuple{N,T}) where {N,T}
-    xs = [Symbol('x', i) for i = 1:N]
-    body = Expr[]
-    push!(body, Expr(:meta, :inline))
-    push!(body, Expr(:(=), Expr(:tuple, xs...), :x))
-    for i = 1:2:N-1
-        push!(body, Expr(:(=), Expr(:tuple, xs[i], xs[i+1]),
-            Expr(:call, two_sum, xs[i], xs[i+1])))
-    end
-    for i = 2:2:N-1
-        push!(body, Expr(:(=), Expr(:tuple, xs[i], xs[i+1]),
-            Expr(:call, two_sum, xs[i], xs[i+1])))
-    end
-    push!(body, Expr(:return, Expr(:tuple, xs...)))
-    return Expr(:block, body...)
-end
-
-
-@inline function renormalize(x::NTuple{N,T}) where {N,T}
-    while true
-        x_next = _renorm_pass(x)
-        if x_next === x
-            return x
-        end
-        x = x_next
-    end
-end
-
-
-@inline renormalize(x::_MF{T,N}) where {T,N} =
-    _MF{T,N}(renormalize(x._limbs))
-@inline renormalize(x::_MFV{M,T,N}) where {M,T,N} =
-    _MFV{M,T,N}(renormalize(x._limbs))
-
-
 #################################################### FLOATING-POINT MANIPULATION
 
 
@@ -613,10 +614,12 @@ function Base.decompose(x::_MF{T,N}) where {T,N}
 end
 
 
-@inline Base.prevfloat(x::_MF{T,N}) where {T,N} =
-    renormalize(_MF{T,N}(Base.setindex(x._limbs, prevfloat(x._limbs[N]), N)))
-@inline Base.nextfloat(x::_MF{T,N}) where {T,N} =
-    renormalize(_MF{T,N}(Base.setindex(x._limbs, nextfloat(x._limbs[N]), N)))
+@inline _prev(x::_MF{T,N}) where {T,N} =
+    _MF{T,N}(Base.setindex(x._limbs, prevfloat(x._limbs[N]), N))
+@inline _next(x::_MF{T,N}) where {T,N} =
+    _MF{T,N}(Base.setindex(x._limbs, nextfloat(x._limbs[N]), N))
+@inline Base.prevfloat(x::_MF{T,N}) where {T,N} = renormalize(_prev(x))
+@inline Base.nextfloat(x::_MF{T,N}) where {T,N} = renormalize(_next(x))
 # NOTE: SIMD.jl does not define Base.prevfloat or Base.nextfloat for vectors.
 
 
@@ -1229,6 +1232,100 @@ end
 
 
 ####################################################################### PRINTING
+
+
+using Printf: @sprintf
+
+
+function _to_string(x::_MF{T,N}) where {T,N}
+    if all(iszero, x._limbs)
+        if all(signbit, x._limbs)
+            return "-0.0"
+        elseif all(!signbit, x._limbs)
+            return "0.0"
+        else
+            return repr(x)
+        end
+    end
+
+    has_pos_inf = _has_pos_inf(x)
+    has_neg_inf = _has_neg_inf(x)
+    if _has_nan(x) | (has_pos_inf & has_neg_inf)
+        return "NaN"
+    elseif has_pos_inf
+        return "Inf"
+    elseif has_neg_inf
+        return "-Inf"
+    end
+
+    rx = Rational{BigInt}(x)
+    prev = Rational{BigInt}(_prev(x))
+    next = Rational{BigInt}(_next(x))
+    a = rx - (rx - prev) // 2
+    b = rx
+    c = rx + (next - rx) // 2
+    @assert isfinite(a)
+    @assert isfinite(b)
+    @assert isfinite(c)
+    @assert a < b < c
+
+    if iszero(b) || ((a < 0) && (c > 0))
+        return "0.0"
+    end
+
+    sign_str = ""
+    if c <= 0
+        a, b, c = -c, -b, -a
+        sign_str = "-"
+    end
+
+    @assert 0 <= a < b < c
+
+    e = 0
+    while b < 1
+        a *= 10
+        b *= 10
+        c *= 10
+        e -= 1
+    end
+    while b > 10
+        a //= 10
+        b //= 10
+        c //= 10
+        e += 1
+    end
+
+    digit_array = Vector{Int8}()
+    while ceil(a) > floor(c)
+        next_digit = floor(Int8, b)
+        push!(digit_array, next_digit)
+        a = 10 * (a - next_digit)
+        b = 10 * (b - next_digit)
+        c = 10 * (c - next_digit)
+    end
+    last_digit = clamp(round(Int8, b), ceil(Int8, a), floor(Int8, c))
+    push!(digit_array, last_digit)
+
+    if 0 <= e < 6
+        while length(digit_array) < e + 2
+            push!(digit_array, zero(Int8))
+        end
+        pre_str = String('0' .+ digit_array[1:e+1])
+        post_str = String('0' .+ digit_array[e+2:end])
+        return @sprintf("%s%s.%s", sign_str, pre_str, post_str)
+    elseif -5 < e < 0
+        prepend!(digit_array, [zero(Int8) for _ = e:-2])
+        post_str = String('0' .+ digit_array)
+        return @sprintf("%s0.%s", sign_str, post_str)
+    else
+        while length(digit_array) < 2
+            push!(digit_array, zero(Int8))
+        end
+        pre_char = '0' + digit_array[1]
+        post_str = String('0' .+ digit_array[2:end])
+        return @sprintf("%s%c.%se%d", sign_str, pre_char, post_str, e)
+    end
+end
 
 
 # TODO: Implement printing and test for round-trip correctness.

@@ -20,6 +20,7 @@
         "PMFV",
         "renorm",
         "rsqrt",
+        "sprintf",
         "vall",
         "vany",
         "Vararg",
