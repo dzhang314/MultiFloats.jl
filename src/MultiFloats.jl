@@ -401,7 +401,7 @@ end
 @inline Base.AbstractFloat(x::_MF{T,N}) where {T,N} = x
 
 
-@inline Base.Rational{I}(x::_MF{T,N}) where {I,T,N} =
+@inline Base.Rational{I}(x::_MF{T,N}) where {I<:Integer,T,N} =
     sum(Rational{I}.(x._limbs); init=zero(Rational{I}))
 # This specialization eliminates ambiguity with the
 # Rational{BigInt}(::AbstractFloat) method defined in Base.MPFR.
@@ -430,7 +430,9 @@ end
 
 
 @inline Base.floatmin(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(floatmin(T))
-@inline Base.floatmax(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(floatmax(T))
+@inline Base.floatmax(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(ntuple(
+    i -> ldexp(floatmax(T), -((i - 1) * (precision(T) + 1))),
+    Val{N}()))
 # NOTE: SIMD.jl does not define Base.floatmin or Base.floatmax for vectors.
 
 
@@ -522,6 +524,55 @@ end
 # NOTE: SIMD.jl does not define Base.isinteger for vectors.
 
 
+################################################################ RENORMALIZATION
+
+
+@inline function two_sum(a::T, b::T) where {T}
+    sum = a + b
+    a_prime = sum - b
+    b_prime = sum - a_prime
+    a_err = a - a_prime
+    b_err = b - b_prime
+    err = a_err + b_err
+    return (sum, err)
+end
+
+
+@generated function _renorm_pass(x::NTuple{N,T}) where {N,T}
+    xs = [Symbol('x', i) for i = 1:N]
+    body = Expr[]
+    push!(body, Expr(:meta, :inline))
+    push!(body, Expr(:(=), Expr(:tuple, xs...), :x))
+    for i = 1:2:N-1
+        push!(body, Expr(:(=), Expr(:tuple, xs[i], xs[i+1]),
+            Expr(:call, two_sum, xs[i], xs[i+1])))
+    end
+    for i = 2:2:N-1
+        push!(body, Expr(:(=), Expr(:tuple, xs[i], xs[i+1]),
+            Expr(:call, two_sum, xs[i], xs[i+1])))
+    end
+    push!(body, Expr(:return, Expr(:tuple, xs...)))
+    return Expr(:block, body...)
+end
+
+
+@inline function renormalize(x::NTuple{N,T}) where {N,T}
+    while true
+        x_next = _renorm_pass(x)
+        if x_next === x
+            return x
+        end
+        x = x_next
+    end
+end
+
+
+@inline renormalize(x::_MF{T,N}) where {T,N} =
+    _MF{T,N}(renormalize(x._limbs))
+@inline renormalize(x::_MFV{M,T,N}) where {M,T,N} =
+    _MFV{M,T,N}(renormalize(x._limbs))
+
+
 #################################################### FLOATING-POINT MANIPULATION
 
 
@@ -560,39 +611,6 @@ function Base.decompose(x::_MF{T,N}) where {T,N}
     end
     return (num, e_min, 1)
 end
-
-
-@generated function _renorm_pass(x::NTuple{N,T}) where {N,T}
-    xs = [Symbol('x', i) for i = 1:N]
-    body = Expr[]
-    push!(body, Expr(:meta, :inline))
-    push!(body, Expr(:(=), Expr(:tuple, xs...), :x))
-    for i = 1:2:N-1
-        push!(body, Expr(:(=), Expr(:tuple, xs[i], xs[i+1]),
-            Expr(:call, MultiFloats.two_sum, xs[i], xs[i+1])))
-    end
-    for i = 2:2:N-1
-        push!(body, Expr(:(=), Expr(:tuple, xs[i], xs[i+1]),
-            Expr(:call, MultiFloats.two_sum, xs[i], xs[i+1])))
-    end
-    push!(body, Expr(:return, Expr(:tuple, xs...)))
-    return Expr(:block, body...)
-end
-
-@inline function renormalize(x::NTuple{N,T}) where {N,T}
-    while true
-        x_next = _renorm_pass(x)
-        if x_next === x
-            return x
-        end
-        x = x_next
-    end
-end
-
-@inline renormalize(x::_MF{T,N}) where {T,N} =
-    _MF{T,N}(renormalize(x._limbs))
-@inline renormalize(x::_MFV{M,T,N}) where {M,T,N} =
-    _MFV{M,T,N}(renormalize(x._limbs))
 
 
 @inline Base.prevfloat(x::_MF{T,N}) where {T,N} =
@@ -738,17 +756,6 @@ _ge_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] >= y._limbs[$n]) : :(
 
 
 ############################################################## ADDITION NETWORKS
-
-
-@inline function two_sum(a::T, b::T) where {T}
-    sum = a + b
-    a_prime = sum - b
-    b_prime = sum - a_prime
-    a_err = a - a_prime
-    b_err = b - b_prime
-    err = a_err + b_err
-    return (sum, err)
-end
 
 
 @inline function fast_two_sum(a::T, b::T) where {T}
