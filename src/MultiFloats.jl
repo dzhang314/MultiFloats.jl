@@ -1288,7 +1288,7 @@ function _to_string(x::_MF{T,N}) where {T,N}
         c *= 10
         e -= 1
     end
-    while b > 10
+    while b >= 10
         a //= 10
         b //= 10
         c //= 10
