@@ -2,35 +2,6 @@ push!(LOAD_PATH, joinpath(@__DIR__, "..", ".."))
 using MultiFloats
 
 
-@generated function _renorm_pass(x::NTuple{N,T}) where {N,T}
-    xs = [Symbol('x', i) for i in Base.OneTo(N)]
-    body = Expr[]
-    push!(body, Expr(:meta, :inline))
-    push!(body, Expr(:(=), Expr(:tuple, xs...), :x))
-    for i = 1:2:N-1
-        push!(body, Expr(:(=), Expr(:tuple, xs[i], xs[i+1]),
-            Expr(:call, MultiFloats.two_sum, xs[i], xs[i+1])))
-    end
-    for i = 2:2:N-1
-        push!(body, Expr(:(=), Expr(:tuple, xs[i], xs[i+1]),
-            Expr(:call, MultiFloats.two_sum, xs[i], xs[i+1])))
-    end
-    push!(body, Expr(:return, Expr(:tuple, xs...)))
-    return Expr(:block, body...)
-end
-
-
-@inline function _renormalize(x::NTuple{N,T}) where {N,T}
-    while true
-        x_next = _renorm_pass(x)
-        if x_next === x
-            return x
-        end
-        x = x_next
-    end
-end
-
-
 @inline function _bit_rand(::Type{T}) where {T}
     while true
         x = reinterpret(T, rand(Base.uinttype(T)))
@@ -43,7 +14,7 @@ end
 
 @inline function _bit_rand(::Type{MultiFloat{T,N}}) where {T,N}
     while true
-        x = _renormalize(ntuple(_ -> _bit_rand(T), Val{N}()))
+        x = MultiFloats.renormalize(ntuple(_ -> _bit_rand(T), Val{N}()))
         if all(isfinite.(x))
             return MultiFloat{T,N}(x)
         end
@@ -71,12 +42,13 @@ function run_experiment(::Type{T}, ::Val{N}, op::F, ulps::Int) where {T,N,F}
         exact = op(BigFloat(a), BigFloat(b))
         if abs(exact) <= floatmax(T)
             c = op(a, b)
-            if !_cmp_zero(c._limbs, _renorm_pass(c._limbs))
+            if !_cmp_zero(c._limbs, MultiFloats._renorm_pass(c._limbs))
+                r = MultiFloat{T,N}(MultiFloats.renormalize(c._limbs))
                 println("RENORM ERROR:")
                 println("    a = ", a)
                 println("    b = ", b)
                 println("    c = ", c)
-                println("    r = ", MultiFloat{T,N}(_renormalize(c._limbs)))
+                println("    r = ", r)
                 exit(1)
             end
             abs_err = BigFloat(c) - exact
