@@ -406,8 +406,8 @@ _MF{T,N}(x::BigFloat) where {T,N} = _MF{T,N}(_split(x, T, Val{N}()))
 
 
 # Construct MultiFloat scalar from string.
-_MF{T,N}(x::AbstractString) where {T,N} = _MF{T,N}(
-    BigFloat(x, RoundNearest; precision=2 * _full_precision(T)))
+_MF{T,N}(x::AbstractString) where {T,N} = _MF{T,N}(BigFloat(x, RoundNearest;
+    precision=(2 * _full_precision(T) + 1)))
 
 
 # Construct MultiFloat scalar from any other type.
@@ -415,7 +415,8 @@ function _MF{T,N}(x) where {T,N}
     # TODO: Remove this print statement before release.
     println(stderr, "WARNING: Constructing $(_MF{T,N}) from $(typeof(x)) " *
                     "using slow generic conversion path.")
-    return _MF{T,N}(BigFloat(x, RoundNearest; precision=2 * _full_precision(T)))
+    return _MF{T,N}(BigFloat(x, RoundNearest;
+        precision=(2 * _full_precision(T) + 1)))
 end
 
 
@@ -1399,14 +1400,15 @@ end
 
 
 function _to_string(x::_MF{T,N}) where {T,N}
-    if all(iszero, x._limbs)
-        if all(signbit, x._limbs)
-            return "-0.0"
-        elseif all(!signbit, x._limbs)
-            return "0.0"
-        else
-            return repr(x)
-        end
+    _zero = zero(Int8)
+    _one = one(Int8)
+    _two = _one + _one
+    _four = _two + _two
+    _eight = _four + _four
+    _ten = _eight + _two
+
+    if iszero(x)
+        return signbit(x) ? "-0.0" : "0.0"
     end
 
     has_pos_inf = _has_pos_inf(x)
@@ -1457,15 +1459,30 @@ function _to_string(x::_MF{T,N}) where {T,N}
     end
 
     digit_array = Vector{Int8}()
-    while ceil(a) > floor(c)
+    while floor(a + 1) > ceil(c - 1)
         next_digit = floor(Int8, b)
         push!(digit_array, next_digit)
         a = 10 * (a - next_digit)
         b = 10 * (b - next_digit)
         c = 10 * (c - next_digit)
     end
-    last_digit = clamp(round(Int8, b), ceil(Int8, a), floor(Int8, c))
+
+    last_digit = clamp(round(Int8, b), floor(Int8, a + 1), ceil(Int8, c - 1))
     push!(digit_array, last_digit)
+    i = lastindex(digit_array)
+    while digit_array[i] >= _ten
+        digit_array[i] -= _ten
+        i -= 1
+        if i < firstindex(digit_array)
+            pushfirst!(digit_array, _zero)
+            e += 1
+            i = firstindex(digit_array)
+        end
+        digit_array[i] += _one
+    end
+    while iszero(last(digit_array))
+        pop!(digit_array)
+    end
 
     return _format_digits(sign_str, digit_array, e)
 end
