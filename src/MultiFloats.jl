@@ -492,7 +492,7 @@ end
 
 
 function canonize(x::_MF{T,N}) where {T,N}
-    temp = BigFloat(; precision=_full_precision(T) + ndigits(N, base=2))
+    temp = BigFloat(; precision=_full_precision(T) + ndigits(N; base=2))
     mpfr_zero!(temp)
     for limb in x._limbs
         mpfr_add!(temp, limb, RoundNearest)
@@ -621,6 +621,32 @@ end
 #################################################### FLOATING-POINT MANIPULATION
 
 
+@inline function mpfr_sub!(
+    x::BigFloat,
+    y::BigFloat,
+    z::CdoubleMax,
+    rounding::RoundingMode,
+)
+    ccall((:mpfr_sub, libmpfr), Cint,
+        (Ref{BigFloat}, Ref{BigFloat}, Cdouble, MPFRRoundingMode),
+        x, y, z, convert(MPFRRoundingMode, rounding))
+    return x
+end
+
+
+@inline function mpfr_add!(
+    x::BigFloat,
+    y::BigFloat,
+    z::CdoubleMax,
+    rounding::RoundingMode,
+)
+    ccall((:mpfr_add_d, libmpfr), Cint,
+        (Ref{BigFloat}, Ref{BigFloat}, Cdouble, MPFRRoundingMode),
+        x, y, z, convert(MPFRRoundingMode, rounding))
+    return x
+end
+
+
 @inline Base.ldexp(x::_MF{T,N}, n::Integer) where {T,N} =
     _MF{T,N}(ntuple(i -> ldexp(x._limbs[i], n), Val{N}()))
 # NOTE: SIMD.jl does not define Base.ldexp for vectors.
@@ -658,12 +684,80 @@ function Base.decompose(x::_MF{T,N}) where {T,N}
 end
 
 
-@inline _prev(x::_MF{T,N}) where {T,N} =
-    _MF{T,N}(Base.setindex(x._limbs, prevfloat(x._limbs[N]), N))
-@inline _next(x::_MF{T,N}) where {T,N} =
-    _MF{T,N}(Base.setindex(x._limbs, nextfloat(x._limbs[N]), N))
-@inline Base.prevfloat(x::_MF{T,N}) where {T,N} = renormalize(_prev(x))
-@inline Base.nextfloat(x::_MF{T,N}) where {T,N} = renormalize(_next(x))
+function Base.prevfloat(x::_MF{T,N}) where {T,N}
+    _one = one(T)
+    _two = _one + _one
+    _half = inv(_two)
+
+    has_pos_inf = _has_pos_inf(x)
+    has_neg_inf = _has_neg_inf(x)
+    if _has_nan(x) | (has_pos_inf & has_neg_inf)
+        return x
+    elseif has_pos_inf
+        return floatmax(_MF{T,N})
+    elseif has_neg_inf
+        return -typemax(_MF{T,N})
+    end
+
+    total = BigFloat(; precision=_full_precision(T) + ndigits(N; base=2))
+    mpfr_zero!(total)
+    for limb in x._limbs
+        mpfr_add!(total, limb, RoundNearest)
+    end
+    reference = _split(total, T, Val{N}())
+
+    perturbation = max(_half * eps(reference[N]), floatmin(T))
+    temp = BigFloat(; precision=_full_precision(T) + ndigits(N; base=2))
+    while perturbation <= floatmax(T)
+        mpfr_sub!(temp, total, perturbation, RoundNearest)
+        candidate = _split!(temp, T, Val{N}())
+        if candidate !== reference
+            return candidate
+        end
+        perturbation *= _two
+    end
+
+    @assert false
+end
+
+
+function Base.nextfloat(x::_MF{T,N}) where {T,N}
+    _one = one(T)
+    _two = _one + _one
+    _half = inv(_two)
+
+    has_pos_inf = _has_pos_inf(x)
+    has_neg_inf = _has_neg_inf(x)
+    if _has_nan(x) | (has_pos_inf & has_neg_inf)
+        return x
+    elseif has_pos_inf
+        return typemax(_MF{T,N})
+    elseif has_neg_inf
+        return -floatmax(_MF{T,N})
+    end
+
+    total = BigFloat(; precision=_full_precision(T) + ndigits(N; base=2))
+    mpfr_zero!(total)
+    for limb in x._limbs
+        mpfr_add!(total, limb, RoundNearest)
+    end
+    reference = _split(total, T, Val{N}())
+
+    perturbation = max(_half * eps(reference[N]), floatmin(T))
+    temp = BigFloat(; precision=_full_precision(T) + ndigits(N; base=2))
+    while perturbation <= floatmax(T)
+        mpfr_add!(temp, total, perturbation, RoundNearest)
+        candidate = _split!(temp, T, Val{N}())
+        if candidate !== reference
+            return candidate
+        end
+        perturbation *= _two
+    end
+
+    @assert false
+end
+
+
 # NOTE: SIMD.jl does not define Base.prevfloat or Base.nextfloat for vectors.
 
 
@@ -1326,8 +1420,8 @@ function _to_string(x::_MF{T,N}) where {T,N}
     end
 
     rx = Rational{BigInt}(x)
-    prev = Rational{BigInt}(_prev(x))
-    next = Rational{BigInt}(_next(x))
+    prev = Rational{BigInt}(prevfloat(x))
+    next = Rational{BigInt}(nextfloat(x))
     a = rx - (rx - prev) // 2
     b = rx
     c = rx + (next - rx) // 2
