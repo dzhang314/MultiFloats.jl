@@ -23,6 +23,7 @@
         "renorm",
         "rsqrt",
         "sprintf",
+        "tofloat",
         "vall",
         "vany",
         "Vararg",
