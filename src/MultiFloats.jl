@@ -1281,6 +1281,29 @@ end
 using Printf: @sprintf
 
 
+function _format_digits(sign_str::String, digit_array::Vector{Int8}, e::Int)
+    if 0 <= e < 6
+        while length(digit_array) < e + 2
+            push!(digit_array, zero(Int8))
+        end
+        pre_str = String('0' .+ digit_array[1:e+1])
+        post_str = String('0' .+ digit_array[e+2:end])
+        return @sprintf("%s%s.%s", sign_str, pre_str, post_str)
+    elseif -5 < e < 0
+        prepend!(digit_array, [zero(Int8) for _ = e:-2])
+        post_str = String('0' .+ digit_array)
+        return @sprintf("%s0.%s", sign_str, post_str)
+    else
+        while length(digit_array) < 2
+            push!(digit_array, zero(Int8))
+        end
+        pre_char = '0' + digit_array[1]
+        post_str = String('0' .+ digit_array[2:end])
+        return @sprintf("%s%c.%se%d", sign_str, pre_char, post_str, e)
+    end
+end
+
+
 function _to_string(x::_MF{T,N}) where {T,N}
     if all(iszero, x._limbs)
         if all(signbit, x._limbs)
@@ -1350,25 +1373,7 @@ function _to_string(x::_MF{T,N}) where {T,N}
     last_digit = clamp(round(Int8, b), ceil(Int8, a), floor(Int8, c))
     push!(digit_array, last_digit)
 
-    if 0 <= e < 6
-        while length(digit_array) < e + 2
-            push!(digit_array, zero(Int8))
-        end
-        pre_str = String('0' .+ digit_array[1:e+1])
-        post_str = String('0' .+ digit_array[e+2:end])
-        return @sprintf("%s%s.%s", sign_str, pre_str, post_str)
-    elseif -5 < e < 0
-        prepend!(digit_array, [zero(Int8) for _ = e:-2])
-        post_str = String('0' .+ digit_array)
-        return @sprintf("%s0.%s", sign_str, post_str)
-    else
-        while length(digit_array) < 2
-            push!(digit_array, zero(Int8))
-        end
-        pre_char = '0' + digit_array[1]
-        post_str = String('0' .+ digit_array[2:end])
-        return @sprintf("%s%c.%se%d", sign_str, pre_char, post_str, e)
-    end
+    return _format_digits(sign_str, digit_array, e)
 end
 
 
