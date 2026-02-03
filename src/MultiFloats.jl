@@ -627,7 +627,7 @@ end
     z::CdoubleMax,
     rounding::RoundingMode,
 )
-    ccall((:mpfr_sub, libmpfr), Cint,
+    ccall((:mpfr_sub_d, libmpfr), Cint,
         (Ref{BigFloat}, Ref{BigFloat}, Cdouble, MPFRRoundingMode),
         x, y, z, convert(MPFRRoundingMode, rounding))
     return x
@@ -706,13 +706,13 @@ function Base.prevfloat(x::_MF{T,N}) where {T,N}
     end
     reference = _split(total, T, Val{N}())
 
-    perturbation = max(_half * eps(reference[N]), floatmin(T))
+    perturbation = max(_half * eps(reference[N]), eps(zero(T)))
     temp = BigFloat(; precision=_full_precision(T) + ndigits(N; base=2))
     while perturbation <= floatmax(T)
         mpfr_sub!(temp, total, perturbation, RoundNearest)
         candidate = _split!(temp, T, Val{N}())
         if candidate !== reference
-            return candidate
+            return _MF{T,N}(candidate)
         end
         perturbation *= _two
     end
@@ -743,13 +743,13 @@ function Base.nextfloat(x::_MF{T,N}) where {T,N}
     end
     reference = _split(total, T, Val{N}())
 
-    perturbation = max(_half * eps(reference[N]), floatmin(T))
+    perturbation = max(_half * eps(reference[N]), eps(zero(T)))
     temp = BigFloat(; precision=_full_precision(T) + ndigits(N; base=2))
     while perturbation <= floatmax(T)
         mpfr_add!(temp, total, perturbation, RoundNearest)
         candidate = _split!(temp, T, Val{N}())
         if candidate !== reference
-            return candidate
+            return _MF{T,N}(candidate)
         end
         perturbation *= _two
     end
