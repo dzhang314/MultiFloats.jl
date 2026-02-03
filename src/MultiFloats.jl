@@ -1750,53 +1750,59 @@ end
 ################################################################# RANDOM NUMBERS
 
 
-# TODO: Implement random numbers.
-# using Random: AbstractRNG, CloseOpen01, SamplerTrivial, UInt52
-# import Random: rand
+using Random: AbstractRNG, CloseOpen01, SamplerTrivial, UInt23, UInt52
+import Random: rand
 
 
-# @inline function _rand_f64(rng::AbstractRNG, k::Int)
-#     # Subnormal numbers are intentionally not generated.
-#     if k < exponent(floatmin(Float64))
-#         return zero(Float64)
-#     end
-#     expnt = reinterpret(UInt64,
-#         exponent(floatmax(Float64)) + k) << (precision(Float64) - 1)
-#     mntsa = rand(rng, UInt52())
-#     return reinterpret(Float64, expnt | mntsa)
-# end
+@inline _rand_mantissa(rng::AbstractRNG, ::Type{Float32}) = rand(rng, UInt23())
+@inline _rand_mantissa(rng::AbstractRNG, ::Type{Float64}) = rand(rng, UInt52())
+@inline _rand_sign_mantissa(rng, ::Type{Float32}) =
+    rand(rng, UInt32) & 0x807FFFFF
+@inline _rand_sign_mantissa(rng, ::Type{Float64}) =
+    rand(rng, UInt64) & 0x800FFFFFFFFFFFFF
 
 
-# @inline function _rand_sf64(rng::AbstractRNG, k::Int)
-#     # Subnormal numbers are intentionally not generated.
-#     if k < exponent(floatmin(Float64))
-#         return zero(Float64)
-#     end
-#     expnt = reinterpret(UInt64,
-#         exponent(floatmax(Float64)) + k) << (precision(Float64) - 1)
-#     mntsa = rand(rng, UInt64) & 0x800FFFFFFFFFFFFF
-#     return reinterpret(Float64, expnt | mntsa)
-# end
+@inline function _rand_e(rng::AbstractRNG, ::Type{T}, k::Int) where {T}
+    # Subnormal numbers are intentionally not generated.
+    if k < exponent(floatmin(T))
+        return zero(T)
+    end
+    e = Base.uinttype(T)(exponent(floatmax(T)) + k) << (precision(T) - 1)
+    return reinterpret(T, e | _rand_mantissa(rng, T))
+end
 
 
-# @inline function _rand_mf64(
-#     rng::AbstractRNG, offset::Int, padding::NTuple{N,Int}
-# ) where {N}
-#     exponents = cumsum(padding) .+ (precision(Float64) + 1) .* ntuple(identity, Val{N}())
-#     return Float64x{N + 1}((
-#         _rand_f64(rng, offset),
-#         _rand_sf64.(rng, offset .- exponents)...
-#     ))
-# end
+@inline function _rand_se(rng::AbstractRNG, ::Type{T}, k::Int) where {T}
+    # Subnormal numbers are intentionally not generated.
+    if k < exponent(floatmin(T))
+        return zero(T)
+    end
+    e = Base.uinttype(T)(exponent(floatmax(T)) + k) << (precision(T) - 1)
+    return reinterpret(T, e | _rand_sign_mantissa(rng, T))
+end
 
 
-# @inline function rand(
-#     rng::AbstractRNG, ::SamplerTrivial{CloseOpen01{Float64x{N}}}
-# ) where {N}
-#     offset = -leading_zeros(rand(rng, UInt64)) - 1
-#     padding = ntuple(_ -> leading_zeros(rand(rng, UInt64)), Val{N - 1}())
-#     return _rand_mf64(rng, offset, padding)
-# end
+@inline function _rand_mf(
+    rng::AbstractRNG,
+    ::Type{T},
+    offset::Int,
+    padding::NTuple{N,Int},
+) where {T,N}
+    _iota = ntuple(identity, Val{N}())
+    exponents = cumsum(padding) .+ (precision(T) + 1) .* _iota
+    return _MF{T,N + 1}((_rand_e(rng, T, offset),
+        _rand_se.(Ref(rng), T, offset .- exponents)...))
+end
+
+
+@inline function rand(
+    rng::AbstractRNG,
+    ::SamplerTrivial{CloseOpen01{MultiFloat{T,N}}},
+) where {T,N}
+    offset = -leading_zeros(rand(rng, UInt64)) - 1
+    padding = ntuple(_ -> leading_zeros(rand(rng, UInt64)), Val{N - 1}())
+    return _rand_mf(rng, T, offset, padding)
+end
 
 
 end # module MultiFloats

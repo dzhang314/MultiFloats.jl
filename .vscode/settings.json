@@ -25,6 +25,7 @@
         "sprintf",
         "tofloat",
         "transcendentals",
+        "uinttype",
         "vall",
         "vany",
         "Vararg",
