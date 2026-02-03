@@ -5,6 +5,8 @@
         "FPAN",
         "FPANs",
         "GMFV",
+        "iscanonical",
+        "isnormalized",
         "Karp",
         "libmpfr",
         "Markstein",

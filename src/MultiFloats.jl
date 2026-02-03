@@ -312,6 +312,11 @@ end
 end
 
 
+@inline isnormalized(x::NTuple{N,T}) where {N,T} = (x === _renorm_pass(x))
+@inline isnormalized(x::_MF{T,N}) where {T,N} = isnormalized(x._limbs)
+@inline isnormalized(x::_MFV{M,T,N}) where {M,T,N} = isnormalized(x._limbs)
+
+
 @inline function renormalize(x::NTuple{N,T}) where {N,T}
     while true
         x_next = _renorm_pass(x)
@@ -337,6 +342,29 @@ end
         (Ref{BigFloat}, Ref{BigFloat}, Cdouble, MPFRRoundingMode),
         x, x, y, convert(MPFRRoundingMode, rounding))
     return x
+end
+
+
+function _split!(x::BigFloat, ::Type{T}, ::Val{N}) where {T,N}
+    if !isfinite(x)
+        value = T(x)
+        return ntuple(_ -> value, Val{N}())
+    elseif x > +floatmax(T)
+        _pos_inf = typemax(T)
+        return ntuple(_ -> _pos_inf, Val{N}())
+    elseif x < -floatmax(T)
+        _neg_inf = typemin(T)
+        return ntuple(_ -> _neg_inf, Val{N}())
+    else
+        _zero = zero(T)
+        result = ntuple(_ -> _zero, Val{N}())
+        for i = 1:N
+            limb = T(x)
+            result = Base.setindex(result, limb, i)
+            mpfr_sub!(x, limb, RoundNearest)
+        end
+        return renormalize(result)
+    end
 end
 
 
@@ -458,6 +486,22 @@ end
 @inline Base.Rational{BigInt}(x::_MF{T,N}) where {T,N} =
     sum(Rational{BigInt}.(x._limbs); init=zero(Rational{BigInt}))
 @inline Base.Rational(x::_MF{T,N}) where {T,N} = Rational{BigInt}(x)
+
+
+################################################################### CANONIZATION
+
+
+function canonize(x::_MF{T,N}) where {T,N}
+    temp = BigFloat(; precision=_full_precision(T) + ndigits(N, base=2))
+    mpfr_zero!(temp)
+    for limb in x._limbs
+        mpfr_add!(temp, limb, RoundNearest)
+    end
+    return _MF{T,N}(_split!(temp, T, Val{N}()))
+end
+
+
+iscanonical(x::_MF{T,N}) where {T,N} = (x === canonize(x))
 
 
 ###################################################### FLOATING-POINT PROPERTIES
