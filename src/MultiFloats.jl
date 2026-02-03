@@ -1691,53 +1691,60 @@ Base.promote_rule(::Type{_MF{T,N}}, ::Type{BigFloat}) where {T,N} = BigFloat
 
 # TODO: Implement transcendental functions.
 # TODO: frexp, modf, isqrt
-# const _BASE_TRANSCENDENTAL_FUNCTIONS = Symbol[
-#     :cbrt, :exp, :exp2, :exp10, :expm1, :log, :log2, :log10, :log1p,
-#     :sin, :cos, :tan, :sec, :csc, :cot,
-#     :sind, :cosd, :tand, :secd, :cscd, :cotd,
-#     :asin, :acos, :atan, :asec, :acsc, :acot,
-#     :asind, :acosd, :atand, :asecd, :acscd, :acotd,
-#     :sinh, :cosh, :tanh, :sech, :csch, :coth,
-#     :asinh, :acosh, :atanh, :asech, :acsch, :acoth,
-#     :sinpi, :cospi, :sinc, :cosc, :deg2rad, :rad2deg,
-# ]
+const _BASE_TRANSCENDENTAL_FUNCTIONS = Symbol[
+    :cbrt, :exp, :exp2, :exp10, :expm1, :log, :log2, :log10, :log1p,
+    :sin, :cos, :tan, :sec, :csc, :cot,
+    :sind, :cosd, :tand, :secd, :cscd, :cotd,
+    :asin, :acos, :atan, :asec, :acsc, :acot,
+    :asind, :acosd, :atand, :asecd, :acscd, :acotd,
+    :sinh, :cosh, :tanh, :sech, :csch, :coth,
+    :asinh, :acosh, :atanh, :asech, :acsch, :acoth,
+    :sinpi, :cospi, :sinc, :cosc, :deg2rad, :rad2deg,
+]
 
 
-# const _BASE_TRANSCENDENTAL_TUPLE_FUNCTIONS = Symbol[
-#     :sincos, :sincosd, :sincospi,
-# ]
+const _BASE_TRANSCENDENTAL_TUPLE_FUNCTIONS = Symbol[
+    :sincos, :sincosd, :sincospi,
+]
 
 
-# for name in _BASE_TRANSCENDENTAL_FUNCTIONS
-#     eval(:(Base.$name(::MultiFloat{T,N}) where {T,N} = error($(
-#         "$name(MultiFloat) is not yet implemented. For a temporary workaround,\n" *
-#         "call MultiFloats.use_bigfloat_transcendentals() immediately after\n" *
-#         "importing MultiFloats. This will use the BigFloat implementation of\n" *
-#         "$name, which will not be as fast as a pure-MultiFloat implementation.\n"
-#     ))))
-# end
+for name in _BASE_TRANSCENDENTAL_FUNCTIONS
+    eval(:(Base.$name(::MultiFloat{T,N}) where {T,N} = error($(
+        "$name(::MultiFloat) is not yet implemented. For a workaround,\n" *
+        "call MultiFloats.use_bigfloat_transcendentals() after importing\n" *
+        "MultiFloats. This will use the BigFloat implementation of $name,\n" *
+        "which will not be as fast as a pure-MultiFloat implementation.\n"
+    ))))
+end
 
 
-# for name in _BASE_TRANSCENDENTAL_TUPLE_FUNCTIONS
-#     eval(:(Base.$name(::MultiFloat{T,N}) where {T,N} = error($(
-#         "$name(MultiFloat) is not yet implemented. For a temporary workaround,\n" *
-#         "call MultiFloats.use_bigfloat_transcendentals() immediately after\n" *
-#         "importing MultiFloats. This will use the BigFloat implementation of\n" *
-#         "$name, which will not be as fast as a pure-MultiFloat implementation.\n"
-#     ))))
-# end
+for name in _BASE_TRANSCENDENTAL_TUPLE_FUNCTIONS
+    eval(:(Base.$name(::MultiFloat{T,N}) where {T,N} = error($(
+        "$name(::MultiFloat) is not yet implemented. For a workaround,\n" *
+        "call MultiFloats.use_bigfloat_transcendentals() after importing\n" *
+        "MultiFloats. This will use the BigFloat implementation of $name,\n" *
+        "which will not be as fast as a pure-MultiFloat implementation.\n"
+    ))))
+end
 
 
-# function use_bigfloat_transcendentals(num_extra_bits::Int=20)
-#     for name in _BASE_TRANSCENDENTAL_FUNCTIONS
-#         eval(:(Base.$name(x::MultiFloat{T,N}) where {T,N} = MultiFloat{T,N}(
-#             _call_big($name, x, precision(MultiFloat{T,N}) + $num_extra_bits))))
-#     end
-#     for name in _BASE_TRANSCENDENTAL_TUPLE_FUNCTIONS
-#         eval(:(Base.$name(x::MultiFloat{T,N}) where {T,N} = MultiFloat{T,N}.(
-#             _call_big($name, x, precision(MultiFloat{T,N}) + $num_extra_bits))))
-#     end
-# end
+function _eval_big(f::Function, x::MultiFloat{T,N}, p::Integer) where {T,N}
+    return setprecision(BigFloat, p) do
+        return f(BigFloat(x; precision=p))
+    end
+end
+
+
+function use_bigfloat_transcendentals(num_extra_bits::Int=10)
+    for name in _BASE_TRANSCENDENTAL_FUNCTIONS
+        eval(:(Base.$name(x::MultiFloat{T,N}) where {T,N} = MultiFloat{T,N}(
+            _eval_big($name, x, precision(MultiFloat{T,N}) + $num_extra_bits))))
+    end
+    for name in _BASE_TRANSCENDENTAL_TUPLE_FUNCTIONS
+        eval(:(Base.$name(x::MultiFloat{T,N}) where {T,N} = MultiFloat{T,N}.(
+            _eval_big($name, x, precision(MultiFloat{T,N}) + $num_extra_bits))))
+    end
+end
 
 
 ################################################################# RANDOM NUMBERS

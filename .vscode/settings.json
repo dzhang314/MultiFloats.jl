@@ -24,6 +24,7 @@
         "rsqrt",
         "sprintf",
         "tofloat",
+        "transcendentals",
         "vall",
         "vany",
         "Vararg",
