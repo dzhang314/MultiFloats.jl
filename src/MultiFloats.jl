@@ -502,7 +502,23 @@ function canonize(x::_MF{T,N}) where {T,N}
 end
 
 
+function canonize(x::_MFV{M,T,N}) where {M,T,N}
+    temp = BigFloat(; precision=(_full_precision(T) + ndigits(N; base=2)))
+    result = ntuple(_ -> zero(_MF{T,N}), Val{M}())
+    for i = 1:M
+        mpfr_zero!(temp)
+        for j = 1:N
+            limb = extractelement(x._limbs[j].data, i - 1)
+            mpfr_add!(temp, limb, RoundNearest)
+        end
+        result = Base.setindex(result, _MF{T,N}(_split!(temp, T, Val{N}())), i)
+    end
+    return _MFV{M,T,N}(result)
+end
+
+
 iscanonical(x::_MF{T,N}) where {T,N} = (x === canonize(x))
+iscanonical(x::_MFV{M,T,N}) where {M,T,N} = (x === canonize(x))
 
 
 ###################################################### FLOATING-POINT PROPERTIES
@@ -1795,7 +1811,7 @@ end
 
 @inline function rand(
     rng::AbstractRNG,
-    ::SamplerTrivial{CloseOpen01{MultiFloat{T,N}}},
+    ::SamplerTrivial{CloseOpen01{_MF{T,N}}},
 ) where {T,N}
     offset = -leading_zeros(rand(rng, UInt64)) - 1
     padding = ntuple(_ -> leading_zeros(rand(rng, UInt64)), Val{N - 1}())

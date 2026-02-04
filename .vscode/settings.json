@@ -23,6 +23,7 @@
         "renorm",
         "rsqrt",
         "sprintf",
+        "testset",
         "tofloat",
         "transcendentals",
         "uinttype",
