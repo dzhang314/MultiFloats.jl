@@ -817,8 +817,6 @@ end
 ##################################################################### COMPARISON
 
 
-# TODO: MultiFloat-to-float comparison.
-# TODO: Scalar-to-vector comparison.
 # TODO: Implement Base.cmp.
 
 
