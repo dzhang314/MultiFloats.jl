@@ -4,7 +4,7 @@ _Copyright © 2019-2026 by David K. Zhang. Released under the [MIT License](http
 
 **MultiFloats.jl** is the world's fastest library for extended-precision floating-point arithmetic with 128–256 bits (30–60 decimal digits). At 30-digit precision, **MultiFloats.jl** is **30× faster than [`BigFloat`](https://docs.julialang.org/en/v1/manual/integers-and-floating-point-numbers/#Arbitrary-Precision-Arithmetic)**, **6× faster than [Quadmath.jl](https://github.com/JuliaMath/Quadmath.jl)**, and **2× faster than [DoubleFloats.jl](https://github.com/JuliaMath/DoubleFloats.jl)**.
 
-**MultiFloats.jl** is the product of [significant original research](https://purl.stanford.edu/gt930wy1453) on [high-precision computer arithmetic](https://theory.stanford.edu/~aiken/publications/papers/cav25.pdf), culminating in the discovery of [a novel class of fast branch-free algorithms](https://theory.stanford.edu/~aiken/publications/papers/sc25.pdf) for floating-point arithmetic beyond machine precision. These state-of-the-art algorithms are both faster and more accurate than all previously known techniques.
+**MultiFloats.jl** is the product of [significant original research](https://purl.stanford.edu/gt930wy1453) on [high-precision computer arithmetic](https://theory.stanford.edu/~aiken/publications/papers/cav25.pdf), culminating in the discovery of [a novel class of fast branch-free algorithms](https://theory.stanford.edu/~aiken/publications/papers/sc25.pdf) for floating-point arithmetic beyond machine precision. These state-of-the-art algorithms are both faster and more accurate than all previous techniques.
 
 **MultiFloats.jl** provides pure-Julia implementations of arithmetic (`+`, `-`, `*`, `/`, `sqrt`), comparison (`==`, `!=`, `<`, `>`, `<=`, `>=`), floating-point introspection (`isfinite`, `eps`, `nextfloat`, etc.), and round-trip-safe float-to-string conversion. Transcendental functions (`exp`, `log`, `sin`, `cos`, etc.) are supported through [MPFR](https://www.mpfr.org/).
 
@@ -18,17 +18,17 @@ Like all technical innovations, **MultiFloats.jl** proudly stands on the shoulde
 
 **MultiFloats.jl v3.0** also introduces a round-trip-safe float-to-string conversion algorithm, guaranteeing that conversion of a `MultiFloat` to string and back always yields a numerically identical result.
 
-**MultiFloats.jl v3.0** exports the types `Float32x2`, `Float32x3`, and `Float32x4`, which are intended for use on processors lacking `Float64` hardware support (e.g., GPUs and NPUs). Note that `Float64x2` is faster and slightly more accurate than `Float32x4` and should be preferred on hardware with native `Float64` support.
+**MultiFloats.jl v3.0** exports the types `Float32x2`, `Float32x3`, and `Float32x4`, which are intended for use on processors lacking `Float64` hardware support (e.g., GPUs and NPUs). Note that `Float64x2` is faster and slightly more accurate than `Float32x4`; it should be preferred on hardware with native `Float64` support.
 
 Other notable changes:
 
-- The new multiplication algorithm strictly obeys the commutative law. Previously, it was possible for `x * y` and `y * x` to return [slightly different results](https://github.com/dzhang314/MultiFloats.jl/issues/50) due to internal accumulation of floating-point rounding errors. (Addition has always strictly obeyed the commutative law.)
+- The new multiplication algorithm strictly obeys the commutative law. Previously, it was possible for `x * y` to be [slightly different](https://github.com/dzhang314/MultiFloats.jl/issues/50) from `y * x` due to internal accumulation of floating-point rounding errors.
 - Comparison operators (`==`, `!=`, `<`, `>`, `<=`, `>=`) are now significantly faster because it is no longer necessary to run a renormalization loop on their inputs.
 - The formula for `precision(MultiFloat{T,N})` has been slightly changed to better reflect the known error bounds for the new arithmetic algorithms.
 - `rand(Float32xN)` has been implemented.
 - `Base.decompose` has been implemented, which enables [hashing](https://github.com/dzhang314/MultiFloats.jl/pull/55) and [comparison to rational numbers](https://github.com/dzhang314/MultiFloats.jl/issues/54).
 - Significant correctness issues have been fixed in `prevfloat` and `nextfloat`. Previously, it was possible for these functions to skip over intermediate values because they did not properly consider interactions between multiple limbs.
-- A new function, `MultiFloats.canonize`, has been added to reduce all numerically equivalent `MultiFloat`s to a single canonical form. Previously, `MultiFloats.renormalize` was thought to be sufficient, but in extremely rare (roughly 1 in 2^53) cases, it is possible for a single number to have multiple distinct normalized representations.
+- A new function, `MultiFloats.canonize`, has been added to convert all numerically equivalent `MultiFloat` values to a single canonical representation. Previously, `MultiFloats.renormalize` was thought to be sufficient, but in extremely rare (roughly 1 in 2^53) cases, it is possible for a single number to have multiple distinct normalized representations.
 - Two new functions, `MultiFloats.isnormalized` and `MultiFloats.iscanonical`, have been added to determine whether a `MultiFloat` is in normalized or canonical form, respectively. These are almost always synonymous, but in extremely rare (roughly 1 in 2^53) cases, it is possible for a `MultiFloat` to be normalized but not canonical.
 
 
@@ -57,7 +57,7 @@ into the Julia REPL.
 
 **MultiFloats.jl** provides the types `Float64x2`, `Float64x3`, and, `Float64x4`, which represent extended-precision numbers with 2×, 3×, or, 4× the precision of `Float64`. These are all instances of the parametric type `MultiFloat{T,N}` where `T = Float64` and <code>N&nbsp;=&nbsp;2,&nbsp;3,&nbsp;4</code>.
 
-`MultiFloat`s are convertible to and from `Float64` and `BigFloat`, as shown in the following example.
+`MultiFloat` values are convertible to and from `Float64` and `BigFloat`, as shown in the following example.
 
 ```julia
 julia> using MultiFloats
