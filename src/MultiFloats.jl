@@ -1532,6 +1532,12 @@ function Base.show(io::IO, ::MIME"text/plain", x::_MF{T,N}) where {T,N}
     return nothing
 end
 
+function Base.show(io::IO, ::MIME"text/plain", x::Complex{_MF{T,N}}) where {T,N}
+    re, im = reim(x)
+    str = string(re, (signbit(im) ? " - " : " + "), abs(im), "im")
+    print(io, str)
+    return nothing
+end
 
 function Base.show(io::IO, x::_MFV{M,T,N}) where {M,T,N}
     show(io, _MFV{M,T,N})
