@@ -211,7 +211,7 @@ end
     return (next_limb, _split_impl(remainder, T, Val{N - 1}())...)
 end
 
-@inline function _split(x, ::Type{T}, ::Val{N}, ::Val{K}) where {T,N,K}
+@inline function _split(x::Number, ::Type{T}, ::Val{N}, ::Val{K}) where {T,N,K}
     result = tuple(_split_impl(x, T, Val{min(N, K)}())...,
         ntuple(_ -> zero(T), Val{max(N - K, 0)}())...)
     first_limb = first(result)
@@ -405,9 +405,23 @@ _MF{T,N}(x::BigFloat) where {T,N} = _MF{T,N}(_split(x, T, Val{N}()))
     exponent(floatmax(T)) - exponent(floatmin(T)) + precision(T)
 
 
-# Construct MultiFloat scalar from string.
-_MF{T,N}(x::AbstractString) where {T,N} = _MF{T,N}(BigFloat(x, RoundNearest;
-    precision=(2 * _full_precision(T) + 1)))
+# Construct MultiFloat scalar from any other type by passing through BigFloat.
+function _from_big(x::Any, ::Type{T}, ::Val{N}) where {T,N}
+    p = 2 * _full_precision(T) + 1
+    try
+        return _MF{T,N}(_split!(
+            BigFloat(x, RoundNearest; precision=p), T, Val{N}()))
+    catch e
+        if e isa MethodError
+            return _MF{T,N}(_split!(BigFloat(x; precision=p), T, Val{N}()))
+        end
+        rethrow()
+    end
+end
+
+_MF{T,N}(x::AbstractString) where {T,N} = _from_big(x, T, N)
+_MF{T,N}(x::Rational) where {T,N} = _from_big(x, T, N)
+_MF{T,N}(x::Number) where {T,N} = _from_big(x, T, N)
 
 
 function Base.tryparse(::Type{_MF{T,N}}, x::AbstractString) where {T,N}
@@ -419,16 +433,6 @@ function Base.tryparse(::Type{_MF{T,N}}, x::AbstractString) where {T,N}
         end
         rethrow()
     end
-end
-
-
-# Construct MultiFloat scalar from any other type.
-function _MF{T,N}(x) where {T,N}
-    # TODO: Remove this print statement before release.
-    println(stderr, "WARNING: Constructing $(_MF{T,N}) from $(typeof(x)) " *
-                    "using slow generic conversion path.")
-    return _MF{T,N}(BigFloat(x, RoundNearest;
-        precision=(2 * _full_precision(T) + 1)))
 end
 
 
@@ -1593,7 +1597,7 @@ import LinearAlgebra: floatmin2
 
 
 import Printf: tofloat
-@inline tofloat(x::_MF{T,N}) where {T,N} = BigFloat(x;
+tofloat(x::_MF{T,N}) where {T,N} = BigFloat(x;
     precision=(_full_precision(T) + ndigits(N; base=2)))
 
 
@@ -1775,9 +1779,9 @@ import Random: rand
 
 @inline _rand_mantissa(rng::AbstractRNG, ::Type{Float32}) = rand(rng, UInt23())
 @inline _rand_mantissa(rng::AbstractRNG, ::Type{Float64}) = rand(rng, UInt52())
-@inline _rand_sign_mantissa(rng, ::Type{Float32}) =
+@inline _rand_sign_mantissa(rng::AbstractRNG, ::Type{Float32}) =
     rand(rng, UInt32) & 0x807FFFFF
-@inline _rand_sign_mantissa(rng, ::Type{Float64}) =
+@inline _rand_sign_mantissa(rng::AbstractRNG, ::Type{Float64}) =
     rand(rng, UInt64) & 0x800FFFFFFFFFFFFF
 
 
