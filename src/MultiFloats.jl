@@ -419,9 +419,9 @@ function _from_big(x::Any, ::Type{T}, ::Val{N}) where {T,N}
     end
 end
 
-_MF{T,N}(x::AbstractString) where {T,N} = _from_big(x, T, N)
-_MF{T,N}(x::Rational) where {T,N} = _from_big(x, T, N)
-_MF{T,N}(x::Number) where {T,N} = _from_big(x, T, N)
+_MF{T,N}(x::AbstractString) where {T,N} = _from_big(x, T, Val{N}())
+_MF{T,N}(x::Rational) where {T,N} = _from_big(x, T, Val{N}())
+_MF{T,N}(x::Number) where {T,N} = _from_big(x, T, Val{N}())
 
 
 function Base.tryparse(::Type{_MF{T,N}}, x::AbstractString) where {T,N}
