@@ -410,6 +410,18 @@ _MF{T,N}(x::AbstractString) where {T,N} = _MF{T,N}(BigFloat(x, RoundNearest;
     precision=(2 * _full_precision(T) + 1)))
 
 
+function Base.tryparse(::Type{_MF{T,N}}, x::AbstractString) where {T,N}
+    try
+        return _MF{T,N}(x)
+    catch e
+        if e isa ArgumentError
+            return nothing
+        end
+        rethrow()
+    end
+end
+
+
 # Construct MultiFloat scalar from any other type.
 function _MF{T,N}(x) where {T,N}
     # TODO: Remove this print statement before release.
