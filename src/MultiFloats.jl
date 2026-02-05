@@ -1507,75 +1507,49 @@ function Base.print(io::IO, x::_MF{T,N}) where {T,N}
     return nothing
 end
 
+Base.show(io::IO, ::MIME"text/plain", x::_MF{T,N}) where {T,N} = print(io, x)
+
 
 function Base.print(io::IO, x::_MFV{M,T,N}) where {M,T,N}
-    write(io, '<')
+    print(io, '<')
     print(io, M)
-    write(io, " x ")
+    print(io, " x ")
     print(io, T)
-    write(io, " x ")
+    print(io, " x ")
     print(io, N)
-    write(io, ">[")
+    print(io, ">[")
     for i = 1:M
         if i > 1
-            write(io, ", ")
+            print(io, ", ")
         end
         print(io, _to_string(x[i]))
     end
-    write(io, ']')
+    print(io, ']')
     return nothing
 end
 
+Base.show(io::IO, ::MIME"text/plain", x::_MFV{M,T,N}) where {M,T,N} =
+    print(io, x)
 
-function Base.show(io::IO, ::MIME"text/plain", x::_MF{T,N}) where {T,N}
-    print(io, _to_string(x))
-    return nothing
-end
-
-function Base.show(io::IO, ::MIME"text/plain", x::Complex{_MF{T,N}}) where {T,N}
-    re, im = reim(x)
-    str = string(re, (signbit(im) ? " - " : " + "), abs(im), "im")
-    print(io, str)
-    return nothing
-end
 
 function Base.show(io::IO, x::_MFV{M,T,N}) where {M,T,N}
     show(io, _MFV{M,T,N})
-    write(io, "((")
+    print(io, "((")
     for i = 1:N
         if i > 1
-            write(io, ", ")
+            print(io, ", ")
         end
         show(io, Vec{M,T})
-        write(io, "((")
+        print(io, "((")
         for j = 1:M
             if j > 1
-                write(io, ", ")
+                print(io, ", ")
             end
             show(io, x._limbs[i][j])
         end
-        write(io, "))")
+        print(io, "))")
     end
-    write(io, "))")
-    return nothing
-end
-
-
-function Base.show(io::IO, ::MIME"text/plain", x::_MFV{M,T,N}) where {M,T,N}
-    write(io, '<')
-    show(io, M)
-    write(io, " x ")
-    show(io, T)
-    write(io, " x ")
-    show(io, N)
-    write(io, ">[")
-    for i = 1:M
-        if i > 1
-            write(io, ", ")
-        end
-        print(io, _to_string(x[i]))
-    end
-    write(io, ']')
+    print(io, "))")
     return nothing
 end
 
@@ -1587,6 +1561,19 @@ _MF{T,N}(z::Complex) where {T,N} =
     isreal(z) ? _MF{T,N}(real(z)) :
     throw(InexactError(nameof(_MF{T,N}), _MF{T,N}, z))
 # NOTE: SIMD.jl does not support complex vectors.
+
+
+function Base.print(io::IO, z::Complex{_MF{T,N}}) where {T,N}
+    x, y = reim(z)
+    print(io, _to_string(x))
+    print(io, ifelse(signbit(y), " - ", " + "))
+    print(io, _to_string(abs(y)))
+    print(io, "im")
+    return nothing
+end
+
+Base.show(io::IO, ::MIME"text/plain", z::Complex{_MF{T,N}}) where {T,N} =
+    print(io, z)
 
 
 import LinearAlgebra: floatmin2
