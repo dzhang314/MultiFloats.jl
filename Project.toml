@@ -1,7 +1,7 @@
 name = "MultiFloats"
 uuid = "bdf0d083-296b-4888-a5b6-7498122e68a5"
-version = "3.0.1"
 authors = ["David K. Zhang <dzhang314@gmail.com>"]
+version = "3.1.0"
 
 [deps]
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
@@ -10,7 +10,14 @@ Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 SIMD = "fdea26ae-647d-5447-a871-4b548cad5224"
 
+[weakdeps]
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+
+[extensions]
+MultiFloatsCUDAExt = "CUDA"
+
 [compat]
+CUDA = "5"
 MPFR_jll = "4"
 SIMD = "3"
 julia = "1.6"

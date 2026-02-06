@@ -1030,6 +1030,9 @@ end
 ######################################################## MULTIPLICATION NETWORKS
 
 
+@inline one_prod(a::T, b::T) where {T} = a * b
+
+
 @inline function two_prod(a::T, b::T) where {T}
     prod = a * b
     err = fma(a, b, -prod)
@@ -1052,8 +1055,8 @@ end
     ::Val{2},
 ) where {T}
     p00, e00 = two_prod(x[1], y[1])
-    p01 = x[1] * y[2]
-    p10 = x[2] * y[1]
+    p01 = one_prod(x[1], y[2])
+    p10 = one_prod(x[2], y[1])
     p01 += p10
     e00 += p01
     p00, e00 = fast_two_sum(p00, e00)
@@ -1069,9 +1072,9 @@ end
     p00, e00 = two_prod(x[1], y[1])
     p01, e01 = two_prod(x[1], y[2])
     p10, e10 = two_prod(x[2], y[1])
-    p02 = x[1] * y[3]
-    p11 = x[2] * y[2]
-    p20 = x[3] * y[1]
+    p02 = one_prod(x[1], y[3])
+    p11 = one_prod(x[2], y[2])
+    p20 = one_prod(x[3], y[1])
     p01, p10 = two_sum(p01, p10)
     e01 += e10
     p02 += p20
@@ -1100,10 +1103,10 @@ end
     p02, e02 = two_prod(x[1], y[3])
     p11, e11 = two_prod(x[2], y[2])
     p20, e20 = two_prod(x[3], y[1])
-    p03 = x[1] * y[4]
-    p12 = x[2] * y[3]
-    p21 = x[3] * y[2]
-    p30 = x[4] * y[1]
+    p03 = one_prod(x[1], y[4])
+    p12 = one_prod(x[2], y[3])
+    p21 = one_prod(x[3], y[2])
+    p30 = one_prod(x[4], y[1])
     p01, p10 = two_sum(p01, p10)
     e01, e10 = two_sum(e01, e10)
     p02, p20 = two_sum(p02, p20)
