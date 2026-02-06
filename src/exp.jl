@@ -19,8 +19,17 @@ end
     end
 end
 
-function exp_kernel(r::_MF{T,N}, ::Val{TERMS}) where {T,N,TERMS}
-    return evalpoly(r, ntuple(i->one(_MF{T,N})/factorial(i-1), Val(M)))
+# computes exp(y) for |y| <= log(2)/2
+function exp_kernel(y::_MF{T,N}) where {T,N}
+    N_REDUCTIONS = 4+2N
+    N_TERMS = 4+2N
+    # ERROR = (log(2)*exp2(-N_REDUCTIONS))^N_TERMS/factorial(N_TERMS)
+    y = scale(T(exp2(-N_REDUCTIONS)), y)
+    small_part = evalpoly(y, ntuple(i->one(_MF{T,N})/factorial(i-1), Val(N_TERMS)))._limbs
+    for _ in 1:N_REDUCTIONS
+        small_part = mfsqr(small_part, Val(N))
+    end
+    return _MF{T,N}(small_part)
 end
 
 # b^x = 2^(x*log(b)/log(2)) = 2^n*exp(y)
@@ -33,16 +42,9 @@ function exp_impl(x::_MF{T,N}, base) where {T,N}
     head < MIN_EXP(base, head) && return zero(_MF{T,N})
     n = round(Int32, head*Log2B(base, T))
     logb, log2 = EXP_REDUCTION_COEFS(base, x)
-    r = _MF{T,N}(_MF{T,N+1}(x)*logb - n*log2)
-    N_REDUCTIONS = 4+2N
-    N_TERMS = 4+2N
-    # ERROR = (log(2)*exp2(-N_REDUCTIONS))^N_TERMS/factorial(N_TERMS)
-    r = scale(T(exp2(-N_REDUCTIONS)), r)
-    small_part = exp_kernel(r, Val(N_TERMS))._limbs
-    for _ in 1:N_REDUCTIONS
-        small_part = mfsqr(small_part, Val(N))
-    end
-    return ldexp(_MF{T,N}(small_part), n)
+    y = _MF{T,N}(_MF{T,N+1}(x)*logb - n*log2)
+    small_part = exp_kernel(y)
+    return ldexp(small_part, n)
 end
 
 Base.exp(x::_MF) = exp_impl(x, Val(ℯ))
