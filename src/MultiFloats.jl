@@ -1,7 +1,8 @@
 module MultiFloats
 
-using Base.MPFR: libmpfr, CdoubleMax, MPFRRoundingMode, MPFRRoundNearest
-using SIMD: Vec
+using Base.MPFR: CdoubleMax, MPFRRoundingMode, MPFRRoundNearest
+using MPFR_jll: libmpfr
+using SIMD: FastContiguousArray, Vec, vgather, vscatter
 using SIMD.Intrinsics: extractelement
 
 import SIMD: vifelse
@@ -44,7 +45,11 @@ export Float16x, Float32x, Float64x,
     Vec4Float32x1, Vec4Float32x2, Vec4Float32x3, Vec4Float32x4,
     Vec4Float64x1, Vec4Float64x2, Vec4Float64x3, Vec4Float64x4,
     Vec8Float32x1, Vec8Float32x2, Vec8Float32x3, Vec8Float32x4,
-    Vec8Float64x1, Vec8Float64x2, Vec8Float64x3, Vec8Float64x4
+    Vec8Float64x1, Vec8Float64x2, Vec8Float64x3, Vec8Float64x4,
+    Vec16Float32x1, Vec16Float32x2, Vec16Float32x3, Vec16Float32x4,
+    Vec16Float64x1, Vec16Float64x2, Vec16Float64x3, Vec16Float64x4,
+    Vec32Float32x1, Vec32Float32x2, Vec32Float32x3, Vec32Float32x4,
+    Vec32Float64x1, Vec32Float64x2, Vec32Float64x3, Vec32Float64x4
 
 
 const Float16x{N} = MultiFloat{Float16,N}
@@ -102,6 +107,14 @@ const Vec16Float64x1 = MultiFloatVec{16,Float64,1}
 const Vec16Float64x2 = MultiFloatVec{16,Float64,2}
 const Vec16Float64x3 = MultiFloatVec{16,Float64,3}
 const Vec16Float64x4 = MultiFloatVec{16,Float64,4}
+const Vec32Float32x1 = MultiFloatVec{32,Float32,1}
+const Vec32Float32x2 = MultiFloatVec{32,Float32,2}
+const Vec32Float32x3 = MultiFloatVec{32,Float32,3}
+const Vec32Float32x4 = MultiFloatVec{32,Float32,4}
+const Vec32Float64x1 = MultiFloatVec{32,Float64,1}
+const Vec32Float64x2 = MultiFloatVec{32,Float64,2}
+const Vec32Float64x3 = MultiFloatVec{32,Float64,3}
+const Vec32Float64x4 = MultiFloatVec{32,Float64,4}
 
 
 ###################################################################### CONSTANTS
@@ -198,7 +211,7 @@ end
     return (next_limb, _split_impl(remainder, T, Val{N - 1}())...)
 end
 
-@inline function _split(x, ::Type{T}, ::Val{N}, ::Val{K}) where {T,N,K}
+@inline function _split(x::Number, ::Type{T}, ::Val{N}, ::Val{K}) where {T,N,K}
     result = tuple(_split_impl(x, T, Val{min(N, K)}())...,
         ntuple(_ -> zero(T), Val{max(N - K, 0)}())...)
     first_limb = first(result)
@@ -267,29 +280,107 @@ const _Fits64xN = Union{_Fits64x2,_Fits64x3}
     _MF{_F64,N}(_split(x, _F64, Val{N}()))
 
 
+################################################################ RENORMALIZATION
+
+
+@inline function two_sum(a::T, b::T) where {T}
+    sum = a + b
+    a_prime = sum - b
+    b_prime = sum - a_prime
+    a_err = a - a_prime
+    b_err = b - b_prime
+    err = a_err + b_err
+    return (sum, err)
+end
+
+
+@generated function _renorm_pass(x::NTuple{N,T}) where {N,T}
+    xs = [Symbol('x', i) for i = 1:N]
+    body = Expr[]
+    push!(body, Expr(:meta, :inline))
+    push!(body, Expr(:(=), Expr(:tuple, xs...), :x))
+    for i = 1:2:N-1
+        push!(body, Expr(:(=), Expr(:tuple, xs[i], xs[i+1]),
+            Expr(:call, two_sum, xs[i], xs[i+1])))
+    end
+    for i = 2:2:N-1
+        push!(body, Expr(:(=), Expr(:tuple, xs[i], xs[i+1]),
+            Expr(:call, two_sum, xs[i], xs[i+1])))
+    end
+    push!(body, Expr(:return, Expr(:tuple, xs...)))
+    return Expr(:block, body...)
+end
+
+
+@inline isnormalized(x::NTuple{N,T}) where {N,T} = (x === _renorm_pass(x))
+@inline isnormalized(x::_MF{T,N}) where {T,N} = isnormalized(x._limbs)
+@inline isnormalized(x::_MFV{M,T,N}) where {M,T,N} = isnormalized(x._limbs)
+
+
+@inline function renormalize(x::NTuple{N,T}) where {N,T}
+    while true
+        x_next = _renorm_pass(x)
+        if x_next === x
+            return x
+        end
+        x = x_next
+    end
+end
+
+
+@inline renormalize(x::_MF{T,N}) where {T,N} =
+    _MF{T,N}(renormalize(x._limbs))
+@inline renormalize(x::_MFV{M,T,N}) where {M,T,N} =
+    _MFV{M,T,N}(renormalize(x._limbs))
+
+
 ####################################################### CONVERSION FROM BIGFLOAT
 
 
-@inline function mpfr_sub!(x::BigFloat, y::CdoubleMax)
+@inline function mpfr_sub!(x::BigFloat, y::CdoubleMax, rounding::RoundingMode)
     ccall((:mpfr_sub_d, libmpfr), Cint,
         (Ref{BigFloat}, Ref{BigFloat}, Cdouble, MPFRRoundingMode),
-        x, x, y, MPFRRoundNearest)
+        x, x, y, convert(MPFRRoundingMode, rounding))
     return x
 end
 
 
-@inline function _split(x::BigFloat, ::Type{T}, ::Val{N}) where {T,N}
+function _split!(x::BigFloat, ::Type{T}, ::Val{N}) where {T,N}
     if !isfinite(x)
         value = T(x)
         return ntuple(_ -> value, Val{N}())
     elseif x > +floatmax(T)
-        pos_inf = typemax(T)
-        return ntuple(_ -> pos_inf, Val{N}())
+        _pos_inf = typemax(T)
+        return ntuple(_ -> _pos_inf, Val{N}())
     elseif x < -floatmax(T)
-        neg_inf = typemin(T)
-        return ntuple(_ -> neg_inf, Val{N}())
+        _neg_inf = typemin(T)
+        return ntuple(_ -> _neg_inf, Val{N}())
     else
-        result = ntuple(_ -> zero(T), Val{N}())
+        _zero = zero(T)
+        result = ntuple(_ -> _zero, Val{N}())
+        for i = 1:N
+            limb = T(x)
+            result = Base.setindex(result, limb, i)
+            mpfr_sub!(x, limb, RoundNearest)
+        end
+        return renormalize(result)
+    end
+end
+
+
+function _split(x::BigFloat, ::Type{T}, ::Val{N}) where {T,N}
+    if !isfinite(x)
+        value = T(x)
+        return ntuple(_ -> value, Val{N}())
+    elseif x > +floatmax(T)
+        _pos_inf = typemax(T)
+        return ntuple(_ -> _pos_inf, Val{N}())
+    elseif x < -floatmax(T)
+        _neg_inf = typemin(T)
+        return ntuple(_ -> _neg_inf, Val{N}())
+    else
+        _zero = zero(T)
+        result = ntuple(_ -> _zero, Val{N}())
         temp = BigFloat(; precision=precision(x))
         ccall((:mpfr_set, libmpfr), Cint,
             (Ref{BigFloat}, Ref{BigFloat}, MPFRRoundingMode),
@@ -297,9 +388,9 @@ end
         for i = 1:N
             limb = T(temp)
             result = Base.setindex(result, limb, i)
-            mpfr_sub!(temp, limb)
+            mpfr_sub!(temp, limb, RoundNearest)
         end
-        return result
+        return renormalize(result)
     end
 end
 
@@ -314,31 +405,50 @@ _MF{T,N}(x::BigFloat) where {T,N} = _MF{T,N}(_split(x, T, Val{N}()))
     exponent(floatmax(T)) - exponent(floatmin(T)) + precision(T)
 
 
-# Construct MultiFloat scalar from string.
-_MF{T,N}(x::AbstractString) where {T,N} = _MF{T,N}(
-    BigFloat(x, MPFRRoundNearest; precision=_full_precision(T)))
+# Construct MultiFloat scalar from any other type by passing through BigFloat.
+function _from_big(x::Any, ::Type{T}, ::Val{N}) where {T,N}
+    p = 2 * _full_precision(T) + 1
+    try
+        return _MF{T,N}(_split!(
+            BigFloat(x, RoundNearest; precision=p), T, Val{N}()))
+    catch e
+        if e isa MethodError
+            return _MF{T,N}(_split!(BigFloat(x; precision=p), T, Val{N}()))
+        end
+        rethrow()
+    end
+end
+
+_MF{T,N}(x::AbstractString) where {T,N} = _from_big(x, T, Val{N}())
+_MF{T,N}(x::Rational) where {T,N} = _from_big(x, T, Val{N}())
+_MF{T,N}(x::Number) where {T,N} = _from_big(x, T, Val{N}())
 
 
-# Construct MultiFloat scalar from any other type.
-function _MF{T,N}(x::Any) where {T,N}
-    println(stderr, "WARNING: Constructing $(_MF{T,N}) from $(typeof(x)).")
-    return _MF{T,N}(BigFloat(x,
-        MPFRRoundNearest; precision=_full_precision(T)))
+function Base.tryparse(::Type{_MF{T,N}}, x::AbstractString) where {T,N}
+    try
+        return _MF{T,N}(x)
+    catch e
+        if e isa ArgumentError
+            return nothing
+        end
+        rethrow()
+    end
 end
 
 
 # Construct MultiFloat vector from non-MultiFloat scalar.
-@inline _MFV{M,T,N}(x::Any) where {M,T,N} = _MFV{M,T,N}(_MF{T,N}(x))
+@inline _MFV{M,T,N}(x::Union{AbstractString,Number}) where {M,T,N} =
+    _MFV{M,T,N}(_MF{T,N}(x))
 
 
 # Construct MultiFloat vector from multiple non-MultiFloat scalars.
-@inline _MFV{M,T,N}(xs::NTuple{M,Any}) where {M,T,N} =
+@inline _MFV{M,T,N}(xs::NTuple{M,Union{AbstractString,Number}}) where {M,T,N} =
     _MFV{M,T,N}(_MF{T,N}.(xs))
-@inline _MFV{M,T,N}(xs::Vararg{Any,M}) where {M,T,N} =
+@inline _MFV{M,T,N}(xs::Vararg{Union{AbstractString,Number},M}) where {M,T,N} =
     _MFV{M,T,N}(_MF{T,N}.(xs))
-_MFV{M,T,N}(::NTuple{K,Any}) where {M,T,N,K} =
+_MFV{M,T,N}(::NTuple{K,Union{AbstractString,Number}}) where {M,T,N,K} =
     error("MultiFloatVec constructor requires tuple of length $M.")
-_MFV{M,T,N}(::Vararg{Any,K}) where {M,T,N,K} =
+_MFV{M,T,N}(::Vararg{Union{AbstractString,Number},K}) where {M,T,N,K} =
     error("MultiFloatVec constructor requires 1 or $M arguments.")
 
 
@@ -358,22 +468,23 @@ _MFV{M,T,N}(::Vararg{Any,K}) where {M,T,N,K} =
 end
 
 
-@inline function mpfr_add!(x::BigFloat, y::CdoubleMax)
+@inline function mpfr_add!(x::BigFloat, y::CdoubleMax, rounding::RoundingMode)
     ccall((:mpfr_add_d, libmpfr), Cint,
         (Ref{BigFloat}, Ref{BigFloat}, Cdouble, MPFRRoundingMode),
-        x, x, y, MPFRRoundNearest)
+        x, x, y, convert(MPFRRoundingMode, rounding))
     return x
 end
 
 
 function Base.BigFloat(
-    x::_MF{T,N};
+    x::_MF{T,N},
+    rounding::RoundingMode=rounding(BigFloat);
     precision::Integer=precision(BigFloat),
 ) where {T,N}
     result = BigFloat(; precision)
     mpfr_zero!(result)
     for limb in x._limbs
-        mpfr_add!(result, limb)
+        mpfr_add!(result, limb, rounding)
     end
     return result
 end
@@ -385,25 +496,70 @@ end
 @inline Base.AbstractFloat(x::_MF{T,N}) where {T,N} = x
 
 
+Base.Rational{I}(x::_MF{T,N}) where {I<:Integer,T,N} =
+    sum(Rational{I}.(x._limbs); init=zero(Rational{I}))
+# This specialization eliminates ambiguity with the
+# Rational{BigInt}(::AbstractFloat) method defined in Base.MPFR.
+Base.Rational{BigInt}(x::_MF{T,N}) where {T,N} =
+    sum(Rational{BigInt}.(x._limbs); init=zero(Rational{BigInt}))
+Base.Rational(x::_MF{T,N}) where {T,N} = Rational{BigInt}(x)
+
+
+################################################################### CANONIZATION
+
+
+function canonize(x::_MF{T,N}) where {T,N}
+    temp = BigFloat(; precision=(_full_precision(T) + ndigits(N; base=2)))
+    mpfr_zero!(temp)
+    for limb in x._limbs
+        mpfr_add!(temp, limb, RoundNearest)
+    end
+    return _MF{T,N}(_split!(temp, T, Val{N}()))
+end
+
+
+function canonize(x::_MFV{M,T,N}) where {M,T,N}
+    temp = BigFloat(; precision=(_full_precision(T) + ndigits(N; base=2)))
+    result = ntuple(_ -> zero(_MF{T,N}), Val{M}())
+    for i = 1:M
+        mpfr_zero!(temp)
+        for j = 1:N
+            limb = extractelement(x._limbs[j].data, i - 1)
+            mpfr_add!(temp, limb, RoundNearest)
+        end
+        result = Base.setindex(result, _MF{T,N}(_split!(temp, T, Val{N}())), i)
+    end
+    return _MFV{M,T,N}(result)
+end
+
+
+iscanonical(x::_MF{T,N}) where {T,N} = (x === canonize(x))
+iscanonical(x::_MFV{M,T,N}) where {M,T,N} = (x === canonize(x))
+
+
 ###################################################### FLOATING-POINT PROPERTIES
 
 
 @inline Base.eps(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(eps(T)^N)
 
 
-# TODO: Implement Base.precision.
-# if isdefined(Base, :_precision)
-#     @inline Base._precision(::Type{_MF{T,N}}) where {T,N} =
-#         N * precision(T) + (N - 1) # implicit bits of precision between limbs
-# else
-#     @inline Base.precision(::Type{_MF{T,N}}) where {T,N} =
-#         N * precision(T) + (N - 1) # implicit bits of precision between limbs
-# end
+@static if isdefined(Base, :_precision_with_base_2) # Julia 1.11+
+    @inline Base._precision_with_base_2(::Type{_MF{T,N}}) where {T,N} =
+        N * precision(T) - (N - 1)
+elseif isdefined(Base, :_precision) # Julia 1.8-1.10
+    @inline Base._precision(::Type{_MF{T,N}}) where {T,N} =
+        N * precision(T) - (N - 1)
+else # Julia 1.7 and earlier
+    @inline Base.precision(::Type{_MF{T,N}}) where {T,N} =
+        N * precision(T) - (N - 1)
+end
 # NOTE: SIMD.jl does not define Base.precision for vectors.
 
 
 @inline Base.floatmin(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(floatmin(T))
-@inline Base.floatmax(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(floatmax(T))
+@inline Base.floatmax(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(ntuple(
+    i -> ldexp(floatmax(T), -((i - 1) * (precision(T) + 1))),
+    Val{N}()))
 # NOTE: SIMD.jl does not define Base.floatmin or Base.floatmax for vectors.
 
 
@@ -427,12 +583,9 @@ end
     issubnormal(first(x._limbs))
 
 
-@inline Base.isfinite(x::_MF{T,N}) where {T,N} = isfinite(sum(x._limbs))
-@inline Base.isfinite(x::_MFV{M,T,N}) where {M,T,N} = isfinite(sum(x._limbs))
-@inline Base.isinf(x::_MF{T,N}) where {T,N} = isinf(sum(x._limbs))
-@inline Base.isinf(x::_MFV{M,T,N}) where {M,T,N} = isinf(sum(x._limbs))
-@inline Base.isnan(x::_MF{T,N}) where {T,N} = isnan(sum(x._limbs))
-@inline Base.isnan(x::_MFV{M,T,N}) where {M,T,N} = isnan(sum(x._limbs))
+@inline _vany(::Tuple{}, ::Val{M}) where {M} = zero(Vec{M,Bool})
+@inline _vany(x::Tuple{Vec{M,Bool}}, ::Val{M}) where {M} = x[1]
+@inline _vany(x::NTuple{N,Vec{M,Bool}}, ::Val{M}) where {M,N} = (|)(x...)
 
 
 @inline _vall(::Tuple{}, ::Val{M}) where {M} = one(Vec{M,Bool})
@@ -454,6 +607,46 @@ end
         Val{N}()), Val{M}())
 
 
+@inline Base.isfinite(x::_MF{T,N}) where {T,N} =
+    all(isfinite.(x._limbs))
+@inline Base.isfinite(x::_MFV{M,T,N}) where {M,T,N} =
+    _vall(isfinite.(x._limbs), Val{M}())
+
+
+@inline _has_pos_inf(x::_MF{T,N}) where {T,N} = any(ntuple(
+    i -> isinf(x._limbs[i]) & !signbit(x._limbs[i]),
+    Val{N}()))
+@inline _has_pos_inf(x::_MFV{M,T,N}) where {M,T,N} = _vany(ntuple(
+        i -> isinf(x._limbs[i]) & !signbit(x._limbs[i]),
+        Val{N}()), Val{M}())
+
+
+@inline _has_neg_inf(x::_MF{T,N}) where {T,N} = any(ntuple(
+    i -> isinf(x._limbs[i]) & signbit(x._limbs[i]),
+    Val{N}()))
+@inline _has_neg_inf(x::_MFV{M,T,N}) where {M,T,N} = _vany(ntuple(
+        i -> isinf(x._limbs[i]) & signbit(x._limbs[i]),
+        Val{N}()), Val{M}())
+
+
+@inline _has_nan(x::_MF{T,N}) where {T,N} =
+    any(isnan.(x._limbs))
+@inline _has_nan(x::_MFV{M,T,N}) where {M,T,N} =
+    _vany(isnan.(x._limbs), Val{M}())
+
+
+@inline Base.isinf(x::_MF{T,N}) where {T,N} =
+    xor(_has_pos_inf(x), _has_neg_inf(x)) & !_has_nan(x)
+@inline Base.isinf(x::_MFV{M,T,N}) where {M,T,N} =
+    xor(_has_pos_inf(x), _has_neg_inf(x)) & !_has_nan(x)
+
+
+@inline Base.isnan(x::_MF{T,N}) where {T,N} =
+    _has_nan(x) | (_has_pos_inf(x) & _has_neg_inf(x))
+@inline Base.isnan(x::_MFV{M,T,N}) where {M,T,N} =
+    _has_nan(x) | (_has_pos_inf(x) & _has_neg_inf(x))
+
+
 @inline Base.isinteger(x::_MF{T,N}) where {T,N} = all(isinteger.(x._limbs))
 # NOTE: SIMD.jl does not define Base.isinteger for vectors.
 
@@ -461,29 +654,150 @@ end
 #################################################### FLOATING-POINT MANIPULATION
 
 
+@inline function mpfr_sub!(
+    x::BigFloat,
+    y::BigFloat,
+    z::CdoubleMax,
+    rounding::RoundingMode,
+)
+    ccall((:mpfr_sub_d, libmpfr), Cint,
+        (Ref{BigFloat}, Ref{BigFloat}, Cdouble, MPFRRoundingMode),
+        x, y, z, convert(MPFRRoundingMode, rounding))
+    return x
+end
+
+
+@inline function mpfr_add!(
+    x::BigFloat,
+    y::BigFloat,
+    z::CdoubleMax,
+    rounding::RoundingMode,
+)
+    ccall((:mpfr_add_d, libmpfr), Cint,
+        (Ref{BigFloat}, Ref{BigFloat}, Cdouble, MPFRRoundingMode),
+        x, y, z, convert(MPFRRoundingMode, rounding))
+    return x
+end
+
+
 @inline Base.ldexp(x::_MF{T,N}, n::Integer) where {T,N} =
     _MF{T,N}(ntuple(i -> ldexp(x._limbs[i], n), Val{N}()))
 # NOTE: SIMD.jl does not define Base.ldexp for vectors.
 
 
-# TODO: Implement Base.decompose.
-# Base.decompose(x::MultiFloat) = Base.decompose(BigFloat(x))
+function Base.decompose(x::_MF{T,N}) where {T,N}
+    if iszero(x)
+        return (zero(BigInt), 0, ifelse(signbit(x), -1, +1))
+    end
+    has_pos_inf = _has_pos_inf(x)
+    has_neg_inf = _has_neg_inf(x)
+    if _has_nan(x) | (has_pos_inf & has_neg_inf)
+        return (zero(BigInt), 0, 0)
+    elseif has_pos_inf
+        return (+one(BigInt), 0, 0)
+    elseif has_neg_inf
+        return (-one(BigInt), 0, 0)
+    end
+    p = precision(T)
+    e_min = typemax(Int)
+    for limb in x._limbs
+        if !iszero(limb)
+            e_min = min(e_min, exponent(limb) - (p - 1))
+        end
+    end
+    num = zero(BigInt)
+    for limb in x._limbs
+        if !iszero(limb)
+            e = exponent(limb) - (p - 1)
+            m = BigInt(ldexp(significand(limb), p - 1))
+            num += m << (e - e_min)
+        end
+    end
+    return (num, e_min, 1)
+end
 
 
-# TODO: Implement renormalization, prevfloat, and nextfloat.
-# _prevfloat(x::_MF{T,N}) where {T,N} = renormalize(_MF{T,N}((ntuple(
-#         i -> x._limbs[i], Val{N - 1}())..., prevfloat(x._limbs[N]))))
-# _nextfloat(x::_MF{T,N}) where {T,N} = renormalize(_MF{T,N}((ntuple(
-#         i -> x._limbs[i], Val{N - 1}())..., nextfloat(x._limbs[N]))))
-# @inline Base.prevfloat(x::_MF{T,N}) where {T,N} = _prevfloat(renormalize(x))
-# @inline Base.nextfloat(x::_MF{T,N}) where {T,N} = _nextfloat(renormalize(x))
+function Base.prevfloat(x::_MF{T,N}) where {T,N}
+    _one = one(T)
+    _two = _one + _one
+    _half = inv(_two)
+
+    has_pos_inf = _has_pos_inf(x)
+    has_neg_inf = _has_neg_inf(x)
+    if _has_nan(x) | (has_pos_inf & has_neg_inf)
+        return x
+    elseif has_pos_inf
+        return floatmax(_MF{T,N})
+    elseif has_neg_inf
+        return -typemax(_MF{T,N})
+    end
+
+    total = BigFloat(; precision=(_full_precision(T) + ndigits(N; base=2)))
+    mpfr_zero!(total)
+    for limb in x._limbs
+        mpfr_add!(total, limb, RoundNearest)
+    end
+    reference = _split(total, T, Val{N}())
+
+    perturbation = max(_half * eps(reference[N]), eps(zero(T)))
+    temp = BigFloat(; precision=(_full_precision(T) + ndigits(N; base=2)))
+    while perturbation <= floatmax(T)
+        mpfr_sub!(temp, total, perturbation, RoundNearest)
+        candidate = _split!(temp, T, Val{N}())
+        if candidate !== reference
+            return _MF{T,N}(candidate)
+        end
+        perturbation *= _two
+    end
+
+    @assert false
+end
+
+
+function Base.nextfloat(x::_MF{T,N}) where {T,N}
+    _one = one(T)
+    _two = _one + _one
+    _half = inv(_two)
+
+    has_pos_inf = _has_pos_inf(x)
+    has_neg_inf = _has_neg_inf(x)
+    if _has_nan(x) | (has_pos_inf & has_neg_inf)
+        return x
+    elseif has_pos_inf
+        return typemax(_MF{T,N})
+    elseif has_neg_inf
+        return -floatmax(_MF{T,N})
+    end
+
+    total = BigFloat(; precision=(_full_precision(T) + ndigits(N; base=2)))
+    mpfr_zero!(total)
+    for limb in x._limbs
+        mpfr_add!(total, limb, RoundNearest)
+    end
+    reference = _split(total, T, Val{N}())
+
+    perturbation = max(_half * eps(reference[N]), eps(zero(T)))
+    temp = BigFloat(; precision=(_full_precision(T) + ndigits(N; base=2)))
+    while perturbation <= floatmax(T)
+        mpfr_add!(temp, total, perturbation, RoundNearest)
+        candidate = _split!(temp, T, Val{N}())
+        if candidate !== reference
+            return _MF{T,N}(candidate)
+        end
+        perturbation *= _two
+    end
+
+    @assert false
+end
+
+
 # NOTE: SIMD.jl does not define Base.prevfloat or Base.nextfloat for vectors.
 
 
 ############################################################## VECTOR OPERATIONS
 
 
-# export mfvgather, mfvscatter
+export mfvgather, mfvscatter
 
 
 @inline Base.length(::_MFV{M,T,N}) where {M,T,N} = M
@@ -499,39 +813,42 @@ end
     ntuple(i -> vifelse(mask, x._limbs[i], y._limbs[i]), Val{N}()))
 
 
-# @inline function mfvgather(
-#     pointer::Ptr{_MF{T,N}}, index::Vec{M,I}
-# ) where {M,T,N,I<:Integer}
-#     base = reinterpret(Ptr{T}, pointer) + N * sizeof(T) * index
-#     return _MFV{M,T,N}(ntuple(
-#         i -> vgather(base + (i - 1) * sizeof(T)), Val{N}()))
-# end
+@inline function mfvgather(
+    pointer::Ptr{_MF{T,N}}, index::Vec{M,I}
+) where {M,T,N,I<:Integer}
+    base = reinterpret(Ptr{T}, pointer) + N * sizeof(T) * index
+    return _MFV{M,T,N}(ntuple(
+        i -> vgather(base + (i - 1) * sizeof(T)), Val{N}()))
+end
 
 
-# @inline function mfvscatter(
-#     x::_MFV{M,T,N}, pointer::Ptr{_MF{T,N}}, index::Vec{M,I}
-# ) where {M,T,N,I<:Integer}
-#     base = reinterpret(Ptr{T}, pointer) + N * sizeof(T) * index
-#     for i = 1:N
-#         vscatter(x._limbs[i], base + (i - 1) * sizeof(T), nothing)
-#     end
-#     return nothing
-# end
+@inline function mfvscatter(
+    x::_MFV{M,T,N}, pointer::Ptr{_MF{T,N}}, index::Vec{M,I}
+) where {M,T,N,I<:Integer}
+    base = reinterpret(Ptr{T}, pointer) + N * sizeof(T) * index
+    for i = 1:N
+        vscatter(x._limbs[i], base + (i - 1) * sizeof(T), nothing)
+    end
+    return nothing
+end
 
 
-# @inline mfvgather(array::Array{_MF{T,N},D}, index::Vec{M,I}
-# ) where {M,T,N,D,I<:Integer} = mfvgather(pointer(array), index - one(I))
+@inline mfvgather(
+    array::FastContiguousArray{_MF{T,N},D},
+    index::Vec{M,I},
+) where {M,T,N,D,I<:Integer} = mfvgather(pointer(array), index - one(I))
 
 
-# @inline mfvscatter(x::_MFV{M,T,N}, array::Array{_MF{T,N},D}, index::Vec{M,I}
-# ) where {M,T,N,D,I<:Integer} = mfvscatter(x, pointer(array), index - one(I))
+@inline mfvscatter(
+    x::_MFV{M,T,N},
+    array::FastContiguousArray{_MF{T,N},D},
+    index::Vec{M,I},
+) where {M,T,N,D,I<:Integer} = mfvscatter(x, pointer(array), index - one(I))
 
 
 ##################################################################### COMPARISON
 
 
-# TODO: MultiFloat-to-float comparison.
-# TODO: Scalar-to-vector comparison.
 # TODO: Implement Base.cmp.
 
 
@@ -613,17 +930,6 @@ _ge_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] >= y._limbs[$n]) : :(
 ############################################################## ADDITION NETWORKS
 
 
-@inline function two_sum(a::T, b::T) where {T}
-    sum = a + b
-    a_prime = sum - b
-    b_prime = sum - a_prime
-    a_err = a - a_prime
-    b_err = b - b_prime
-    err = a_err + b_err
-    return (sum, err)
-end
-
-
 @inline function fast_two_sum(a::T, b::T) where {T}
     sum = a + b
     b_prime = sum - a
@@ -676,6 +982,7 @@ end
     c += d
     b, c = fast_two_sum(b, c)
     a, b = fast_two_sum(a, b)
+    b, c = fast_two_sum(b, c)
     return (a, b, c)
 end
 
@@ -721,6 +1028,9 @@ end
 
 
 ######################################################## MULTIPLICATION NETWORKS
+
+
+@inline one_prod(a::T, b::T) where {T} = a * b
 
 
 @inline function two_prod(a::T, b::T) where {T}
@@ -806,8 +1116,8 @@ end
     ::Val{2},
 ) where {T}
     p00, e00 = two_prod(x[1], y[1])
-    p01 = x[1] * y[2]
-    p10 = x[2] * y[1]
+    p01 = one_prod(x[1], y[2])
+    p10 = one_prod(x[2], y[1])
     p01 += p10
     e00 += p01
     p00, e00 = fast_two_sum(p00, e00)
@@ -823,9 +1133,9 @@ end
     p00, e00 = two_prod(x[1], y[1])
     p01, e01 = two_prod(x[1], y[2])
     p10, e10 = two_prod(x[2], y[1])
-    p02 = x[1] * y[3]
-    p11 = x[2] * y[2]
-    p20 = x[3] * y[1]
+    p02 = one_prod(x[1], y[3])
+    p11 = one_prod(x[2], y[2])
+    p20 = one_prod(x[3], y[1])
     p01, p10 = two_sum(p01, p10)
     e01 += e10
     p02 += p20
@@ -854,10 +1164,10 @@ end
     p02, e02 = two_prod(x[1], y[3])
     p11, e11 = two_prod(x[2], y[2])
     p20, e20 = two_prod(x[3], y[1])
-    p03 = x[1] * y[4]
-    p12 = x[2] * y[3]
-    p21 = x[3] * y[2]
-    p30 = x[4] * y[1]
+    p03 = one_prod(x[1], y[4])
+    p12 = one_prod(x[2], y[3])
+    p21 = one_prod(x[3], y[2])
+    p30 = one_prod(x[4], y[1])
     p01, p10 = two_sum(p01, p10)
     e01, e10 = two_sum(e01, e10)
     p02, p20 = two_sum(p02, p20)
@@ -1208,158 +1518,202 @@ end
 ####################################################################### PRINTING
 
 
-# TODO: Implement printing and test for round-trip correctness.
+using Printf: @sprintf
 
 
-# function _call_big(f::F, x::_MF{T,N}) where {F,T,N}
-#     x = renormalize(x)
-#     total = +(x._limbs...)
-#     if !isfinite(total)
-#         return setprecision(BigFloat, precision(T)) do
-#             setrounding(BigFloat, RoundNearest) do
-#                 f(BigFloat(total))
-#             end
-#         end
-#     end
-#     i = N
-#     while (i > 0) && iszero(x._limbs[i])
-#         i -= 1
-#     end
-#     if iszero(i)
-#         return setprecision(BigFloat, precision(T)) do
-#             setrounding(BigFloat, RoundNearest) do
-#                 f(zero(BigFloat))
-#             end
-#         end
-#     else
-#         p = precision(T) + exponent(x._limbs[1]) - exponent(x._limbs[i])
-#         return setprecision(BigFloat, p) do
-#             setrounding(BigFloat, RoundNearest) do
-#                 f(BigFloat(x))
-#             end
-#         end
-#     end
-# end
+function _format_digits(sign_str::String, digit_array::Vector{Int8}, e::Int)
+    if 0 <= e < 6
+        while length(digit_array) < e + 2
+            push!(digit_array, zero(Int8))
+        end
+        pre_str = String('0' .+ digit_array[1:e+1])
+        post_str = String('0' .+ digit_array[e+2:end])
+        return @sprintf("%s%s.%s", sign_str, pre_str, post_str)
+    elseif -5 < e < 0
+        prepend!(digit_array, [zero(Int8) for _ = e:-2])
+        post_str = String('0' .+ digit_array)
+        return @sprintf("%s0.%s", sign_str, post_str)
+    else
+        while length(digit_array) < 2
+            push!(digit_array, zero(Int8))
+        end
+        pre_char = '0' + digit_array[1]
+        post_str = String('0' .+ digit_array[2:end])
+        return @sprintf("%s%c.%se%d", sign_str, pre_char, post_str, e)
+    end
+end
 
 
-# function _call_big(f::F, x::_MF{T,N}, p::Int) where {F,T,N}
-#     x = renormalize(x)
-#     total = +(x._limbs...)
-#     if !isfinite(total)
-#         return setprecision(BigFloat, p) do
-#             setrounding(BigFloat, RoundNearest) do
-#                 f(BigFloat(total))
-#             end
-#         end
-#     end
-#     i = N
-#     while (i > 0) && iszero(x._limbs[i])
-#         i -= 1
-#     end
-#     if iszero(i)
-#         return setprecision(BigFloat, p) do
-#             setrounding(BigFloat, RoundNearest) do
-#                 f(zero(BigFloat))
-#             end
-#         end
-#     else
-#         return setprecision(BigFloat, p) do
-#             setrounding(BigFloat, RoundNearest) do
-#                 f(BigFloat(x))
-#             end
-#         end
-#     end
-# end
+function _to_string(x::_MF{T,N}) where {T,N}
+    _zero = zero(Int8)
+    _one = one(Int8)
+    _two = _one + _one
+    _four = _two + _two
+    _eight = _four + _four
+    _ten = _eight + _two
+
+    if iszero(x)
+        return signbit(x) ? "-0.0" : "0.0"
+    end
+
+    has_pos_inf = _has_pos_inf(x)
+    has_neg_inf = _has_neg_inf(x)
+    if _has_nan(x) | (has_pos_inf & has_neg_inf)
+        return "NaN"
+    elseif has_pos_inf
+        return "Inf"
+    elseif has_neg_inf
+        return "-Inf"
+    end
+
+    rx = Rational{BigInt}(x)
+    prev = Rational{BigInt}(prevfloat(x))
+    next = Rational{BigInt}(nextfloat(x))
+    a = rx - (rx - prev) // 2
+    b = rx
+    c = rx + (next - rx) // 2
+    @assert isfinite(a)
+    @assert isfinite(b)
+    @assert isfinite(c)
+    @assert a < b < c
+
+    if iszero(b) || ((a < 0) && (c > 0))
+        return "0.0"
+    end
+
+    sign_str = ""
+    if c <= 0
+        a, b, c = -c, -b, -a
+        sign_str = "-"
+    end
+
+    @assert 0 <= a < b < c
+
+    e = 0
+    while b < 1
+        a *= 10
+        b *= 10
+        c *= 10
+        e -= 1
+    end
+    while b >= 10
+        a //= 10
+        b //= 10
+        c //= 10
+        e += 1
+    end
+
+    digit_array = Vector{Int8}()
+    while floor(a + 1) > ceil(c - 1)
+        next_digit = floor(Int8, b)
+        push!(digit_array, next_digit)
+        a = 10 * (a - next_digit)
+        b = 10 * (b - next_digit)
+        c = 10 * (c - next_digit)
+    end
+
+    last_digit = clamp(round(Int8, b), floor(Int8, a + 1), ceil(Int8, c - 1))
+    push!(digit_array, last_digit)
+    i = lastindex(digit_array)
+    while digit_array[i] >= _ten
+        digit_array[i] -= _ten
+        i -= 1
+        if i < firstindex(digit_array)
+            pushfirst!(digit_array, _zero)
+            e += 1
+            i = firstindex(digit_array)
+        end
+        digit_array[i] += _one
+    end
+    while iszero(last(digit_array))
+        pop!(digit_array)
+    end
+
+    return _format_digits(sign_str, digit_array, e)
+end
 
 
-# function Base.print(io::IO, x::_MF{T,N}) where {T,N}
-#     _call_big(y -> print(io, y), x)
-#     return nothing
-# end
+function Base.print(io::IO, x::_MF{T,N}) where {T,N}
+    print(io, _to_string(x))
+    return nothing
+end
+
+Base.show(io::IO, ::MIME"text/plain", x::_MF{T,N}) where {T,N} = print(io, x)
 
 
-# function Base.print(io::IO, x::_MFV{M,T,N}) where {M,T,N}
-#     write(io, '<')
-#     print(io, M)
-#     write(io, " x ")
-#     print(io, T)
-#     write(io, " x ")
-#     print(io, N)
-#     write(io, ">[")
-#     for i = 1:M
-#         if i > 1
-#             write(io, ", ")
-#         end
-#         _call_big(y -> print(io, y), x[i])
-#     end
-#     write(io, ']')
-#     return nothing
-# end
+function Base.print(io::IO, x::_MFV{M,T,N}) where {M,T,N}
+    print(io, '<')
+    print(io, M)
+    print(io, " x ")
+    print(io, T)
+    print(io, " x ")
+    print(io, N)
+    print(io, ">[")
+    for i = 1:M
+        if i > 1
+            print(io, ", ")
+        end
+        print(io, _to_string(x[i]))
+    end
+    print(io, ']')
+    return nothing
+end
+
+Base.show(io::IO, ::MIME"text/plain", x::_MFV{M,T,N}) where {M,T,N} =
+    print(io, x)
 
 
-# function Base.show(io::IO, ::MIME"text/plain", x::_MF{T,N}) where {T,N}
-#     _call_big(y -> show(io, y), x)
-#     return nothing
-# end
-
-
-# function Base.show(io::IO, x::_MFV{M,T,N}) where {M,T,N}
-#     show(io, _MFV{M,T,N})
-#     write(io, "((")
-#     for i = 1:N
-#         if i > 1
-#             write(io, ", ")
-#         end
-#         show(io, Vec{M,T})
-#         write(io, "((")
-#         for j = 1:M
-#             if j > 1
-#                 write(io, ", ")
-#             end
-#             show(io, x._limbs[i][j])
-#         end
-#         write(io, "))")
-#     end
-#     write(io, "))")
-#     return nothing
-# end
-
-
-# function Base.show(io::IO, ::MIME"text/plain", x::_MFV{M,T,N}) where {M,T,N}
-#     write(io, '<')
-#     show(io, M)
-#     write(io, " x ")
-#     show(io, T)
-#     write(io, " x ")
-#     show(io, N)
-#     write(io, ">[")
-#     for i = 1:M
-#         if i > 1
-#             write(io, ", ")
-#         end
-#         _call_big(y -> show(io, y), x[i])
-#     end
-#     write(io, ']')
-#     return nothing
-# end
+function Base.show(io::IO, x::_MFV{M,T,N}) where {M,T,N}
+    show(io, _MFV{M,T,N})
+    print(io, "((")
+    for i = 1:N
+        if i > 1
+            print(io, ", ")
+        end
+        show(io, Vec{M,T})
+        print(io, "((")
+        for j = 1:M
+            if j > 1
+                print(io, ", ")
+            end
+            show(io, x._limbs[i][j])
+        end
+        print(io, "))")
+    end
+    print(io, "))")
+    return nothing
+end
 
 
 ################################################# STANDARD LIBRARY COMPATIBILITY
 
 
-# TODO: Implement conversion from complex types.
-# MultiFloat{T,N}(z::Complex) where {T,N} =
-#     isreal(z) ? MultiFloat{T,N}(real(z)) :
-#     throw(InexactError(nameof(MultiFloat{T,N}), MultiFloat{T,N}, z))
+_MF{T,N}(z::Complex) where {T,N} =
+    isreal(z) ? _MF{T,N}(real(z)) :
+    throw(InexactError(nameof(_MF{T,N}), _MF{T,N}, z))
+# NOTE: SIMD.jl does not support complex vectors.
+
+
+function Base.print(io::IO, z::Complex{_MF{T,N}}) where {T,N}
+    x, y = reim(z)
+    print(io, _to_string(x))
+    print(io, ifelse(signbit(y), " - ", " + "))
+    print(io, _to_string(abs(y)))
+    print(io, "im")
+    return nothing
+end
+
+Base.show(io::IO, ::MIME"text/plain", z::Complex{_MF{T,N}}) where {T,N} =
+    print(io, z)
 
 
 import LinearAlgebra: floatmin2
 @inline floatmin2(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(floatmin2(T))
 
 
-# TODO: Implement compatibility with Printf.
-# import Printf: tofloat
-# @inline tofloat(x::_MF{T,N}) where {T,N} = _call_big(BigFloat, x)
+import Printf: tofloat
+tofloat(x::_MF{T,N}) where {T,N} = BigFloat(x;
+    precision=(_full_precision(T) + ndigits(N; base=2)))
 
 
 ################################################################ PROMOTION RULES
@@ -1367,6 +1721,11 @@ import LinearAlgebra: floatmin2
 
 # Promote MultiFloat scalar with scalar limb type.
 Base.promote_rule(::Type{_MF{T,N}}, ::Type{T}) where {T,N} = _MF{T,N}
+
+
+# Promote MultiFloat scalars with the same limb type.
+Base.promote_rule(::Type{_MF{T,N1}}, ::Type{_MF{T,N2}}) where {T,N1,N2} =
+    _MF{T,max(N1, N2)}
 
 
 # Promote MultiFloat scalar with vector limb type.
@@ -1384,8 +1743,16 @@ Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{Vec{M,T}}) where {M,T,N} =
 
 
 # Promote MultiFloat vector with MultiFloat scalar.
-Base.promote_rule(::Type{_MFV{M,T,N}}, ::Type{_MF{T,N}}) where {M,T,N} =
-    _MFV{M,T,N}
+Base.promote_rule(::Type{_MFV{M,T,N1}}, ::Type{_MF{T,N2}}) where {M,T,N1,N2} =
+    _MFV{M,T,max(N1, N2)}
+
+
+# Promote MultiFloat vectors with the same limb type.
+Base.promote_rule(
+    ::Type{_MFV{M,T,N1}},
+    ::Type{_MFV{M,T,N2}},
+) where {M,T,N1,N2} =
+    _MFV{M,T,max(N1, N2)}
 
 
 for S in [
@@ -1415,14 +1782,46 @@ Base.promote_rule(::Type{_MF{T,N}}, ::Type{BigFloat}) where {T,N} = BigFloat
 
 
 # Allow MultiFloat vector types to participate in the promotion system.
+@inline Base.:(==)(x::_MFV{M,T,N}, y::Any) where {M,T,N} = ==(promote(x, y)...)
+@inline Base.:(==)(x::Any, y::_MFV{M,T,N}) where {M,T,N} = ==(promote(x, y)...)
+@inline Base.:(==)(x::_MFV{M,T,N1}, y::_MFV{M,T,N2}) where {M,T,N1,N2} =
+    ==(promote(x, y)...)
+@inline Base.:(!=)(x::_MFV{M,T,N}, y::Any) where {M,T,N} = !=(promote(x, y)...)
+@inline Base.:(!=)(x::Any, y::_MFV{M,T,N}) where {M,T,N} = !=(promote(x, y)...)
+@inline Base.:(!=)(x::_MFV{M,T,N1}, y::_MFV{M,T,N2}) where {M,T,N1,N2} =
+    !=(promote(x, y)...)
+@inline Base.:(<)(x::_MFV{M,T,N}, y::Any) where {M,T,N} = <(promote(x, y)...)
+@inline Base.:(<)(x::Any, y::_MFV{M,T,N}) where {M,T,N} = <(promote(x, y)...)
+@inline Base.:(<)(x::_MFV{M,T,N1}, y::_MFV{M,T,N2}) where {M,T,N1,N2} =
+    <(promote(x, y)...)
+@inline Base.:(>)(x::_MFV{M,T,N}, y::Any) where {M,T,N} = >(promote(x, y)...)
+@inline Base.:(>)(x::Any, y::_MFV{M,T,N}) where {M,T,N} = >(promote(x, y)...)
+@inline Base.:(>)(x::_MFV{M,T,N1}, y::_MFV{M,T,N2}) where {M,T,N1,N2} =
+    >(promote(x, y)...)
+@inline Base.:(<=)(x::_MFV{M,T,N}, y::Any) where {M,T,N} = <=(promote(x, y)...)
+@inline Base.:(<=)(x::Any, y::_MFV{M,T,N}) where {M,T,N} = <=(promote(x, y)...)
+@inline Base.:(<=)(x::_MFV{M,T,N1}, y::_MFV{M,T,N2}) where {M,T,N1,N2} =
+    <=(promote(x, y)...)
+@inline Base.:(>=)(x::_MFV{M,T,N}, y::Any) where {M,T,N} = >=(promote(x, y)...)
+@inline Base.:(>=)(x::Any, y::_MFV{M,T,N}) where {M,T,N} = >=(promote(x, y)...)
+@inline Base.:(>=)(x::_MFV{M,T,N1}, y::_MFV{M,T,N2}) where {M,T,N1,N2} =
+    >=(promote(x, y)...)
 @inline Base.:+(x::_MFV{M,T,N}, y::Any) where {M,T,N} = +(promote(x, y)...)
 @inline Base.:+(x::Any, y::_MFV{M,T,N}) where {M,T,N} = +(promote(x, y)...)
+@inline Base.:+(x::_MFV{M,T,N1}, y::_MFV{M,T,N2}) where {M,T,N1,N2} =
+    +(promote(x, y)...)
 @inline Base.:-(x::_MFV{M,T,N}, y::Any) where {M,T,N} = -(promote(x, y)...)
 @inline Base.:-(x::Any, y::_MFV{M,T,N}) where {M,T,N} = -(promote(x, y)...)
+@inline Base.:-(x::_MFV{M,T,N1}, y::_MFV{M,T,N2}) where {M,T,N1,N2} =
+    -(promote(x, y)...)
 @inline Base.:*(x::_MFV{M,T,N}, y::Any) where {M,T,N} = *(promote(x, y)...)
 @inline Base.:*(x::Any, y::_MFV{M,T,N}) where {M,T,N} = *(promote(x, y)...)
+@inline Base.:*(x::_MFV{M,T,N1}, y::_MFV{M,T,N2}) where {M,T,N1,N2} =
+    *(promote(x, y)...)
 @inline Base.:/(x::_MFV{M,T,N}, y::Any) where {M,T,N} = /(promote(x, y)...)
 @inline Base.:/(x::Any, y::_MFV{M,T,N}) where {M,T,N} = /(promote(x, y)...)
+@inline Base.:/(x::_MFV{M,T,N1}, y::_MFV{M,T,N2}) where {M,T,N1,N2} =
+    /(promote(x, y)...)
 
 
 ####################################################### TRANSCENDENTAL FUNCTIONS
@@ -1430,105 +1829,118 @@ Base.promote_rule(::Type{_MF{T,N}}, ::Type{BigFloat}) where {T,N} = BigFloat
 
 # TODO: Implement transcendental functions.
 # TODO: frexp, modf, isqrt
-# const _BASE_TRANSCENDENTAL_FUNCTIONS = Symbol[
-#     :cbrt, :exp, :exp2, :exp10, :expm1, :log, :log2, :log10, :log1p,
-#     :sin, :cos, :tan, :sec, :csc, :cot,
-#     :sind, :cosd, :tand, :secd, :cscd, :cotd,
-#     :asin, :acos, :atan, :asec, :acsc, :acot,
-#     :asind, :acosd, :atand, :asecd, :acscd, :acotd,
-#     :sinh, :cosh, :tanh, :sech, :csch, :coth,
-#     :asinh, :acosh, :atanh, :asech, :acsch, :acoth,
-#     :sinpi, :cospi, :sinc, :cosc, :deg2rad, :rad2deg,
-# ]
+const _BASE_TRANSCENDENTAL_FUNCTIONS = Symbol[
+    :cbrt, :exp, :exp2, :exp10, :expm1, :log, :log2, :log10, :log1p,
+    :sin, :cos, :tan, :sec, :csc, :cot,
+    :sind, :cosd, :tand, :secd, :cscd, :cotd,
+    :asin, :acos, :atan, :asec, :acsc, :acot,
+    :asind, :acosd, :atand, :asecd, :acscd, :acotd,
+    :sinh, :cosh, :tanh, :sech, :csch, :coth,
+    :asinh, :acosh, :atanh, :asech, :acsch, :acoth,
+    :sinpi, :cospi, :sinc, :cosc, :deg2rad, :rad2deg,
+]
 
 
-# const _BASE_TRANSCENDENTAL_TUPLE_FUNCTIONS = Symbol[
-#     :sincos, :sincosd, :sincospi,
-# ]
+const _BASE_TRANSCENDENTAL_TUPLE_FUNCTIONS = Symbol[
+    :sincos, :sincosd, :sincospi,
+]
 
 
-# for name in _BASE_TRANSCENDENTAL_FUNCTIONS
-#     eval(:(Base.$name(::MultiFloat{T,N}) where {T,N} = error($(
-#         "$name(MultiFloat) is not yet implemented. For a temporary workaround,\n" *
-#         "call MultiFloats.use_bigfloat_transcendentals() immediately after\n" *
-#         "importing MultiFloats. This will use the BigFloat implementation of\n" *
-#         "$name, which will not be as fast as a pure-MultiFloat implementation.\n"
-#     ))))
-# end
+for name in _BASE_TRANSCENDENTAL_FUNCTIONS
+    eval(:(Base.$name(::MultiFloat{T,N}) where {T,N} = error($(
+        "$name(::MultiFloat) is not yet implemented. For a workaround,\n" *
+        "call MultiFloats.use_bigfloat_transcendentals() after importing\n" *
+        "MultiFloats. This will use the BigFloat implementation of $name,\n" *
+        "which will not be as fast as a pure-MultiFloat implementation.\n"
+    ))))
+end
 
 
-# for name in _BASE_TRANSCENDENTAL_TUPLE_FUNCTIONS
-#     eval(:(Base.$name(::MultiFloat{T,N}) where {T,N} = error($(
-#         "$name(MultiFloat) is not yet implemented. For a temporary workaround,\n" *
-#         "call MultiFloats.use_bigfloat_transcendentals() immediately after\n" *
-#         "importing MultiFloats. This will use the BigFloat implementation of\n" *
-#         "$name, which will not be as fast as a pure-MultiFloat implementation.\n"
-#     ))))
-# end
+for name in _BASE_TRANSCENDENTAL_TUPLE_FUNCTIONS
+    eval(:(Base.$name(::MultiFloat{T,N}) where {T,N} = error($(
+        "$name(::MultiFloat) is not yet implemented. For a workaround,\n" *
+        "call MultiFloats.use_bigfloat_transcendentals() after importing\n" *
+        "MultiFloats. This will use the BigFloat implementation of $name,\n" *
+        "which will not be as fast as a pure-MultiFloat implementation.\n"
+    ))))
+end
 
 
-# function use_bigfloat_transcendentals(num_extra_bits::Int=20)
-#     for name in _BASE_TRANSCENDENTAL_FUNCTIONS
-#         eval(:(Base.$name(x::MultiFloat{T,N}) where {T,N} = MultiFloat{T,N}(
-#             _call_big($name, x, precision(MultiFloat{T,N}) + $num_extra_bits))))
-#     end
-#     for name in _BASE_TRANSCENDENTAL_TUPLE_FUNCTIONS
-#         eval(:(Base.$name(x::MultiFloat{T,N}) where {T,N} = MultiFloat{T,N}.(
-#             _call_big($name, x, precision(MultiFloat{T,N}) + $num_extra_bits))))
-#     end
-# end
+function _eval_big(f::Function, x::MultiFloat{T,N}, p::Integer) where {T,N}
+    return setprecision(BigFloat, p) do
+        return f(BigFloat(x; precision=p))
+    end
+end
+
+
+function use_bigfloat_transcendentals(num_extra_bits::Int=10)
+    for name in _BASE_TRANSCENDENTAL_FUNCTIONS
+        eval(:(Base.$name(x::MultiFloat{T,N}) where {T,N} = MultiFloat{T,N}(
+            _eval_big($name, x, precision(MultiFloat{T,N}) + $num_extra_bits))))
+    end
+    for name in _BASE_TRANSCENDENTAL_TUPLE_FUNCTIONS
+        eval(:(Base.$name(x::MultiFloat{T,N}) where {T,N} = MultiFloat{T,N}.(
+            _eval_big($name, x, precision(MultiFloat{T,N}) + $num_extra_bits))))
+    end
+end
 
 
 ################################################################# RANDOM NUMBERS
 
 
-# TODO: Implement random numbers.
-# using Random: AbstractRNG, CloseOpen01, SamplerTrivial, UInt52
-# import Random: rand
+using Random: AbstractRNG, CloseOpen01, SamplerTrivial, UInt23, UInt52
+import Random: rand
 
 
-# @inline function _rand_f64(rng::AbstractRNG, k::Int)
-#     # Subnormal numbers are intentionally not generated.
-#     if k < exponent(floatmin(Float64))
-#         return zero(Float64)
-#     end
-#     expnt = reinterpret(UInt64,
-#         exponent(floatmax(Float64)) + k) << (precision(Float64) - 1)
-#     mntsa = rand(rng, UInt52())
-#     return reinterpret(Float64, expnt | mntsa)
-# end
+@inline _rand_mantissa(rng::AbstractRNG, ::Type{Float32}) = rand(rng, UInt23())
+@inline _rand_mantissa(rng::AbstractRNG, ::Type{Float64}) = rand(rng, UInt52())
+@inline _rand_sign_mantissa(rng::AbstractRNG, ::Type{Float32}) =
+    rand(rng, UInt32) & 0x807FFFFF
+@inline _rand_sign_mantissa(rng::AbstractRNG, ::Type{Float64}) =
+    rand(rng, UInt64) & 0x800FFFFFFFFFFFFF
 
 
-# @inline function _rand_sf64(rng::AbstractRNG, k::Int)
-#     # Subnormal numbers are intentionally not generated.
-#     if k < exponent(floatmin(Float64))
-#         return zero(Float64)
-#     end
-#     expnt = reinterpret(UInt64,
-#         exponent(floatmax(Float64)) + k) << (precision(Float64) - 1)
-#     mntsa = rand(rng, UInt64) & 0x800FFFFFFFFFFFFF
-#     return reinterpret(Float64, expnt | mntsa)
-# end
+@inline function _rand_e(rng::AbstractRNG, ::Type{T}, k::Int) where {T}
+    # Subnormal numbers are intentionally not generated.
+    if k < exponent(floatmin(T))
+        return zero(T)
+    end
+    e = Base.uinttype(T)(exponent(floatmax(T)) + k) << (precision(T) - 1)
+    return reinterpret(T, e | _rand_mantissa(rng, T))
+end
 
 
-# @inline function _rand_mf64(
-#     rng::AbstractRNG, offset::Int, padding::NTuple{N,Int}
-# ) where {N}
-#     exponents = cumsum(padding) .+ (precision(Float64) + 1) .* ntuple(identity, Val{N}())
-#     return Float64x{N + 1}((
-#         _rand_f64(rng, offset),
-#         _rand_sf64.(rng, offset .- exponents)...
-#     ))
-# end
+@inline function _rand_se(rng::AbstractRNG, ::Type{T}, k::Int) where {T}
+    # Subnormal numbers are intentionally not generated.
+    if k < exponent(floatmin(T))
+        return zero(T)
+    end
+    e = Base.uinttype(T)(exponent(floatmax(T)) + k) << (precision(T) - 1)
+    return reinterpret(T, e | _rand_sign_mantissa(rng, T))
+end
 
 
-# @inline function rand(
-#     rng::AbstractRNG, ::SamplerTrivial{CloseOpen01{Float64x{N}}}
-# ) where {N}
-#     offset = -leading_zeros(rand(rng, UInt64)) - 1
-#     padding = ntuple(_ -> leading_zeros(rand(rng, UInt64)), Val{N - 1}())
-#     return _rand_mf64(rng, offset, padding)
-# end
+@inline function _rand_mf(
+    rng::AbstractRNG,
+    ::Type{T},
+    offset::Int,
+    padding::NTuple{N,Int},
+) where {T,N}
+    _iota = ntuple(identity, Val{N}())
+    exponents = cumsum(padding) .+ (precision(T) + 1) .* _iota
+    return _MF{T,N + 1}((_rand_e(rng, T, offset),
+        _rand_se.(Ref(rng), T, offset .- exponents)...))
+end
+
+
+@inline function rand(
+    rng::AbstractRNG,
+    ::SamplerTrivial{CloseOpen01{_MF{T,N}}},
+) where {T,N}
+    offset = -leading_zeros(rand(rng, UInt64)) - 1
+    padding = ntuple(_ -> leading_zeros(rand(rng, UInt64)), Val{N - 1}())
+    return _rand_mf(rng, T, offset, padding)
+end
 
 
 end # module MultiFloats
