@@ -17,7 +17,6 @@ CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 MultiFloatsCUDAExt = "CUDA"
 
 [compat]
-CUDA = "5"
 MPFR_jll = "4"
 SIMD = "3"
 julia = "1.6"
