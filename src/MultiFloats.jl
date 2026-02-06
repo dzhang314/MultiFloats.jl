@@ -144,7 +144,7 @@ const Vec32Float64x4 = MultiFloatVec{32,Float64,4}
 
 
 # Construct MultiFloat scalar from single scalar limb.
-@inline _MF{T,N}(x::T) where {T,N} = _MF{T,N}(
+@inline _MF{T,N}(x::T) where {T<:Number,N} = _MF{T,N}(
     ntuple(i -> (isone(i) ? x : zero(T)), Val{N}()))
 
 
