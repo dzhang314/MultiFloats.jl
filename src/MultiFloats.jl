@@ -149,7 +149,7 @@ const Vec32Float64x4 = MultiFloatVec{32,Float64,4}
 
 
 # Construct MultiFloat vector from single vector limb (SIMD.Vec).
-@inline _MFV{M,T,N}(x::Vec{M,T}) where {M,T,N} = _MFV{M,T,N}(
+@inline _MFV{M,T,N}(x::Vec{M,T}) where {M,T<:Number,N} = _MFV{M,T,N}(
     ntuple(i -> (isone(i) ? x : zero(Vec{M,T})), Val{N}()))
 
 
@@ -1516,6 +1516,7 @@ end
 
 
 include("exp.jl")
+include("log.jl")
 ####################################################################### PRINTING
 
 
@@ -1831,7 +1832,7 @@ Base.promote_rule(::Type{_MF{T,N}}, ::Type{BigFloat}) where {T,N} = BigFloat
 # TODO: Implement transcendental functions.
 # TODO: frexp, modf, isqrt
 const _BASE_TRANSCENDENTAL_FUNCTIONS = Symbol[
-    :expm1, :log, :log2, :log10, :log1p,
+    :expm1, :log1p,
     :sin, :cos, :tan, :sec, :csc, :cot,
     :sind, :cosd, :tand, :secd, :cscd, :cotd,
     :asin, :acos, :atan, :asec, :acsc, :acot,
