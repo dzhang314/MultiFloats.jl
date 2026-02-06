@@ -1831,7 +1831,7 @@ Base.promote_rule(::Type{_MF{T,N}}, ::Type{BigFloat}) where {T,N} = BigFloat
 # TODO: Implement transcendental functions.
 # TODO: frexp, modf, isqrt
 const _BASE_TRANSCENDENTAL_FUNCTIONS = Symbol[
-    :cbrt, :exp, :exp2, :exp10, :expm1, :log, :log2, :log10, :log1p,
+    :expm1, :log, :log2, :log10, :log1p,
     :sin, :cos, :tan, :sec, :csc, :cot,
     :sind, :cosd, :tand, :secd, :cscd, :cotd,
     :asin, :acos, :atan, :asec, :acsc, :acot,
