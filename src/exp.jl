@@ -13,7 +13,7 @@ function Log2B(::Val{base}, ::Type{T}) where {base, T}
     log2(base)
 end
 @generated function EXP_REDUCTION_COEFS(::Val{base}, ::_MF{T,N}) where {base, T,N}
-    setprecision(BigFloat, precision(T)*N+1) do
+    setprecision(BigFloat, precision(T)*(N+1)) do
         res = (_MF{T,N+1}(log(big(base))), _MF{T,N+1}(log(big(2))))
         return :($res)
     end
@@ -22,7 +22,7 @@ end
 # computes exp(y) for |y| <= log(2)/2
 function exp_kernel(y::_MF{T,N}) where {T,N}
     N_REDUCTIONS = 4+2N
-    N_TERMS = 4+2N
+    N_TERMS = 3+3N
     # ERROR = (log(2)*exp2(-N_REDUCTIONS))^N_TERMS/factorial(N_TERMS)
     y = scale(T(exp2(-N_REDUCTIONS)), y)
     small_part = evalpoly(y, ntuple(i->one(_MF{T,N})/factorial(i-1), Val(N_TERMS)))._limbs
