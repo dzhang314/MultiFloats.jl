@@ -144,14 +144,12 @@ const Vec32Float64x4 = MultiFloatVec{32,Float64,4}
 
 
 # Construct MultiFloat scalar from single scalar limb.
-@inline _MF{T,N}(x::T) where {T,N} = _MF{T,N}(
+@inline _MF{T,N}(x::T) where {T<:AbstractFloat,N} = _MF{T,N}(
     ntuple(i -> (isone(i) ? x : zero(T)), Val{N}()))
-
 
 # Construct MultiFloat vector from single vector limb (SIMD.Vec).
 @inline _MFV{M,T,N}(x::Vec{M,T}) where {M,T,N} = _MFV{M,T,N}(
     ntuple(i -> (isone(i) ? x : zero(Vec{M,T})), Val{N}()))
-
 
 # Construct MultiFloat vector from single scalar limb.
 @inline _MFV{M,T,N}(x::T) where {M,T,N} = _MFV{M,T,N}(Vec{M,T}(x))
@@ -211,74 +209,15 @@ end
     return (next_limb, _split_impl(remainder, T, Val{N - 1}())...)
 end
 
-@inline function _split(x::Number, ::Type{T}, ::Val{N}, ::Val{K}) where {T,N,K}
-    result = tuple(_split_impl(x, T, Val{min(N, K)}())...,
-        ntuple(_ -> zero(T), Val{max(N - K, 0)}())...)
+@inline function _split(x::Number, ::Type{T}, ::Val{N}) where {T,N}
+    result = _split_impl(x, T, Val{N}())
     first_limb = first(result)
     return ifelse(isfinite(first_limb), result,
         ntuple(_ -> first_limb, Val{N}()))
 end
 
 
-const _F16 = Float16
-const _Fits16 = Union{Bool,Int8,UInt8}
-const _Fits16x2 = Union{Int16,UInt16}
-const _Fits16x3 = Union{Int32,UInt32,Float32}
-const _Fits16x4 = Union{Int64,UInt64,Float64,Int128,UInt128}
-const _Fits16xN = Union{_Fits16x2,_Fits16x3,_Fits16x4}
-
-const _F32 = Float32
-const _Fits32 = Union{Bool,Int8,UInt8,Int16,UInt16,Float16}
-const _Fits32x2 = Union{Int32,UInt32}
-const _Fits32x3 = Union{Int64,UInt64,Float64}
-const _Fits32x6 = Union{Int128,UInt128}
-const _Fits32xN = Union{_Fits32x2,_Fits32x3,_Fits32x6}
-
-const _F64 = Float64
-const _Fits64 = Union{Bool,Int8,UInt8,Int16,UInt16,Float16,Int32,UInt32,Float32}
-const _Fits64x2 = Union{Int64,UInt64}
-const _Fits64x3 = Union{Int128,UInt128}
-const _Fits64xN = Union{_Fits64x2,_Fits64x3}
-
-
-@inline _split(x::_Fits16x2, ::Type{_F16}, ::Val{N}) where {N} =
-    _split(x, _F16, Val{N}(), Val{2}())
-@inline _split(x::_Fits16x3, ::Type{_F16}, ::Val{N}) where {N} =
-    _split(x, _F16, Val{N}(), Val{3}())
-@inline _split(x::_Fits16x4, ::Type{_F16}, ::Val{N}) where {N} =
-    _split(x, _F16, Val{N}(), Val{4}())
-@inline _split(x::_Fits32x2, ::Type{_F32}, ::Val{N}) where {N} =
-    _split(x, _F32, Val{N}(), Val{2}())
-@inline _split(x::_Fits32x3, ::Type{_F32}, ::Val{N}) where {N} =
-    _split(x, _F32, Val{N}(), Val{3}())
-@inline _split(x::_Fits32x6, ::Type{_F32}, ::Val{N}) where {N} =
-    _split(x, _F32, Val{N}(), Val{6}())
-@inline _split(x::_Fits64x2, ::Type{_F64}, ::Val{N}) where {N} =
-    _split(x, _F64, Val{N}(), Val{2}())
-@inline _split(x::_Fits64x3, ::Type{_F64}, ::Val{N}) where {N} =
-    _split(x, _F64, Val{N}(), Val{3}())
-
-
-# Construct MultiFloat scalar from primitive scalar (single limb).
-@inline _MF{_F16,N}(x::_Fits16) where {N} = _MF{_F16,N}(_F16(x))
-@inline _MF{_F32,N}(x::_Fits32) where {N} = _MF{_F32,N}(_F32(x))
-@inline _MF{_F64,N}(x::_Fits64) where {N} = _MF{_F64,N}(_F64(x))
-
-
-# Construct MultiFloat vector from primitive scalar (single limb).
-@inline _MFV{M,_F16,N}(x::_Fits16) where {M,N} = _MFV{M,_F16,N}(_F16(x))
-@inline _MFV{M,_F32,N}(x::_Fits32) where {M,N} = _MFV{M,_F32,N}(_F32(x))
-@inline _MFV{M,_F64,N}(x::_Fits64) where {M,N} = _MFV{M,_F64,N}(_F64(x))
-
-
-# Construct MultiFloat scalar from primitive scalar (multiple limbs).
-@inline _MF{_F16,N}(x::_Fits16xN) where {N} =
-    _MF{_F16,N}(_split(x, _F16, Val{N}()))
-@inline _MF{_F32,N}(x::_Fits32xN) where {N} =
-    _MF{_F32,N}(_split(x, _F32, Val{N}()))
-@inline _MF{_F64,N}(x::_Fits64xN) where {N} =
-    _MF{_F64,N}(_split(x, _F64, Val{N}()))
-
+@inline _MF{T,N}(x::Union{Integer, AbstractFloat}) where {T,N} = _MF{T,N}(_split(x, T, Val(N)))
 
 ################################################################ RENORMALIZATION
 
