@@ -1227,18 +1227,49 @@ end
 
 @inline Base.sum(x::_MFV{M,T,N}) where {M,T,N} =
     +(ntuple(i -> x[i], Val{M}())...)
-@inline Base.abs2(x::_MFV{M,T,N}) where {M,T,N} = x * x
 
+@inline Base.abs2(x::_MF{T,N}) where {T,N} =
+    _MF{T,N}(mfsqr(x._limbs, Val{N}()))
+@inline Base.abs2(x::_MFV{M,T,N}) where {M,T,N} =
+    _MFV{M,T,N}(mfsqr(x._limbs, Val{N}()))
 
 @inline Base.:^(x::_MF{T,N}, p::Integer) where {T,N} =
     signbit(p) ?
-    Base.power_by_squaring(inv(x), -p) :
-    Base.power_by_squaring(x, p)
+    power_by_squaring(inv(x), -p) :
+    power_by_squaring(x, p)
 @inline Base.:^(x::_MFV{M,T,N}, p::Integer) where {M,T,N} =
     signbit(p) ?
-    Base.power_by_squaring(inv(x), -p) :
-    Base.power_by_squaring(x, p)
+    power_by_squaring(inv(x), -p) :
+    power_by_squaring(x, p)
 
+function power_by_squaring(x, p::Integer)
+    if p == 1
+        return x
+    elseif p == 0
+        return one(x)
+    elseif p == 2
+        return abs2(x)
+    elseif p < 0
+        isone(x) && return x
+        isone(-x) && return iseven(p) ? one(x) : x
+        Base.throw_domerr_powbysq(x, p)
+    end
+    t = trailing_zeros(p) + 1
+    p >>= t
+    while (t -= 1) > 0
+        x = abs2(x)
+    end
+    y = x
+    while p > 0
+        t = trailing_zeros(p) + 1
+        p >>= t
+        while (t -= 1) >= 0
+            x = abs2(x)
+        end
+        y *= x
+    end
+    return y
+end
 
 ########################################################## SQUARE ROOT OPERATORS
 
