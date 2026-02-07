@@ -1273,7 +1273,7 @@ end
 
 @inline function Base.:(^)(r::T, n::T) where {T<:Union{_MF, _MFV}}
     if isinteger(n)
-        return r^Int64(n)
+        return r^Int64(first(n._limbs))
     else
         return exp(n * log(r))
     end
