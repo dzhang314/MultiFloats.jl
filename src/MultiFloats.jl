@@ -1272,7 +1272,7 @@ function power_by_squaring(x, p::Integer)
 end
 
 @inline function Base.:(^)(r::_MF{T,N}, n::_MF{T,N}) where {T, N}
-    if isinteger(n) && n ≤ maxintfloat(T, Int64)
+    if isinteger(n) && n ≤ min(2^20, maxintfloat(T, Int64))
         return r^Int64(first(n._limbs))
     else
         return exp(n * log(r))
