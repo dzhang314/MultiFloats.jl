@@ -318,6 +318,10 @@ end
 
 
 @inline function renormalize(x::NTuple{N,T}) where {N,T}
+    total = +(reverse(x)...)
+    if !isfinite(total)
+        return ntuple(_ -> total, Val{N}())
+    end
     while true
         x_next = _renorm_pass(x)
         if x_next === x
