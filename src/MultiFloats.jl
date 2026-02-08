@@ -1030,68 +1030,6 @@ end
     return (prod, err)
 end
 
-@inline function mfsqr(
-    x::NTuple{1,T},
-    ::Val{1},
-) where {T}
-    return (x[1] * x[1],)
-end
-
-@inline function mfsqr(
-    x::NTuple{2,T},
-    ::Val{2},
-) where {T}
-    p00, e00 = two_prod(x[1], x[1])
-    e00 = muladd(2 * x[1], x[2], e00)
-    p00, e00 = fast_two_sum(p00, e00)
-    return (p00, e00)
-end
-
-@inline function mfsqr(
-    x::NTuple{3,T},
-    ::Val{3},
-) where {T}
-    p00, e00 = two_prod(x[1], x[1])
-    p01, e01 = two_prod(x[1], x[2])
-    e00, p01 = two_sum(e00, 2 * p01)
-    p00, e00 = fast_two_sum(p00, e00)
-    p01 = muladd(2, muladd(x[1], x[3], e01), muladd(x[2], x[2], p01))
-    e00, p01 = two_sum(e00, p01)
-    p00, e00 = fast_two_sum(p00, e00)
-    e00, p01 = fast_two_sum(e00, p01)
-    p00, e00 = fast_two_sum(p00, e00)
-    return (p00, e00, p01)
-end
-
-@inline function mfsqr(
-    x::NTuple{4,T},
-    ::Val{4},
-) where {T}
-    p00, e00 = two_prod(x[1], x[1])
-    p01, e01 = two_prod(x[1], x[2])
-    p02, e02 = two_prod(x[1], x[3])
-    p11, e11 = two_prod(x[2], x[2])
-    e00, p01 = two_sum(e00, 2 * p01)
-    e01, p11 = two_sum(2 * e01, p11)
-    e10 = muladd(2, e02, e01)
-    p00, e00 = fast_two_sum(p00, e00)
-    e01, p02 = two_sum(e01, 2 * p02)
-    e10 = muladd(2, muladd(x[1], x[4], x[2] * x[3]), e10)
-    p01, e01 = two_sum(p01, e01)
-    p01, p10 = two_sum(p01, e11 + p11 + e01)
-    e00, p01 = two_sum(e00, p01)
-    p00, e00 = fast_two_sum(p00, e00)
-    p01, p10 = two_sum(p01, p02 + e10 + p10)
-    e00, p01 = two_sum(e00, p01)
-    p00, e00 = fast_two_sum(p00, e00)
-    p01, p10 = fast_two_sum(p01, p10)
-    e00, p01 = fast_two_sum(e00, p01)
-    p00, e00 = fast_two_sum(p00, e00)
-    p01, p10 = fast_two_sum(p01, p10)
-    e00, p01 = fast_two_sum(e00, p01)
-    p01, p10 = fast_two_sum(p01, p10)
-    return (p00, e00, p01, p10)
-end
 
 @inline function mfmul(
     x::NTuple{1,T},
@@ -1197,6 +1135,83 @@ end
 end
 
 
+############################################################## SQUARING NETWORKS
+
+
+# NOTE: MultiFloats.twice is not exported to avoid name conflicts.
+# Users are expected to call it as MultiFloats.twice(x).
+@inline twice(x) = x + x
+@inline twice(x::_MF{T,N}) where {T,N} = _MF{T,N}(twice.(x._limbs))
+@inline twice(x::_MFV{M,T,N}) where {M,T,N} = _MFV{M,T,N}(twice.(x._limbs))
+
+
+@inline function mfsqr(
+    x::NTuple{1,T},
+    ::Val{1},
+) where {T}
+    return (x[1] * x[1],)
+end
+
+
+@inline function mfsqr(
+    x::NTuple{2,T},
+    ::Val{2},
+) where {T}
+    p00, e00 = two_prod(x[1], x[1])
+    e00 = fma(x[1], twice(x[2]), e00)
+    p00, e00 = fast_two_sum(p00, e00)
+    return (p00, e00)
+end
+
+
+@inline function mfsqr(
+    x::NTuple{3,T},
+    ::Val{3},
+) where {T}
+    p00, e00 = two_prod(x[1], x[1])
+    p01, e01 = two_prod(x[1], twice(x[2]))
+    e00, p01 = two_sum(e00, p01)
+    p00, e00 = fast_two_sum(p00, e00)
+    p01 += e01 + fma(x[1], twice(x[3]), one_prod(x[2], x[2]))
+    e00, p01 = two_sum(e00, p01)
+    p00, e00 = fast_two_sum(p00, e00)
+    e00, p01 = fast_two_sum(e00, p01)
+    p00, e00 = fast_two_sum(p00, e00)
+    return (p00, e00, p01)
+end
+
+
+@inline function mfsqr(
+    x::NTuple{4,T},
+    ::Val{4},
+) where {T}
+    p00, e00 = two_prod(x[1], x[1])
+    p01, e01 = two_prod(x[1], twice(x[2]))
+    p02, e02 = two_prod(x[1], twice(x[3]))
+    p11, e11 = two_prod(x[2], x[2])
+    e00, p01 = two_sum(e00, p01)
+    e01, p11 = two_sum(e01, p11)
+    p00, e00 = fast_two_sum(p00, e00)
+    e01, p02 = two_sum(e01, p02)
+    p11 += e11
+    p01, e01 = two_sum(p01, e01)
+    p01, p10 = two_sum(p01, p11 + e01)
+    e00, p01 = two_sum(e00, p01)
+    p10 += (e02 + fma(x[1], twice(x[4]), one_prod(x[2], twice(x[3])))) + p02
+    p00, e00 = fast_two_sum(p00, e00)
+    p01, p10 = two_sum(p01, p10)
+    e00, p01 = two_sum(e00, p01)
+    p00, e00 = fast_two_sum(p00, e00)
+    p01, p10 = fast_two_sum(p01, p10)
+    e00, p01 = fast_two_sum(e00, p01)
+    p00, e00 = fast_two_sum(p00, e00)
+    p01, p10 = fast_two_sum(p01, p10)
+    e00, p01 = fast_two_sum(e00, p01)
+    p01, p10 = fast_two_sum(p01, p10)
+    return (p00, e00, p01, p10)
+end
+
+
 ################################################### LEVEL 1 ARITHMETIC OPERATORS
 
 
@@ -1216,13 +1231,15 @@ end
     _MFV{M,T,N}(mfmul(x._limbs, y._limbs, Val{N}()))
 
 
-@inline Base.sum(x::_MFV{M,T,N}) where {M,T,N} =
-    +(ntuple(i -> x[i], Val{M}())...)
-
 @inline Base.abs2(x::_MF{T,N}) where {T,N} =
     _MF{T,N}(mfsqr(x._limbs, Val{N}()))
 @inline Base.abs2(x::_MFV{M,T,N}) where {M,T,N} =
     _MFV{M,T,N}(mfsqr(x._limbs, Val{N}()))
+
+
+@inline Base.sum(x::_MFV{M,T,N}) where {M,T,N} =
+    +(ntuple(i -> x[i], Val{M}())...)
+
 
 @inline Base.:^(x::_MF{T,N}, p::Integer) where {T,N} =
     signbit(p) ?
@@ -1232,6 +1249,7 @@ end
     signbit(p) ?
     power_by_squaring(inv(x), -p) :
     power_by_squaring(x, p)
+
 
 function power_by_squaring(x, p::Integer)
     if p == 1
@@ -1261,6 +1279,7 @@ function power_by_squaring(x, p::Integer)
     end
     return y
 end
+
 
 ########################################################## SQUARE ROOT OPERATORS
 
@@ -1498,6 +1517,7 @@ end
     (cbrt(first(x)),)
 @inline mfcbrt(x::NTuple{X,T}, ::Val{Z}) where {T,X,Z} =
     _mfcbrt_impl(x, (cbrt(first(x)),), Val{Z}())
+
 
 ################################################### LEVEL 2 ARITHMETIC OPERATORS
 
