@@ -345,20 +345,28 @@ end
 end
 
 
+@inline function mpfr_sub!(
+    x::BigFloat,
+    y::BigFloat,
+    z::CdoubleMax,
+    rounding::RoundingMode,
+)
+    ccall((:mpfr_sub_d, libmpfr), Cint,
+        (Ref{BigFloat}, Ref{BigFloat}, Cdouble, MPFRRoundingMode),
+        x, y, z, convert(MPFRRoundingMode, rounding))
+    return x
+end
+
+
 function _split!(x::BigFloat, ::Type{T}, ::Val{N}) where {T,N}
-    if !isfinite(x)
-        value = T(x)
+    value = T(x)
+    if iszero(value) | !isfinite(value)
         return ntuple(_ -> value, Val{N}())
-    elseif x > +floatmax(T)
-        _pos_inf = typemax(T)
-        return ntuple(_ -> _pos_inf, Val{N}())
-    elseif x < -floatmax(T)
-        _neg_inf = typemin(T)
-        return ntuple(_ -> _neg_inf, Val{N}())
     else
         _zero = zero(T)
-        result = ntuple(_ -> _zero, Val{N}())
-        for i = 1:N
+        result = ntuple(i -> isone(i) ? value : _zero, Val{N}())
+        mpfr_sub!(x, value, RoundNearest)
+        for i = 2:N
             limb = T(x)
             result = Base.setindex(result, limb, i)
             mpfr_sub!(x, limb, RoundNearest)
@@ -369,23 +377,15 @@ end
 
 
 function _split(x::BigFloat, ::Type{T}, ::Val{N}) where {T,N}
-    if !isfinite(x)
-        value = T(x)
+    value = T(x)
+    if iszero(value) | !isfinite(value)
         return ntuple(_ -> value, Val{N}())
-    elseif x > +floatmax(T)
-        _pos_inf = typemax(T)
-        return ntuple(_ -> _pos_inf, Val{N}())
-    elseif x < -floatmax(T)
-        _neg_inf = typemin(T)
-        return ntuple(_ -> _neg_inf, Val{N}())
     else
         _zero = zero(T)
-        result = ntuple(_ -> _zero, Val{N}())
+        result = ntuple(i -> isone(i) ? value : _zero, Val{N}())
         temp = BigFloat(; precision=precision(x))
-        ccall((:mpfr_set, libmpfr), Cint,
-            (Ref{BigFloat}, Ref{BigFloat}, MPFRRoundingMode),
-            temp, x, MPFRRoundNearest)
-        for i = 1:N
+        mpfr_sub!(temp, x, value, RoundNearest)
+        for i = 2:N
             limb = T(temp)
             result = Base.setindex(result, limb, i)
             mpfr_sub!(temp, limb, RoundNearest)
@@ -652,19 +652,6 @@ end
 
 
 #################################################### FLOATING-POINT MANIPULATION
-
-
-@inline function mpfr_sub!(
-    x::BigFloat,
-    y::BigFloat,
-    z::CdoubleMax,
-    rounding::RoundingMode,
-)
-    ccall((:mpfr_sub_d, libmpfr), Cint,
-        (Ref{BigFloat}, Ref{BigFloat}, Cdouble, MPFRRoundingMode),
-        x, y, z, convert(MPFRRoundingMode, rounding))
-    return x
-end
 
 
 @inline function mpfr_add!(
