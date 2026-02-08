@@ -1569,13 +1569,17 @@ function _format_digits(sign_str::String, digit_array::Vector{Int8}, e::Int)
 end
 
 
+function _half_past_floatmax(::Type{_MF{T,N}}) where {T,N}
+    x = floatmax(_MF{T,N})
+    return Rational{BigInt}(x) + Rational{BigInt}(eps(last(x._limbs))) // 2
+end
+
+
 function _to_string(x::_MF{T,N}) where {T,N}
+    _floatmax = floatmax(T)
     _zero = zero(Int8)
     _one = one(Int8)
-    _two = _one + _one
-    _four = _two + _two
-    _eight = _four + _four
-    _ten = _eight + _two
+    _ten = Int8(10)
 
     if iszero(x)
         return signbit(x) ? "-0.0" : "0.0"
@@ -1591,9 +1595,11 @@ function _to_string(x::_MF{T,N}) where {T,N}
         return "-Inf"
     end
 
+    px = prevfloat(x)
+    nx = nextfloat(x)
     rx = Rational{BigInt}(x)
-    prev = Rational{BigInt}(prevfloat(x))
-    next = Rational{BigInt}(nextfloat(x))
+    prev = isfinite(px) ? Rational{BigInt}(px) : -_half_past_floatmax(_MF{T,N})
+    next = isfinite(nx) ? Rational{BigInt}(nx) : +_half_past_floatmax(_MF{T,N})
     a = rx - (rx - prev) // 2
     b = rx
     c = rx + (next - rx) // 2

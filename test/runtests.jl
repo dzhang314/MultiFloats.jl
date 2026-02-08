@@ -71,6 +71,16 @@ end
         for _ = 1:4096
             test_prev_next(_bit_rand(T), rand(-256:+256))
         end
+        for k = -4:+4
+            test_prev_next(+floatmin(T), k)
+            test_prev_next(-floatmin(T), k)
+            if k >= -1
+                test_prev_next(+floatmax(T), k)
+            end
+            if k <= +1
+                test_prev_next(-floatmax(T), k)
+            end
+        end
     end
 end
 
@@ -95,6 +105,10 @@ end
         for _ = 1:1024
             test_string_round_trip(_bit_rand(T))
         end
+        test_string_round_trip(+floatmin(T))
+        test_string_round_trip(-floatmin(T))
+        test_string_round_trip(+floatmax(T))
+        test_string_round_trip(-floatmax(T))
     end
 end
 
