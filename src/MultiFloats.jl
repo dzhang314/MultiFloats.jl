@@ -718,9 +718,6 @@ end
 
 
 function Base.prevfloat(x::_MF{T,N}) where {T,N}
-    _one = one(T)
-    _two = _one + _one
-    _half = inv(_two)
 
     has_pos_inf = _has_pos_inf(x)
     has_neg_inf = _has_neg_inf(x)
@@ -731,34 +728,19 @@ function Base.prevfloat(x::_MF{T,N}) where {T,N}
     elseif has_neg_inf
         return -typemax(_MF{T,N})
     end
-
-    total = BigFloat(; precision=(_full_precision(T) + ndigits(N; base=2)))
-    mpfr_zero!(total)
-    for limb in x._limbs
-        mpfr_add!(total, limb, RoundNearest)
+    prev = x
+    limbs = x._limbs
+    ϵ = eps(limbs[end])
+    while prev == x
+        prev = _MF{T,N}(ntuple(i->i!=N ? limbs[i] : limbs[i]-ϵ, N))
+        prev = renormalize(prev)
+        ϵ *= 2
     end
-    reference = _split(total, T, Val{N}())
-
-    perturbation = max(_half * eps(reference[N]), eps(zero(T)))
-    temp = BigFloat(; precision=(_full_precision(T) + ndigits(N; base=2)))
-    while perturbation <= floatmax(T)
-        mpfr_sub!(temp, total, perturbation, RoundNearest)
-        candidate = _split!(temp, T, Val{N}())
-        if candidate !== reference
-            return _MF{T,N}(candidate)
-        end
-        perturbation *= _two
-    end
-
-    @assert false
+    return prev
 end
 
 
 function Base.nextfloat(x::_MF{T,N}) where {T,N}
-    _one = one(T)
-    _two = _one + _one
-    _half = inv(_two)
-
     has_pos_inf = _has_pos_inf(x)
     has_neg_inf = _has_neg_inf(x)
     if _has_nan(x) | (has_pos_inf & has_neg_inf)
@@ -768,26 +750,15 @@ function Base.nextfloat(x::_MF{T,N}) where {T,N}
     elseif has_neg_inf
         return -floatmax(_MF{T,N})
     end
-
-    total = BigFloat(; precision=(_full_precision(T) + ndigits(N; base=2)))
-    mpfr_zero!(total)
-    for limb in x._limbs
-        mpfr_add!(total, limb, RoundNearest)
+    prev = x
+    limbs = x._limbs
+    ϵ = eps(limbs[end])
+    while prev == x
+        prev = _MF{T,N}(ntuple(i->i!=N ? limbs[i] : limbs[i]+ϵ, N))
+        prev = renormalize(prev)
+        ϵ *= 2
     end
-    reference = _split(total, T, Val{N}())
-
-    perturbation = max(_half * eps(reference[N]), eps(zero(T)))
-    temp = BigFloat(; precision=(_full_precision(T) + ndigits(N; base=2)))
-    while perturbation <= floatmax(T)
-        mpfr_add!(temp, total, perturbation, RoundNearest)
-        candidate = _split!(temp, T, Val{N}())
-        if candidate !== reference
-            return _MF{T,N}(candidate)
-        end
-        perturbation *= _two
-    end
-
-    @assert false
+    return prev
 end
 
 
@@ -1601,8 +1572,12 @@ function _to_string(x::_MF{T,N}) where {T,N}
     end
 
     rx = Rational{BigInt}(x)
-    prev = Rational{BigInt}(prevfloat(x))
-    next = Rational{BigInt}(nextfloat(x))
+    prev = prevfloat(x)
+    isfinite(prev) || return "-1.79769313486231580793728971405302e308"
+    prev = Rational{BigInt}(prev)
+    next = nextfloat(x)
+    isfinite(next) || return "1.79769313486231580793728971405302e308"
+    next = Rational{BigInt}(next)
     a = rx - (rx - prev) // 2
     b = rx
     c = rx + (next - rx) // 2
