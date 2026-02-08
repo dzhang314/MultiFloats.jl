@@ -1279,8 +1279,6 @@ end
     end
 end
 
-@inline Base.:(^)(r::Integer, n::_MF{T,N}) where {T,N} = _MF{T,N}(r)^n
-@inline Base.:(^)(r::Integer, n::_MFV{M,T,N}) where {M,T,N} = _MFV{M,T,N}(r)^n
 
 ########################################################## SQUARE ROOT OPERATORS
 
