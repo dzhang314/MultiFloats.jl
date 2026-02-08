@@ -1271,14 +1271,15 @@ function power_by_squaring(x, p::Integer)
     return y
 end
 
-@inline function Base.:(^)(r::T, n::T) where {T<:Union{_MF, _MFV}}
-    if isinteger(n)
+@inline function Base.:(^)(r::_MF{T,N}, n::_MF{T,N}) where {T, N}
+    if isinteger(n) && n ≤ maxintfloat(T, Int64)
         return r^Int64(first(n._limbs))
     else
         return exp(n * log(r))
     end
 end
 
+@inline Base.:(^)(r::_MFV{M,T,N}, n::_MFV{M,T,N}) where {M,T,N} = exp(n * log(r))
 
 ########################################################## SQUARE ROOT OPERATORS
 
