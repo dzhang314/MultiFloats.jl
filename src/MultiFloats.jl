@@ -1038,7 +1038,7 @@ end
     ::Val{2},
 ) where {T}
     p00, e00 = two_prod(x[1], x[1])
-    e00 = muladd(2*x[1], x[2], e00)
+    e00 = muladd(2 * x[1], x[2], e00)
     p00, e00 = fast_two_sum(p00, e00)
     return (p00, e00)
 end
@@ -1049,7 +1049,7 @@ end
 ) where {T}
     p00, e00 = two_prod(x[1], x[1])
     p01, e01 = two_prod(x[1], x[2])
-    e00, p01 = two_sum(e00, 2*p01)
+    e00, p01 = two_sum(e00, 2 * p01)
     p00, e00 = fast_two_sum(p00, e00)
     p01 = muladd(2, muladd(x[1], x[3], e01), muladd(x[2], x[2], p01))
     e00, p01 = two_sum(e00, p01)
@@ -1067,12 +1067,12 @@ end
     p01, e01 = two_prod(x[1], x[2])
     p02, e02 = two_prod(x[1], x[3])
     p11, e11 = two_prod(x[2], x[2])
-    e00, p01 = two_sum(e00, 2*p01)
-    e01, p11 = two_sum(2*e01, p11)
+    e00, p01 = two_sum(e00, 2 * p01)
+    e01, p11 = two_sum(2 * e01, p11)
     e10 = muladd(2, e02, e01)
     p00, e00 = fast_two_sum(p00, e00)
-    e01, p02 = two_sum(e01, 2*p02)
-    e10 = muladd(2, muladd(x[1], x[4], x[2]*x[3]), e10)
+    e01, p02 = two_sum(e01, 2 * p02)
+    e10 = muladd(2, muladd(x[1], x[4], x[2] * x[3]), e10)
     p01, e01 = two_sum(p01, e01)
     p01, p10 = two_sum(p01, e11 + p11 + e01)
     e00, p01 = two_sum(e00, p01)
@@ -1451,16 +1451,16 @@ end
         residual = mfmul(quot, ru, Val{Z}())
         return mfadd(residual, ru, Val{Z}())
     else
-        rx = _resize(x, Val{U+U}())
-        ru = _resize(u, Val{U+U}())
-        s = mfsqr(ru, Val{U+U}())
-        r = mfdiv(rx, s, Val{U+U}())
+        rx = _resize(x, Val{U + U}())
+        ru = _resize(u, Val{U + U}())
+        s = mfsqr(ru, Val{U + U}())
+        r = mfdiv(rx, s, Val{U + U}())
         w = scale(_two, r)
-        num = mfsub(r, scale(-_one, ru), Val{U+U}())
-        den = mfadd(w, r, Val{U+U}())
-        quot = mfdiv(num, Val{U+U}())
-        residual = mfmul(quot, ru, Val{U+U}())
-        next_u = mfadd(residual, ru, Val{U+U}())
+        num = mfsub(r, scale(-_one, ru), Val{U + U}())
+        den = mfadd(w, r, Val{U + U}())
+        quot = mfdiv(num, Val{U + U}())
+        residual = mfmul(quot, ru, Val{U + U}())
+        next_u = mfadd(residual, ru, Val{U + U}())
         return _mfcbrt_impl(x, next_u, Val{Z}())
     end
 end
@@ -1494,7 +1494,7 @@ end
     (cbrt(first(x)),)
 @inline mfcbrt(x::NTuple{X,T}, ::Val{Z}) where {T,X,Z} =
     _mfcbrt_impl(x, (cbrt(first(x)),), Val{Z}())
-    
+
 ################################################### LEVEL 2 ARITHMETIC OPERATORS
 
 
