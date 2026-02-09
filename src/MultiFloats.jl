@@ -887,7 +887,7 @@ _ge_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] >= y._limbs[$n]) : :(
     _ge_expr(1, N)
 
 
-################################################### LEVEL 0 ARITHMETIC OPERATORS
+################################################## LEVEL 0 ARITHMETIC OPERATIONS
 
 
 @inline Base.copy(x::_MF{T,N}) where {T,N} = _MF{T,N}((copy).(x._limbs))
@@ -1212,7 +1212,7 @@ end
 end
 
 
-################################################### LEVEL 1 ARITHMETIC OPERATORS
+################################################## LEVEL 1 ARITHMETIC OPERATIONS
 
 
 @inline Base.:+(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
@@ -1239,6 +1239,9 @@ end
 
 @inline Base.sum(x::_MFV{M,T,N}) where {M,T,N} =
     +(ntuple(i -> x[i], Val{M}())...)
+
+
+############################################################### POWER OPERATIONS
 
 
 @inline Base.:^(x::_MF{T,N}, p::Integer) where {T,N} =
@@ -1281,7 +1284,7 @@ function power_by_squaring(x, p::Integer)
 end
 
 
-################################################################# ROOT OPERATORS
+######################################################### SQUARE ROOT OPERATIONS
 
 
 # In Julia, Base.sqrt throws a DomainError when given a negative real argument.
@@ -1319,12 +1322,6 @@ function rsqrt(x::BigFloat)
         result, x, MPFRRoundNearest)
     return result
 end
-
-
-# NOTE: MultiFloats.rcbrt is not exported to avoid name conflicts.
-# Users are expected to call it as MultiFloats.rcbrt(x).
-
-@inline rcbrt(x::Any) = inv(cbrt(x))
 
 
 ###################################################### KARP-MARKSTEIN ALGORITHMS
@@ -1455,74 +1452,6 @@ end
 end
 
 
-@inline function _mfrcbrt_impl(
-    x::NTuple{X,T},
-    u::NTuple{U,T},
-    ::Val{Z},
-) where {T,X,U,Z}
-    @assert 0 < U < Z
-    _zero = zero(T)
-    _one = one(T)
-    _two = _one + _one
-    _three = _two + _one
-    _third = inv(_three)
-    if U + U >= Z
-        _neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{Z}())
-        rx = _resize(x, Val{Z}())
-        ru = _resize(u, Val{Z}())
-        u2 = mfsqr(ru, Val{Z}())
-        u3 = mfmul(u2, ru, Val{Z}())
-        residual = mfadd(mfmul(rx, u3, Val{Z}()), _neg_one, Val{Z}())
-        correction = mfmul(residual, scale(_third, ru), Val{Z}())
-        return mfadd(ru, (-).(correction), Val{Z}())
-    else
-        _neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
-        rx = _resize(x, Val{U + U}())
-        ru = _resize(u, Val{U + U}())
-        u2 = mfsqr(ru, Val{U + U}())
-        u3 = mfmul(u2, ru, Val{U + U}())
-        residual = mfadd(mfmul(rx, u3, Val{U + U}()), _neg_one, Val{U + U}())
-        correction = mfmul(residual, scale(_third, ru), Val{U + U}())
-        next_u = mfadd(ru, (-).(correction), Val{U + U}())
-        return _mfrcbrt_impl(x, next_u, Val{Z}())
-    end
-end
-
-
-@inline function _mfcbrt_impl(
-    x::NTuple{X,T},
-    u::NTuple{U,T},
-    ::Val{Z},
-) where {T,X,U,Z}
-    @assert 0 < U < Z
-    _zero = zero(T)
-    _one = one(T)
-    _two = _one + _one
-    _three = _two + _one
-    _third = inv(_three)
-    if U + U >= Z
-        rx = _resize(x, Val{Z}())
-        ru = _resize(u, Val{Z}())
-        u2 = mfsqr(ru, Val{Z}())
-        root = mfmul(rx, u2, Val{Z}())
-        root3 = mfmul(mfsqr(root, Val{Z}()), root, Val{Z}())
-        residual = mfadd(root3, (-).(rx), Val{Z}())
-        correction = mfmul(residual, scale(_third, u_sq), Val{Z}())
-        return mfadd(root, (-).(correction), Val{Z}())
-    else
-        _neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
-        rx = _resize(x, Val{U + U}())
-        ru = _resize(u, Val{U + U}())
-        u2 = mfsqr(ru, Val{U + U}())
-        u3 = mfmul(u2, ru, Val{U + U}())
-        residual = mfadd(mfmul(rx, u3, Val{U + U}()), _neg_one, Val{U + U}())
-        correction = mfmul(residual, scale(_third, ru), Val{U + U}())
-        next_u = mfadd(ru, (-).(correction), Val{U + U}())
-        return _mfcbrt_impl(x, next_u, Val{Z}())
-    end
-end
-
-
 @inline mfinv(x::NTuple{X,T}, ::Val{1}) where {T,X} =
     (inv(first(x)),)
 @inline mfinv(x::NTuple{X,T}, ::Val{Z}) where {T,X,Z} =
@@ -1547,19 +1476,7 @@ end
     _mfsqrt_impl(x, (rsqrt(first(x)),), Val{Z}())
 
 
-@inline mfrcbrt(x::NTuple{X,T}, ::Val{1}) where {T,X} =
-    (inv(cbrt(first(x))),)
-@inline mfrcbrt(x::NTuple{X,T}, ::Val{Z}) where {T,X,Z} =
-    _mfrcbrt_impl(x, (rcbrt(first(x)),), Val{Z}())
-
-
-@inline mfcbrt(x::NTuple{X,T}, ::Val{1}) where {T,X} =
-    (cbrt(first(x)),)
-@inline mfcbrt(x::NTuple{X,T}, ::Val{Z}) where {T,X,Z} =
-    _mfcbrt_impl(x, (rcbrt(first(x)),), Val{Z}())
-
-
-################################################### LEVEL 2 ARITHMETIC OPERATORS
+################################################## LEVEL 2 ARITHMETIC OPERATIONS
 
 
 @inline Base.inv(x::_MF{T,N}) where {T,N} =
@@ -1592,18 +1509,54 @@ end
     vifelse(iszero(x), zero(x), unsafe_sqrt(x))
 
 
-@inline Base.cbrt(x::_MF{T,N}) where {T,N} =
-    _MF{T,N}(mfcbrt(x._limbs, Val{N}()))
-@inline Base.cbrt(x::_MFV{M,T,N}) where {M,T,N} =
-    _MFV{M,T,N}(mfcbrt(x._limbs, Val{N}()))
-
-
-include("exp.jl")
-include("log.jl")
 ####################################################################### PRINTING
 
 
 using Printf: @sprintf
+
+
+function hexfloat(x::T) where {T<:Base.IEEEFloat}
+    _num_mantissa_bits = Base.significand_bits(T)
+    _exponent_bias = Base.exponent_bias(T)
+    _num_hex_digits = cld(_num_mantissa_bits, 4)
+    _hex_shift = 4 * _num_hex_digits - _num_mantissa_bits
+    _num_exponent_digits = ndigits(_exponent_bias)
+    _string_length = 7 + _num_hex_digits + _num_exponent_digits
+
+    U = Base.uinttype(T)
+    bits = reinterpret(U, x)
+    mantissa = bits & Base.significand_mask(T)
+    biased_exponent = (bits & Base.exponent_mask(T)) >> _num_mantissa_bits
+    unbiased_exponent = max(Int(biased_exponent), 1) - _exponent_bias
+    if iszero(mantissa) & iszero(biased_exponent)
+        unbiased_exponent = 0
+    end
+
+    buffer = Base.StringVector(_string_length)
+    @inbounds begin
+        buffer[1] = ifelse(signbit(x), UInt8('-'), UInt8('+'))
+        buffer[2] = UInt8('0')
+        buffer[3] = UInt8('x')
+        buffer[4] = ifelse(iszero(biased_exponent), UInt8('0'), UInt8('1'))
+        buffer[5] = UInt8('.')
+        mantissa <<= _hex_shift
+        for i = 0:_num_hex_digits-1
+            shift = 4 * (_num_hex_digits - (i + 1))
+            nibble = ((mantissa >> shift) % UInt8) & UInt8(0x0F)
+            buffer[6+i] = nibble + ifelse(
+                nibble < UInt8(10), UInt8('0'), UInt8('A') - UInt8(10))
+        end
+        buffer[6+_num_hex_digits] = UInt8('p')
+        buffer[7+_num_hex_digits] = ifelse(
+            signbit(unbiased_exponent), UInt8('-'), UInt8('+'))
+        unbiased_exponent = abs(unbiased_exponent)
+        for i = 0:_num_exponent_digits-1
+            unbiased_exponent, digit = divrem(unbiased_exponent, 10)
+            buffer[_string_length-i] = (digit % UInt8) + UInt8('0')
+        end
+    end
+    return String(buffer)
+end
 
 
 function _format_digits(sign_str::String, digit_array::Vector{Int8}, e::Int)
@@ -1974,6 +1927,11 @@ function use_bigfloat_transcendentals(num_extra_bits::Int=10)
             _eval_big($name, x, precision(MultiFloat{T,N}) + $num_extra_bits))))
     end
 end
+
+
+include("cbrt.jl")
+include("exp.jl")
+include("log.jl")
 
 
 ################################################################# RANDOM NUMBERS
