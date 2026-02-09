@@ -1293,8 +1293,7 @@ end
 
 @inline Base.:(^)(r::_MFV{M,T,N}, n::_MFV{M,T,N}) where {M,T,N} = exp(n * log(r))
 
-########################################################## SQUARE ROOT OPERATORS
-
+######################################################### SQUARE ROOT OPERATIONS
 
 # In Julia, Base.sqrt throws a DomainError when given a negative real argument.
 # This is, in my opinion, a very unfortunate design choice. It forces otherwise
