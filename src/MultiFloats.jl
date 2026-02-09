@@ -845,49 +845,26 @@ end
 
 # TODO: Implement Base.cmp.
 
-
 _eq_expr(n::Int) = (n == 1) ? :(x._limbs[1] == y._limbs[1]) : :(
     $(_eq_expr(n - 1)) & (x._limbs[$n] == y._limbs[$n]))
-_ne_expr(n::Int) = (n == 1) ? :(x._limbs[1] != y._limbs[1]) : :(
-    $(_ne_expr(n - 1)) | (x._limbs[$n] != y._limbs[$n]))
 _lt_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] < y._limbs[$n]) : :(
     (x._limbs[$i] < y._limbs[$i]) |
     ((x._limbs[$i] == y._limbs[$i]) & $(_lt_expr(i + 1, n))))
-_gt_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] > y._limbs[$n]) : :(
-    (x._limbs[$i] > y._limbs[$i]) |
-    ((x._limbs[$i] == y._limbs[$i]) & $(_gt_expr(i + 1, n))))
 _le_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] <= y._limbs[$n]) : :(
     (x._limbs[$i] < y._limbs[$i]) |
     ((x._limbs[$i] == y._limbs[$i]) & $(_le_expr(i + 1, n))))
-_ge_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] >= y._limbs[$n]) : :(
-    (x._limbs[$i] > y._limbs[$i]) |
-    ((x._limbs[$i] == y._limbs[$i]) & $(_ge_expr(i + 1, n))))
-
 
 @generated Base.:(==)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
     _eq_expr(N)
 @generated Base.:(==)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
     _eq_expr(N)
-@generated Base.:(!=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-    _ne_expr(N)
-@generated Base.:(!=)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-    _ne_expr(N)
 @generated Base.:(<)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
     _lt_expr(1, N)
 @generated Base.:(<)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-    _lt_expr(1, N)
-@generated Base.:(>)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-    _gt_expr(1, N)
-@generated Base.:(>)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-    _gt_expr(1, N)
 @generated Base.:(<=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
     _le_expr(1, N)
 @generated Base.:(<=)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
     _le_expr(1, N)
-@generated Base.:(>=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-    _ge_expr(1, N)
-@generated Base.:(>=)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-    _ge_expr(1, N)
 
 
 ################################################## LEVEL 0 ARITHMETIC OPERATIONS
@@ -1586,26 +1563,14 @@ Base.promote_rule(::Type{_MF{T,N}}, ::Type{BigFloat}) where {T,N} = BigFloat
 @inline Base.:(==)(x::Any, y::_MFV{M,T,N}) where {M,T,N} = ==(promote(x, y)...)
 @inline Base.:(==)(x::_MFV{M,T,N1}, y::_MFV{M,T,N2}) where {M,T,N1,N2} =
     ==(promote(x, y)...)
-@inline Base.:(!=)(x::_MFV{M,T,N}, y::Any) where {M,T,N} = !=(promote(x, y)...)
-@inline Base.:(!=)(x::Any, y::_MFV{M,T,N}) where {M,T,N} = !=(promote(x, y)...)
-@inline Base.:(!=)(x::_MFV{M,T,N1}, y::_MFV{M,T,N2}) where {M,T,N1,N2} =
-    !=(promote(x, y)...)
 @inline Base.:(<)(x::_MFV{M,T,N}, y::Any) where {M,T,N} = <(promote(x, y)...)
 @inline Base.:(<)(x::Any, y::_MFV{M,T,N}) where {M,T,N} = <(promote(x, y)...)
 @inline Base.:(<)(x::_MFV{M,T,N1}, y::_MFV{M,T,N2}) where {M,T,N1,N2} =
     <(promote(x, y)...)
-@inline Base.:(>)(x::_MFV{M,T,N}, y::Any) where {M,T,N} = >(promote(x, y)...)
-@inline Base.:(>)(x::Any, y::_MFV{M,T,N}) where {M,T,N} = >(promote(x, y)...)
-@inline Base.:(>)(x::_MFV{M,T,N1}, y::_MFV{M,T,N2}) where {M,T,N1,N2} =
-    >(promote(x, y)...)
 @inline Base.:(<=)(x::_MFV{M,T,N}, y::Any) where {M,T,N} = <=(promote(x, y)...)
 @inline Base.:(<=)(x::Any, y::_MFV{M,T,N}) where {M,T,N} = <=(promote(x, y)...)
 @inline Base.:(<=)(x::_MFV{M,T,N1}, y::_MFV{M,T,N2}) where {M,T,N1,N2} =
     <=(promote(x, y)...)
-@inline Base.:(>=)(x::_MFV{M,T,N}, y::Any) where {M,T,N} = >=(promote(x, y)...)
-@inline Base.:(>=)(x::Any, y::_MFV{M,T,N}) where {M,T,N} = >=(promote(x, y)...)
-@inline Base.:(>=)(x::_MFV{M,T,N1}, y::_MFV{M,T,N2}) where {M,T,N1,N2} =
-    >=(promote(x, y)...)
 @inline Base.:+(x::_MFV{M,T,N}, y::Any) where {M,T,N} = +(promote(x, y)...)
 @inline Base.:+(x::Any, y::_MFV{M,T,N}) where {M,T,N} = +(promote(x, y)...)
 @inline Base.:+(x::_MFV{M,T,N1}, y::_MFV{M,T,N2}) where {M,T,N1,N2} =
