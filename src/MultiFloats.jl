@@ -1281,7 +1281,7 @@ function power_by_squaring(x, p::Integer)
 end
 
 
-########################################################## SQUARE ROOT OPERATORS
+################################################################# ROOT OPERATORS
 
 
 # In Julia, Base.sqrt throws a DomainError when given a negative real argument.
@@ -1321,6 +1321,12 @@ function rsqrt(x::BigFloat)
 end
 
 
+# NOTE: MultiFloats.rcbrt is not exported to avoid name conflicts.
+# Users are expected to call it as MultiFloats.rcbrt(x).
+
+@inline rcbrt(x::Any) = inv(cbrt(x))
+
+
 ###################################################### KARP-MARKSTEIN ALGORITHMS
 
 
@@ -1341,17 +1347,17 @@ end
     _zero = zero(T)
     _one = one(T)
     if U + U >= Z
-        neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{Z}())
+        _neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{Z}())
         rx = _resize(x, Val{Z}())
         ru = _resize(u, Val{Z}())
-        residual = mfadd(mfmul(rx, ru, Val{Z}()), neg_one, Val{Z}())
+        residual = mfadd(mfmul(rx, ru, Val{Z}()), _neg_one, Val{Z}())
         correction = mfmul(residual, ru, Val{Z}())
         return mfadd(ru, (-).(correction), Val{Z}())
     else
-        neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
+        _neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
         rx = _resize(x, Val{U + U}())
         ru = _resize(u, Val{U + U}())
-        residual = mfadd(mfmul(rx, ru, Val{U + U}()), neg_one, Val{U + U}())
+        residual = mfadd(mfmul(rx, ru, Val{U + U}()), _neg_one, Val{U + U}())
         correction = mfmul(residual, ru, Val{U + U}())
         next_u = mfadd(ru, (-).(correction), Val{U + U}())
         return _mfinv_impl(x, next_u, Val{Z}())
@@ -1377,10 +1383,10 @@ end
         correction = mfmul(residual, ru, Val{Z}())
         return mfadd(quotient, (-).(correction), Val{Z}())
     else
-        neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
+        _neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
         ry = _resize(y, Val{U + U}())
         ru = _resize(u, Val{U + U}())
-        residual = mfadd(mfmul(ry, ru, Val{U + U}()), neg_one, Val{U + U}())
+        residual = mfadd(mfmul(ry, ru, Val{U + U}()), _neg_one, Val{U + U}())
         correction = mfmul(residual, ru, Val{U + U}())
         next_u = mfadd(ru, (-).(correction), Val{U + U}())
         return _mfdiv_impl(x, y, next_u, Val{Z}())
@@ -1399,19 +1405,19 @@ end
     _two = _one + _one
     _half = inv(_two)
     if U + U >= Z
-        neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{Z}())
+        _neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{Z}())
         rx = _resize(x, Val{Z}())
         ru = _resize(u, Val{Z}())
-        square = mfsqr(ru, Val{Z}())
-        residual = mfadd(mfmul(square, rx, Val{Z}()), neg_one, Val{Z}())
+        u2 = mfsqr(ru, Val{Z}())
+        residual = mfadd(mfmul(rx, u2, Val{Z}()), _neg_one, Val{Z}())
         correction = mfmul(residual, scale(_half, ru), Val{Z}())
         return mfadd(ru, (-).(correction), Val{Z}())
     else
-        neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
+        _neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
         rx = _resize(x, Val{U + U}())
         ru = _resize(u, Val{U + U}())
-        square = mfsqr(ru, Val{U + U}())
-        residual = mfadd(mfmul(square, rx, Val{U + U}()), neg_one, Val{U + U}())
+        u2 = mfsqr(ru, Val{U + U}())
+        residual = mfadd(mfmul(rx, u2, Val{U + U}()), _neg_one, Val{U + U}())
         correction = mfmul(residual, scale(_half, ru), Val{U + U}())
         next_u = mfadd(ru, (-).(correction), Val{U + U}())
         return _mfrsqrt_impl(x, next_u, Val{Z}())
@@ -1437,14 +1443,48 @@ end
         correction = mfmul(residual, scale(_half, ru), Val{Z}())
         return mfadd(root, (-).(correction), Val{Z}())
     else
-        neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
+        _neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
         rx = _resize(x, Val{U + U}())
         ru = _resize(u, Val{U + U}())
-        square = mfsqr(ru, Val{U + U}())
-        residual = mfadd(mfmul(square, rx, Val{U + U}()), neg_one, Val{U + U}())
+        u2 = mfsqr(ru, Val{U + U}())
+        residual = mfadd(mfmul(rx, u2, Val{U + U}()), _neg_one, Val{U + U}())
         correction = mfmul(residual, scale(_half, ru), Val{U + U}())
         next_u = mfadd(ru, (-).(correction), Val{U + U}())
         return _mfsqrt_impl(x, next_u, Val{Z}())
+    end
+end
+
+
+@inline function _mfrcbrt_impl(
+    x::NTuple{X,T},
+    u::NTuple{U,T},
+    ::Val{Z},
+) where {T,X,U,Z}
+    @assert 0 < U < Z
+    _zero = zero(T)
+    _one = one(T)
+    _two = _one + _one
+    _three = _two + _one
+    _third = inv(_three)
+    if U + U >= Z
+        _neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{Z}())
+        rx = _resize(x, Val{Z}())
+        ru = _resize(u, Val{Z}())
+        u2 = mfsqr(ru, Val{Z}())
+        u3 = mfmul(u2, ru, Val{Z}())
+        residual = mfadd(mfmul(rx, u3, Val{Z}()), _neg_one, Val{Z}())
+        correction = mfmul(residual, scale(_third, ru), Val{Z}())
+        return mfadd(ru, (-).(correction), Val{Z}())
+    else
+        _neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
+        rx = _resize(x, Val{U + U}())
+        ru = _resize(u, Val{U + U}())
+        u2 = mfsqr(ru, Val{U + U}())
+        u3 = mfmul(u2, ru, Val{U + U}())
+        residual = mfadd(mfmul(rx, u3, Val{U + U}()), _neg_one, Val{U + U}())
+        correction = mfmul(residual, scale(_third, ru), Val{U + U}())
+        next_u = mfadd(ru, (-).(correction), Val{U + U}())
+        return _mfrcbrt_impl(x, next_u, Val{Z}())
     end
 end
 
@@ -1454,36 +1494,30 @@ end
     u::NTuple{U,T},
     ::Val{Z},
 ) where {T,X,U,Z}
-    # Newton iterations solving
-    #   u^2 - x/u == 0
-    # with update
-    #   t <- t + t * (x/t^2 - t) / (3*t)
     @assert 0 < U < Z
+    _zero = zero(T)
     _one = one(T)
     _two = _one + _one
-
+    _three = _two + _one
+    _third = inv(_three)
     if U + U >= Z
         rx = _resize(x, Val{Z}())
         ru = _resize(u, Val{Z}())
-        s = mfsqr(ru, Val{Z}())
-        r = mfdiv(rx, s, Val{Z}())
-        w = scale(_two, r)
-        num = mfadd(r, scale(-_one, ru), Val{Z}())
-        den = mfadd(w, r, Val{Z}())
-        quot = mfdiv(num, den, Val{Z}())
-        residual = mfmul(quot, ru, Val{Z}())
-        return mfadd(residual, ru, Val{Z}())
+        u2 = mfsqr(ru, Val{Z}())
+        root = mfmul(rx, u2, Val{Z}())
+        root3 = mfmul(mfsqr(root, Val{Z}()), root, Val{Z}())
+        residual = mfadd(root3, (-).(rx), Val{Z}())
+        correction = mfmul(residual, scale(_third, u_sq), Val{Z}())
+        return mfadd(root, (-).(correction), Val{Z}())
     else
+        _neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
         rx = _resize(x, Val{U + U}())
         ru = _resize(u, Val{U + U}())
-        s = mfsqr(ru, Val{U + U}())
-        r = mfdiv(rx, s, Val{U + U}())
-        w = scale(_two, r)
-        num = mfsub(r, scale(-_one, ru), Val{U + U}())
-        den = mfadd(w, r, Val{U + U}())
-        quot = mfdiv(num, Val{U + U}())
-        residual = mfmul(quot, ru, Val{U + U}())
-        next_u = mfadd(residual, ru, Val{U + U}())
+        u2 = mfsqr(ru, Val{U + U}())
+        u3 = mfmul(u2, ru, Val{U + U}())
+        residual = mfadd(mfmul(rx, u3, Val{U + U}()), _neg_one, Val{U + U}())
+        correction = mfmul(residual, scale(_third, ru), Val{U + U}())
+        next_u = mfadd(ru, (-).(correction), Val{U + U}())
         return _mfcbrt_impl(x, next_u, Val{Z}())
     end
 end
@@ -1513,10 +1547,16 @@ end
     _mfsqrt_impl(x, (rsqrt(first(x)),), Val{Z}())
 
 
+@inline mfrcbrt(x::NTuple{X,T}, ::Val{1}) where {T,X} =
+    (inv(cbrt(first(x))),)
+@inline mfrcbrt(x::NTuple{X,T}, ::Val{Z}) where {T,X,Z} =
+    _mfrcbrt_impl(x, (rcbrt(first(x)),), Val{Z}())
+
+
 @inline mfcbrt(x::NTuple{X,T}, ::Val{1}) where {T,X} =
     (cbrt(first(x)),)
 @inline mfcbrt(x::NTuple{X,T}, ::Val{Z}) where {T,X,Z} =
-    _mfcbrt_impl(x, (cbrt(first(x)),), Val{Z}())
+    _mfcbrt_impl(x, (rcbrt(first(x)),), Val{Z}())
 
 
 ################################################### LEVEL 2 ARITHMETIC OPERATORS
