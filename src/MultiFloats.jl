@@ -144,11 +144,15 @@ const Vec32Float64x4 = MultiFloatVec{32,Float64,4}
 
 
 # Construct MultiFloat scalar from single scalar limb.
+@inline _MF{T,N}(x::T) where {T,N} = _MF{T,N}(
+    ntuple(i -> (isone(i) ? x : zero(T)), Val{N}()))
 @inline _MF{T,N}(x::T) where {T<:Number,N} = _MF{T,N}(
     ntuple(i -> (isone(i) ? x : zero(T)), Val{N}()))
 
 
 # Construct MultiFloat vector from single vector limb (SIMD.Vec).
+@inline _MFV{M,T,N}(x::Vec{M,T}) where {M,T,N} = _MFV{M,T,N}(
+    ntuple(i -> (isone(i) ? x : zero(Vec{M,T})), Val{N}()))
 @inline _MFV{M,T,N}(x::Vec{M,T}) where {M,T<:Number,N} = _MFV{M,T,N}(
     ntuple(i -> (isone(i) ? x : zero(Vec{M,T})), Val{N}()))
 
@@ -263,12 +267,6 @@ const _Fits64xN = Union{_Fits64x2,_Fits64x3}
 @inline _MF{_F16,N}(x::_Fits16) where {N} = _MF{_F16,N}(_F16(x))
 @inline _MF{_F32,N}(x::_Fits32) where {N} = _MF{_F32,N}(_F32(x))
 @inline _MF{_F64,N}(x::_Fits64) where {N} = _MF{_F64,N}(_F64(x))
-
-
-# Construct MultiFloat vector from primitive scalar (single limb).
-@inline _MFV{M,_F16,N}(x::_Fits16) where {M,N} = _MFV{M,_F16,N}(_F16(x))
-@inline _MFV{M,_F32,N}(x::_Fits32) where {M,N} = _MFV{M,_F32,N}(_F32(x))
-@inline _MFV{M,_F64,N}(x::_Fits64) where {M,N} = _MFV{M,_F64,N}(_F64(x))
 
 
 # Construct MultiFloat scalar from primitive scalar (multiple limbs).
