@@ -157,10 +157,6 @@ const Vec32Float64x4 = MultiFloatVec{32,Float64,4}
     ntuple(i -> (isone(i) ? x : zero(Vec{M,T})), Val{N}()))
 
 
-# Construct MultiFloat vector from single scalar limb.
-@inline _MFV{M,T,N}(x::T) where {M,T,N} = _MFV{M,T,N}(Vec{M,T}(x))
-
-
 # Construct MultiFloat vector from single vector limb (NTuple/Vararg).
 @inline _MFV{M,T,N}(x::NTuple{M,T}) where {M,T,N} = _MFV{M,T,N}(Vec{M,T}(x))
 @inline _MFV{M,T,N}(x::Vararg{T,M}) where {M,T,N} = _MFV{M,T,N}(Vec{M,T}(x))
