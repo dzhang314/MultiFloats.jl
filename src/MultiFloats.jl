@@ -318,6 +318,10 @@ end
 
 
 @inline function renormalize(x::NTuple{N,T}) where {N,T}
+    total = +(reverse(x)...)
+    if !isfinite(total)
+        return ntuple(_ -> total, Val{N}())
+    end
     while true
         x_next = _renorm_pass(x)
         if x_next === x
@@ -345,20 +349,28 @@ end
 end
 
 
+@inline function mpfr_sub!(
+    x::BigFloat,
+    y::BigFloat,
+    z::CdoubleMax,
+    rounding::RoundingMode,
+)
+    ccall((:mpfr_sub_d, libmpfr), Cint,
+        (Ref{BigFloat}, Ref{BigFloat}, Cdouble, MPFRRoundingMode),
+        x, y, z, convert(MPFRRoundingMode, rounding))
+    return x
+end
+
+
 function _split!(x::BigFloat, ::Type{T}, ::Val{N}) where {T,N}
-    if !isfinite(x)
-        value = T(x)
+    value = T(x)
+    if iszero(value) | !isfinite(value)
         return ntuple(_ -> value, Val{N}())
-    elseif x > +floatmax(T)
-        _pos_inf = typemax(T)
-        return ntuple(_ -> _pos_inf, Val{N}())
-    elseif x < -floatmax(T)
-        _neg_inf = typemin(T)
-        return ntuple(_ -> _neg_inf, Val{N}())
     else
         _zero = zero(T)
-        result = ntuple(_ -> _zero, Val{N}())
-        for i = 1:N
+        result = ntuple(i -> isone(i) ? value : _zero, Val{N}())
+        mpfr_sub!(x, value, RoundNearest)
+        for i = 2:N
             limb = T(x)
             result = Base.setindex(result, limb, i)
             mpfr_sub!(x, limb, RoundNearest)
@@ -369,23 +381,15 @@ end
 
 
 function _split(x::BigFloat, ::Type{T}, ::Val{N}) where {T,N}
-    if !isfinite(x)
-        value = T(x)
+    value = T(x)
+    if iszero(value) | !isfinite(value)
         return ntuple(_ -> value, Val{N}())
-    elseif x > +floatmax(T)
-        _pos_inf = typemax(T)
-        return ntuple(_ -> _pos_inf, Val{N}())
-    elseif x < -floatmax(T)
-        _neg_inf = typemin(T)
-        return ntuple(_ -> _neg_inf, Val{N}())
     else
         _zero = zero(T)
-        result = ntuple(_ -> _zero, Val{N}())
+        result = ntuple(i -> isone(i) ? value : _zero, Val{N}())
         temp = BigFloat(; precision=precision(x))
-        ccall((:mpfr_set, libmpfr), Cint,
-            (Ref{BigFloat}, Ref{BigFloat}, MPFRRoundingMode),
-            temp, x, MPFRRoundNearest)
-        for i = 1:N
+        mpfr_sub!(temp, x, value, RoundNearest)
+        for i = 2:N
             limb = T(temp)
             result = Base.setindex(result, limb, i)
             mpfr_sub!(temp, limb, RoundNearest)
@@ -654,19 +658,6 @@ end
 #################################################### FLOATING-POINT MANIPULATION
 
 
-@inline function mpfr_sub!(
-    x::BigFloat,
-    y::BigFloat,
-    z::CdoubleMax,
-    rounding::RoundingMode,
-)
-    ccall((:mpfr_sub_d, libmpfr), Cint,
-        (Ref{BigFloat}, Ref{BigFloat}, Cdouble, MPFRRoundingMode),
-        x, y, z, convert(MPFRRoundingMode, rounding))
-    return x
-end
-
-
 @inline function mpfr_add!(
     x::BigFloat,
     y::BigFloat,
@@ -896,7 +887,7 @@ _ge_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] >= y._limbs[$n]) : :(
     _ge_expr(1, N)
 
 
-################################################### LEVEL 0 ARITHMETIC OPERATORS
+################################################## LEVEL 0 ARITHMETIC OPERATIONS
 
 
 @inline Base.copy(x::_MF{T,N}) where {T,N} = _MF{T,N}((copy).(x._limbs))
@@ -1039,68 +1030,6 @@ end
     return (prod, err)
 end
 
-@inline function mfsqr(
-    x::NTuple{1,T},
-    ::Val{1},
-) where {T}
-    return (x[1] * x[1],)
-end
-
-@inline function mfsqr(
-    x::NTuple{2,T},
-    ::Val{2},
-) where {T}
-    p00, e00 = two_prod(x[1], x[1])
-    e00 = muladd(2*x[1], x[2], e00)
-    p00, e00 = fast_two_sum(p00, e00)
-    return (p00, e00)
-end
-
-@inline function mfsqr(
-    x::NTuple{3,T},
-    ::Val{3},
-) where {T}
-    p00, e00 = two_prod(x[1], x[1])
-    p01, e01 = two_prod(x[1], x[2])
-    e00, p01 = two_sum(e00, 2*p01)
-    p00, e00 = fast_two_sum(p00, e00)
-    p01 = muladd(2, muladd(x[1], x[3], e01), muladd(x[2], x[2], p01))
-    e00, p01 = two_sum(e00, p01)
-    p00, e00 = fast_two_sum(p00, e00)
-    e00, p01 = fast_two_sum(e00, p01)
-    p00, e00 = fast_two_sum(p00, e00)
-    return (p00, e00, p01)
-end
-
-@inline function mfsqr(
-    x::NTuple{4,T},
-    ::Val{4},
-) where {T}
-    p00, e00 = two_prod(x[1], x[1])
-    p01, e01 = two_prod(x[1], x[2])
-    p02, e02 = two_prod(x[1], x[3])
-    p11, e11 = two_prod(x[2], x[2])
-    e00, p01 = two_sum(e00, 2*p01)
-    e01, p11 = two_sum(2*e01, p11)
-    e10 = muladd(2, e02, e01)
-    p00, e00 = fast_two_sum(p00, e00)
-    e01, p02 = two_sum(e01, 2*p02)
-    e10 = muladd(2, muladd(x[1], x[4], x[2]*x[3]), e10)
-    p01, e01 = two_sum(p01, e01)
-    p01, p10 = two_sum(p01, e11 + p11 + e01)
-    e00, p01 = two_sum(e00, p01)
-    p00, e00 = fast_two_sum(p00, e00)
-    p01, p10 = two_sum(p01, p02 + e10 + p10)
-    e00, p01 = two_sum(e00, p01)
-    p00, e00 = fast_two_sum(p00, e00)
-    p01, p10 = fast_two_sum(p01, p10)
-    e00, p01 = fast_two_sum(e00, p01)
-    p00, e00 = fast_two_sum(p00, e00)
-    p01, p10 = fast_two_sum(p01, p10)
-    e00, p01 = fast_two_sum(e00, p01)
-    p01, p10 = fast_two_sum(p01, p10)
-    return (p00, e00, p01, p10)
-end
 
 @inline function mfmul(
     x::NTuple{1,T},
@@ -1206,7 +1135,84 @@ end
 end
 
 
-################################################### LEVEL 1 ARITHMETIC OPERATORS
+############################################################## SQUARING NETWORKS
+
+
+# NOTE: MultiFloats.twice is not exported to avoid name conflicts.
+# Users are expected to call it as MultiFloats.twice(x).
+@inline twice(x) = x + x
+@inline twice(x::_MF{T,N}) where {T,N} = _MF{T,N}(twice.(x._limbs))
+@inline twice(x::_MFV{M,T,N}) where {M,T,N} = _MFV{M,T,N}(twice.(x._limbs))
+
+
+@inline function mfsqr(
+    x::NTuple{1,T},
+    ::Val{1},
+) where {T}
+    return (x[1] * x[1],)
+end
+
+
+@inline function mfsqr(
+    x::NTuple{2,T},
+    ::Val{2},
+) where {T}
+    p00, e00 = two_prod(x[1], x[1])
+    e00 = fma(x[1], twice(x[2]), e00)
+    p00, e00 = fast_two_sum(p00, e00)
+    return (p00, e00)
+end
+
+
+@inline function mfsqr(
+    x::NTuple{3,T},
+    ::Val{3},
+) where {T}
+    p00, e00 = two_prod(x[1], x[1])
+    p01, e01 = two_prod(x[1], twice(x[2]))
+    e00, p01 = two_sum(e00, p01)
+    p00, e00 = fast_two_sum(p00, e00)
+    p01 += e01 + fma(x[1], twice(x[3]), one_prod(x[2], x[2]))
+    e00, p01 = two_sum(e00, p01)
+    p00, e00 = fast_two_sum(p00, e00)
+    e00, p01 = fast_two_sum(e00, p01)
+    p00, e00 = fast_two_sum(p00, e00)
+    return (p00, e00, p01)
+end
+
+
+@inline function mfsqr(
+    x::NTuple{4,T},
+    ::Val{4},
+) where {T}
+    p00, e00 = two_prod(x[1], x[1])
+    p01, e01 = two_prod(x[1], twice(x[2]))
+    p02, e02 = two_prod(x[1], twice(x[3]))
+    p11, e11 = two_prod(x[2], x[2])
+    e00, p01 = two_sum(e00, p01)
+    e01, p11 = two_sum(e01, p11)
+    p00, e00 = fast_two_sum(p00, e00)
+    e01, p02 = two_sum(e01, p02)
+    p11 += e11
+    p01, e01 = two_sum(p01, e01)
+    p01, p10 = two_sum(p01, p11 + e01)
+    e00, p01 = two_sum(e00, p01)
+    p10 += (e02 + fma(x[1], twice(x[4]), one_prod(x[2], twice(x[3])))) + p02
+    p00, e00 = fast_two_sum(p00, e00)
+    p01, p10 = two_sum(p01, p10)
+    e00, p01 = two_sum(e00, p01)
+    p00, e00 = fast_two_sum(p00, e00)
+    p01, p10 = fast_two_sum(p01, p10)
+    e00, p01 = fast_two_sum(e00, p01)
+    p00, e00 = fast_two_sum(p00, e00)
+    p01, p10 = fast_two_sum(p01, p10)
+    e00, p01 = fast_two_sum(e00, p01)
+    p01, p10 = fast_two_sum(p01, p10)
+    return (p00, e00, p01, p10)
+end
+
+
+################################################## LEVEL 1 ARITHMETIC OPERATIONS
 
 
 @inline Base.:+(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
@@ -1225,13 +1231,18 @@ end
     _MFV{M,T,N}(mfmul(x._limbs, y._limbs, Val{N}()))
 
 
-@inline Base.sum(x::_MFV{M,T,N}) where {M,T,N} =
-    +(ntuple(i -> x[i], Val{M}())...)
-
 @inline Base.abs2(x::_MF{T,N}) where {T,N} =
     _MF{T,N}(mfsqr(x._limbs, Val{N}()))
 @inline Base.abs2(x::_MFV{M,T,N}) where {M,T,N} =
     _MFV{M,T,N}(mfsqr(x._limbs, Val{N}()))
+
+
+@inline Base.sum(x::_MFV{M,T,N}) where {M,T,N} =
+    +(ntuple(i -> x[i], Val{M}())...)
+
+
+############################################################### POWER OPERATIONS
+
 
 @inline Base.:^(x::_MF{T,N}, p::Integer) where {T,N} =
     signbit(p) ?
@@ -1241,6 +1252,7 @@ end
     signbit(p) ?
     power_by_squaring(inv(x), -p) :
     power_by_squaring(x, p)
+
 
 function power_by_squaring(x, p::Integer)
     if p == 1
@@ -1341,17 +1353,17 @@ end
     _zero = zero(T)
     _one = one(T)
     if U + U >= Z
-        neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{Z}())
+        _neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{Z}())
         rx = _resize(x, Val{Z}())
         ru = _resize(u, Val{Z}())
-        residual = mfadd(mfmul(rx, ru, Val{Z}()), neg_one, Val{Z}())
+        residual = mfadd(mfmul(rx, ru, Val{Z}()), _neg_one, Val{Z}())
         correction = mfmul(residual, ru, Val{Z}())
         return mfadd(ru, (-).(correction), Val{Z}())
     else
-        neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
+        _neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
         rx = _resize(x, Val{U + U}())
         ru = _resize(u, Val{U + U}())
-        residual = mfadd(mfmul(rx, ru, Val{U + U}()), neg_one, Val{U + U}())
+        residual = mfadd(mfmul(rx, ru, Val{U + U}()), _neg_one, Val{U + U}())
         correction = mfmul(residual, ru, Val{U + U}())
         next_u = mfadd(ru, (-).(correction), Val{U + U}())
         return _mfinv_impl(x, next_u, Val{Z}())
@@ -1377,10 +1389,10 @@ end
         correction = mfmul(residual, ru, Val{Z}())
         return mfadd(quotient, (-).(correction), Val{Z}())
     else
-        neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
+        _neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
         ry = _resize(y, Val{U + U}())
         ru = _resize(u, Val{U + U}())
-        residual = mfadd(mfmul(ry, ru, Val{U + U}()), neg_one, Val{U + U}())
+        residual = mfadd(mfmul(ry, ru, Val{U + U}()), _neg_one, Val{U + U}())
         correction = mfmul(residual, ru, Val{U + U}())
         next_u = mfadd(ru, (-).(correction), Val{U + U}())
         return _mfdiv_impl(x, y, next_u, Val{Z}())
@@ -1399,19 +1411,19 @@ end
     _two = _one + _one
     _half = inv(_two)
     if U + U >= Z
-        neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{Z}())
+        _neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{Z}())
         rx = _resize(x, Val{Z}())
         ru = _resize(u, Val{Z}())
-        square = mfsqr(ru, Val{Z}())
-        residual = mfadd(mfmul(square, rx, Val{Z}()), neg_one, Val{Z}())
+        u2 = mfsqr(ru, Val{Z}())
+        residual = mfadd(mfmul(rx, u2, Val{Z}()), _neg_one, Val{Z}())
         correction = mfmul(residual, scale(_half, ru), Val{Z}())
         return mfadd(ru, (-).(correction), Val{Z}())
     else
-        neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
+        _neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
         rx = _resize(x, Val{U + U}())
         ru = _resize(u, Val{U + U}())
-        square = mfsqr(ru, Val{U + U}())
-        residual = mfadd(mfmul(square, rx, Val{U + U}()), neg_one, Val{U + U}())
+        u2 = mfsqr(ru, Val{U + U}())
+        residual = mfadd(mfmul(rx, u2, Val{U + U}()), _neg_one, Val{U + U}())
         correction = mfmul(residual, scale(_half, ru), Val{U + U}())
         next_u = mfadd(ru, (-).(correction), Val{U + U}())
         return _mfrsqrt_impl(x, next_u, Val{Z}())
@@ -1437,54 +1449,14 @@ end
         correction = mfmul(residual, scale(_half, ru), Val{Z}())
         return mfadd(root, (-).(correction), Val{Z}())
     else
-        neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
+        _neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
         rx = _resize(x, Val{U + U}())
         ru = _resize(u, Val{U + U}())
-        square = mfsqr(ru, Val{U + U}())
-        residual = mfadd(mfmul(square, rx, Val{U + U}()), neg_one, Val{U + U}())
+        u2 = mfsqr(ru, Val{U + U}())
+        residual = mfadd(mfmul(rx, u2, Val{U + U}()), _neg_one, Val{U + U}())
         correction = mfmul(residual, scale(_half, ru), Val{U + U}())
         next_u = mfadd(ru, (-).(correction), Val{U + U}())
         return _mfsqrt_impl(x, next_u, Val{Z}())
-    end
-end
-
-
-@inline function _mfcbrt_impl(
-    x::NTuple{X,T},
-    u::NTuple{U,T},
-    ::Val{Z},
-) where {T,X,U,Z}
-    # Newton iterations solving
-    #   u^2 - x/u == 0
-    # with update
-    #   t <- t + t * (x/t^2 - t) / (3*t)
-    @assert 0 < U < Z
-    _one = one(T)
-    _two = _one + _one
-
-    if U + U >= Z
-        rx = _resize(x, Val{Z}())
-        ru = _resize(u, Val{Z}())
-        s = mfsqr(ru, Val{Z}())
-        r = mfdiv(rx, s, Val{Z}())
-        w = scale(_two, r)
-        num = mfadd(r, scale(-_one, ru), Val{Z}())
-        den = mfadd(w, r, Val{Z}())
-        quot = mfdiv(num, den, Val{Z}())
-        residual = mfmul(quot, ru, Val{Z}())
-        return mfadd(residual, ru, Val{Z}())
-    else
-        rx = _resize(x, Val{U+U}())
-        ru = _resize(u, Val{U+U}())
-        s = mfsqr(ru, Val{U+U}())
-        r = mfdiv(rx, s, Val{U+U}())
-        w = scale(_two, r)
-        num = mfsub(r, scale(-_one, ru), Val{U+U}())
-        den = mfadd(w, r, Val{U+U}())
-        quot = mfdiv(num, Val{U+U}())
-        residual = mfmul(quot, ru, Val{U+U}())
-        next_u = mfadd(residual, ru, Val{U+U}())
-        return _mfcbrt_impl(x, next_u, Val{Z}())
     end
 end
 
@@ -1513,12 +1485,7 @@ end
     _mfsqrt_impl(x, (rsqrt(first(x)),), Val{Z}())
 
 
-@inline mfcbrt(x::NTuple{X,T}, ::Val{1}) where {T,X} =
-    (cbrt(first(x)),)
-@inline mfcbrt(x::NTuple{X,T}, ::Val{Z}) where {T,X,Z} =
-    _mfcbrt_impl(x, (cbrt(first(x)),), Val{Z}())
-    
-################################################### LEVEL 2 ARITHMETIC OPERATORS
+################################################## LEVEL 2 ARITHMETIC OPERATIONS
 
 
 @inline Base.inv(x::_MF{T,N}) where {T,N} =
@@ -1551,18 +1518,54 @@ end
     vifelse(iszero(x), zero(x), unsafe_sqrt(x))
 
 
-@inline Base.cbrt(x::_MF{T,N}) where {T,N} =
-    _MF{T,N}(mfcbrt(x._limbs, Val{N}()))
-@inline Base.cbrt(x::_MFV{M,T,N}) where {M,T,N} =
-    _MFV{M,T,N}(mfcbrt(x._limbs, Val{N}()))
-
-
-include("exp.jl")
-include("log.jl")
 ####################################################################### PRINTING
 
 
 using Printf: @sprintf
+
+
+function hexfloat(x::T) where {T<:Base.IEEEFloat}
+    _num_mantissa_bits = Base.significand_bits(T)
+    _exponent_bias = Base.exponent_bias(T)
+    _num_hex_digits = cld(_num_mantissa_bits, 4)
+    _hex_shift = 4 * _num_hex_digits - _num_mantissa_bits
+    _num_exponent_digits = ndigits(_exponent_bias)
+    _string_length = 7 + _num_hex_digits + _num_exponent_digits
+
+    U = Base.uinttype(T)
+    bits = reinterpret(U, x)
+    mantissa = bits & Base.significand_mask(T)
+    biased_exponent = (bits & Base.exponent_mask(T)) >> _num_mantissa_bits
+    unbiased_exponent = max(Int(biased_exponent), 1) - _exponent_bias
+    if iszero(mantissa) & iszero(biased_exponent)
+        unbiased_exponent = 0
+    end
+
+    buffer = Base.StringVector(_string_length)
+    @inbounds begin
+        buffer[1] = ifelse(signbit(x), UInt8('-'), UInt8('+'))
+        buffer[2] = UInt8('0')
+        buffer[3] = UInt8('x')
+        buffer[4] = ifelse(iszero(biased_exponent), UInt8('0'), UInt8('1'))
+        buffer[5] = UInt8('.')
+        mantissa <<= _hex_shift
+        for i = 0:_num_hex_digits-1
+            shift = 4 * (_num_hex_digits - (i + 1))
+            nibble = ((mantissa >> shift) % UInt8) & UInt8(0x0F)
+            buffer[6+i] = nibble + ifelse(
+                nibble < UInt8(10), UInt8('0'), UInt8('A') - UInt8(10))
+        end
+        buffer[6+_num_hex_digits] = UInt8('p')
+        buffer[7+_num_hex_digits] = ifelse(
+            signbit(unbiased_exponent), UInt8('-'), UInt8('+'))
+        unbiased_exponent = abs(unbiased_exponent)
+        for i = 0:_num_exponent_digits-1
+            unbiased_exponent, digit = divrem(unbiased_exponent, 10)
+            buffer[_string_length-i] = (digit % UInt8) + UInt8('0')
+        end
+    end
+    return String(buffer)
+end
 
 
 function _format_digits(sign_str::String, digit_array::Vector{Int8}, e::Int)
@@ -1588,13 +1591,17 @@ function _format_digits(sign_str::String, digit_array::Vector{Int8}, e::Int)
 end
 
 
+function _half_past_floatmax(::Type{_MF{T,N}}) where {T,N}
+    x = floatmax(_MF{T,N})
+    return Rational{BigInt}(x) + Rational{BigInt}(eps(last(x._limbs))) // 2
+end
+
+
 function _to_string(x::_MF{T,N}) where {T,N}
+    _floatmax = floatmax(T)
     _zero = zero(Int8)
     _one = one(Int8)
-    _two = _one + _one
-    _four = _two + _two
-    _eight = _four + _four
-    _ten = _eight + _two
+    _ten = Int8(10)
 
     if iszero(x)
         return signbit(x) ? "-0.0" : "0.0"
@@ -1610,9 +1617,11 @@ function _to_string(x::_MF{T,N}) where {T,N}
         return "-Inf"
     end
 
+    px = prevfloat(x)
+    nx = nextfloat(x)
     rx = Rational{BigInt}(x)
-    prev = Rational{BigInt}(prevfloat(x))
-    next = Rational{BigInt}(nextfloat(x))
+    prev = isfinite(px) ? Rational{BigInt}(px) : -_half_past_floatmax(_MF{T,N})
+    next = isfinite(nx) ? Rational{BigInt}(nx) : +_half_past_floatmax(_MF{T,N})
     a = rx - (rx - prev) // 2
     b = rx
     c = rx + (next - rx) // 2
@@ -1927,6 +1936,11 @@ function use_bigfloat_transcendentals(num_extra_bits::Int=10)
             _eval_big($name, x, precision(MultiFloat{T,N}) + $num_extra_bits))))
     end
 end
+
+
+include("cbrt.jl")
+include("exp.jl")
+include("log.jl")
 
 
 ################################################################# RANDOM NUMBERS
