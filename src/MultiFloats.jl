@@ -176,6 +176,11 @@ const Vec32Float64x4 = MultiFloatVec{32,Float64,4}
 @inline _MFV{M,T,N1}(x::_MF{T,N2}) where {M,T,N1,N2} = _MFV{M,T,N1}(
     tuple(ntuple(i -> Vec{M,T}(x._limbs[i]), Val{min(N1, N2)}())...,
         ntuple(_ -> zero(Vec{M,T}), Val{max(N1 - N2, 0)}())...))
+@inline _MFV{1,T,N1}(x::_MF{T,N2}) where {T,N1,N2} = _MFV{1,T,N1}(
+    tuple(ntuple(i -> Vec{1,T}(x._limbs[i]), Val{min(N1, N2)}())...,
+        ntuple(_ -> zero(Vec{1,T}), Val{max(N1 - N2, 0)}())...))
+@inline _MFV{1,T,N}(x::_MF{T,N}) where {T,N} = _MFV{1,T,N}(
+    tuple(ntuple(i -> Vec{1,T}(x._limbs[i]), Val{N}())...))
 
 
 # Construct MultiFloat vector from MultiFloat vector.
