@@ -1407,7 +1407,8 @@ end
         ru = _resize(u, Val{Z}())
         u2 = mfsqr(ru, Val{Z}())
         residual = mfadd(mfmul(rx, u2, Val{Z}()), _neg_one, Val{Z}())
-        correction = mfmul(residual, scale(_half, ru), Val{Z}())
+        u_over_2 = scale(_half, ru)
+        correction = mfmul(residual, u_over_2, Val{Z}())
         return mfadd(ru, (-).(correction), Val{Z}())
     else
         _neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
@@ -1415,7 +1416,8 @@ end
         ru = _resize(u, Val{U + U}())
         u2 = mfsqr(ru, Val{U + U}())
         residual = mfadd(mfmul(rx, u2, Val{U + U}()), _neg_one, Val{U + U}())
-        correction = mfmul(residual, scale(_half, ru), Val{U + U}())
+        u_over_2 = scale(_half, ru)
+        correction = mfmul(residual, u_over_2, Val{U + U}())
         next_u = mfadd(ru, (-).(correction), Val{U + U}())
         return _mfrsqrt_impl(x, next_u, Val{Z}())
     end
@@ -1437,7 +1439,8 @@ end
         ru = _resize(u, Val{Z}())
         root = mfmul(rx, ru, Val{Z}())
         residual = mfadd(mfsqr(root, Val{Z}()), (-).(rx), Val{Z}())
-        correction = mfmul(residual, scale(_half, ru), Val{Z}())
+        u_over_2 = scale(_half, ru)
+        correction = mfmul(residual, u_over_2, Val{Z}())
         return mfadd(root, (-).(correction), Val{Z}())
     else
         _neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
@@ -1445,7 +1448,8 @@ end
         ru = _resize(u, Val{U + U}())
         u2 = mfsqr(ru, Val{U + U}())
         residual = mfadd(mfmul(rx, u2, Val{U + U}()), _neg_one, Val{U + U}())
-        correction = mfmul(residual, scale(_half, ru), Val{U + U}())
+        u_over_2 = scale(_half, ru)
+        correction = mfmul(residual, u_over_2, Val{U + U}())
         next_u = mfadd(ru, (-).(correction), Val{U + U}())
         return _mfsqrt_impl(x, next_u, Val{Z}())
     end
