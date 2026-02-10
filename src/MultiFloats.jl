@@ -842,29 +842,30 @@ end
 
 ##################################################################### COMPARISON
 
-
-# TODO: Implement Base.cmp.
-
-_eq_expr(n::Int) = (n == 1) ? :(x._limbs[1] == y._limbs[1]) : :(
-    $(_eq_expr(n - 1)) & (x._limbs[$n] == y._limbs[$n]))
-_lt_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] < y._limbs[$n]) : :(
-    (x._limbs[$i] < y._limbs[$i]) |
-    ((x._limbs[$i] == y._limbs[$i]) & $(_lt_expr(i + 1, n))))
-_le_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] <= y._limbs[$n]) : :(
-    (x._limbs[$i] < y._limbs[$i]) |
-    ((x._limbs[$i] == y._limbs[$i]) & $(_le_expr(i + 1, n))))
-
-@generated Base.:(==)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-    _eq_expr(N)
-@generated Base.:(==)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-    _eq_expr(N)
-@generated Base.:(<)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-    _lt_expr(1, N)
-@generated Base.:(<)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-@generated Base.:(<=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-    _le_expr(1, N)
-@generated Base.:(<=)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-    _le_expr(1, N)
+function Base.cmp(x::_MF{T,N}, y::_MF{T,N}) where {T,N}
+    cmp(x._limbs, y._limbs)
+end
+function Base.cmp(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N}
+    cmp(x._limbs, y._limbs)
+end
+function Base.:(==)(x::_MF{T,N}, y::_MF{T,N}) where {T,N}
+    x._limbs == y._limbs
+end
+function Base.:(==)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N}
+    x._limbs == y._limbs
+end
+function Base.:(<)(x::_MF{T,N}, y::_MF{T,N}) where {T,N}
+    x._limbs < y._limbs
+end
+function  Base.:(<)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N}
+    x._limbs < y._limbs
+end
+function  Base.:(<=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N}
+    x._limbs <= y._limbs
+end
+function  Base.:(<=)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N}
+    x._limbs <= y._limbs
+end
 
 
 ################################################## LEVEL 0 ARITHMETIC OPERATIONS
