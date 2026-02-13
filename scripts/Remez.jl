@@ -98,7 +98,7 @@ function find_root(f::F, g::G, x::T, a::T, b::T) where {F,G,T}
         elseif abs(fa) > abs(fb)
             return (b, b)
         else
-            @assert false
+            return (a, b)
         end
     end
 
@@ -220,7 +220,7 @@ function minimax_polynomial(
             # Check both endpoints of both intervals.
             x_best = nothing
             E_best = nothing
-            for z in (x_lo, r_lo, r_hi, x_hi)
+            for z in (r_lo, r_hi, x_lo, x_hi)
                 if !isnan(z)
                     E = dot(c, chebyshev_values(
                         muladd(z, scale, shift), Val{N}())) - f(z)
@@ -241,8 +241,10 @@ function minimax_polynomial(
                 abs(abs(E_best) - abs(E_nominal)))
         end
 
-        # Terminate Remez iteration when E_best converges to E_nominal.
-        if isnothing(prev_deviation) || (max_deviation < prev_deviation)
+        # Terminate Remez iteration when E_best converges to E_nominal or
+        # equioscillation nodes become invalid.
+        if (isnothing(prev_deviation) || (max_deviation < prev_deviation)) &&
+           issorted(x_next) && allunique(x_next)
             prev_deviation = max_deviation
             x, x_next = x_next, x
         else
