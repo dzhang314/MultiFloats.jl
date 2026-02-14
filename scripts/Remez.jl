@@ -17,9 +17,9 @@ function chebyshev_nodes(a::T, b::T, ::Val{N}) where {T,N}
     midpoint = _halve(a + b)
     half_width = _halve(b - a)
     pi_over_2N = T(pi) / (2 * N)
-    return ntuple(
-        k -> muladd(half_width, cos((2 * (N - k) + 1) * pi_over_2N), midpoint),
-        Val{N}())
+    return ntuple(k -> clamp(muladd(
+                cos((2 * (N - k) + 1) * pi_over_2N),
+                half_width, midpoint), a, b), Val{N}())
 end
 
 
@@ -188,7 +188,7 @@ function minimax_polynomial(
     A = Matrix{T}(undef, N + 2, N + 2)
     v = Vector{T}(undef, N + 2)
     prev_deviation = nothing
-    while true
+    @inbounds while true
 
         # Set up equioscillation equations.
         for i = 1:N+2
@@ -200,7 +200,7 @@ function minimax_polynomial(
 
         # Solve equioscillation equations.
         ldiv!(qr!(A, ColumnNorm()), v)
-        c = ntuple(i -> v[i], Val{N + 1}())
+        c = ntuple(i -> (@inbounds v[i]), Val{N + 1}())
         E_nominal = v[N+2]
 
         E_max = _zero
@@ -208,8 +208,8 @@ function minimax_polynomial(
         for i = 1:N+2
 
             # Find new equioscillation nodes.
-            x_lo = isone(i) ? a : _halve(x[i-1] + x[i])
-            x_hi = (i == N + 2) ? b : _halve(x[i] + x[i+1])
+            x_lo = isone(i) ? a : max(a, _halve(x[i-1] + x[i]))
+            x_hi = (i == N + 2) ? b : min(b, _halve(x[i] + x[i+1]))
             r_lo, r_hi = find_root(
                 x -> scale * dot(c, chebyshev_derivatives(
                     muladd(x, scale, shift), Val{N}())) - g(x),
