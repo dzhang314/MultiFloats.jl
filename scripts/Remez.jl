@@ -123,7 +123,7 @@ function chebyshev_to_monomial_matrix(a::T, b::T, n::Int) where {T}
 end
 
 
-function find_root(f::F, g::G, x::T, a::T, b::T) where {F,G,T}
+function find_root(f::F, df::G, x::T, a::T, b::T) where {F,G,T}
     @assert a <= b
 
     fa = f(a)
@@ -140,7 +140,7 @@ function find_root(f::F, g::G, x::T, a::T, b::T) where {F,G,T}
 
     x = clamp(x, a, b)
     fx = f(x)
-    gx = g(x)
+    dfx = df(x)
     x_lo = a
     x_hi = b
     f_lo = fa
@@ -153,7 +153,7 @@ function find_root(f::F, g::G, x::T, a::T, b::T) where {F,G,T}
         @assert !isnan(f_hi)
         @assert signbit(f_lo) != signbit(f_hi)
         @assert !isnan(fx)
-        @assert !isnan(gx)
+        @assert !isnan(dfx)
 
         x_mid = _halve(x_lo + x_hi)
         if !(x_lo < x_mid < x_hi)
@@ -163,7 +163,7 @@ function find_root(f::F, g::G, x::T, a::T, b::T) where {F,G,T}
         end
 
         x_next = x_mid
-        dx = fx / gx
+        dx = fx / dfx
         if abs(dx) < _halve(abs(dx_prev))
             # Take Newton step if consecutive steps are getting smaller.
             x_next = x - dx
@@ -181,7 +181,7 @@ function find_root(f::F, g::G, x::T, a::T, b::T) where {F,G,T}
         # Accept step and update interval endpoints.
         x = x_next
         fx = f(x)
-        gx = g(x)
+        dfx = df(x)
         if signbit(fx) == signbit(f_lo)
             x_lo = x
             f_lo = fx
@@ -196,7 +196,7 @@ end
 
 
 function minimax_polynomial(
-    f::F, g::G, h::H, a::T, b::T, ::Val{N};
+    f::F, df::G, d2f::H, a::T, b::T, ::Val{N};
     fixed_coefficients::NTuple{K,Pair{Int,T}}=(),
     initial_nodes=nothing,
 ) where {F,G,H,T,N,K}
@@ -222,7 +222,7 @@ function minimax_polynomial(
     # Compute scaling parameters that map [a, b] to [-1, +1].
     inv_width = inv(b - a)
     scale = _twice(inv_width)
-    scale_sq = scale^2
+    scale2 = scale^2
     shift = -(a + b) * inv_width
 
     # Allocate workspace arrays.
@@ -261,10 +261,17 @@ function minimax_polynomial(
             x_lo = isone(i) ? a : max(a, _halve(x[i-1] + x[i]))
             x_hi = (i == M) ? b : min(b, _halve(x[i] + x[i+1]))
             r_lo, r_hi = find_root(
-                x -> scale * dot(c, chebyshev_derivatives(
-                    muladd(x, scale, shift), Val{N}())) - g(x),
-                x -> scale_sq * dot(c, chebyshev_second_derivatives(
-                    muladd(x, scale, shift), Val{N}())) - h(x),
+                x -> begin
+                    u = muladd(x, scale, shift)
+                    dpx = scale * dot(c, chebyshev_derivatives(u, Val{N}()))
+                    return dpx - df(x)
+                end,
+                x -> begin
+                    u = muladd(x, scale, shift)
+                    d2px = scale2 * dot(c,
+                        chebyshev_second_derivatives(u, Val{N}()))
+                    return d2px - d2f(x)
+                end,
                 x[i], x_lo, x_hi)
 
             # Check both endpoints of both intervals.
@@ -304,7 +311,7 @@ end
 
 
 function relative_minimax_polynomial(
-    f::F, g::G, h::H, a::T, b::T, ::Val{N};
+    f::F, df::G, d2f::H, a::T, b::T, ::Val{N};
     fixed_coefficients::NTuple{K,Pair{Int,T}}=(),
     initial_nodes=nothing,
 ) where {F,G,H,T,N,K}
@@ -330,7 +337,7 @@ function relative_minimax_polynomial(
     # Compute scaling parameters that map [a, b] to [-1, +1].
     inv_width = inv(b - a)
     scale = _twice(inv_width)
-    scale_sq = scale^2
+    scale2 = scale^2
     shift = -(a + b) * inv_width
 
     # Allocate workspace arrays.
@@ -373,15 +380,15 @@ function relative_minimax_polynomial(
                 x -> begin
                     u = muladd(x, scale, shift)
                     px = dot(c, chebyshev_values(u, Val{N}()))
-                    qx = scale * dot(c, chebyshev_derivatives(u, Val{N}()))
-                    qx * f(x) - px * g(x)
+                    dpx = scale * dot(c, chebyshev_derivatives(u, Val{N}()))
+                    return dpx * f(x) - px * df(x)
                 end,
                 x -> begin
                     u = muladd(x, scale, shift)
                     px = dot(c, chebyshev_values(u, Val{N}()))
-                    rx = scale_sq * dot(c,
+                    d2px = scale2 * dot(c,
                         chebyshev_second_derivatives(u, Val{N}()))
-                    rx * f(x) - px * h(x)
+                    return d2px * f(x) - px * d2f(x)
                 end,
                 x[i], x_lo, x_hi)
 
