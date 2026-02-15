@@ -87,6 +87,38 @@ function chebyshev_second_derivatives(x::T, ::Val{N}) where {T,N}
 end
 
 
+function chebyshev_to_monomial_matrix(a::T, b::T, n::Int) where {T}
+    @assert !signbit(n)
+    _zero = zero(T)
+    _one = one(T)
+
+    inv_width = inv(b - a)
+    scale = _twice(inv_width)
+    shift = -(a + b) * inv_width
+    twice_scale = _twice(scale)
+    twice_shift = _twice(shift)
+
+    B = Matrix{T}(undef, n + 1, n + 1)
+    @inbounds begin
+        B[1, 1] = _one
+        B[2:n+1, 1] .= _zero
+        if n >= 1
+            B[1, 2] = shift
+            B[2, 2] = scale
+            B[3:n+1, 2] .= _zero
+            for j = 3:n+1
+                B[1, j] = muladd(twice_shift, B[1, j-1], -B[1, j-2])
+                for i = 2:n+1
+                    B[i, j] = muladd(twice_scale, B[i-1, j-1],
+                        muladd(twice_shift, B[i, j-1], -B[i, j-2]))
+                end
+            end
+        end
+    end
+    return B
+end
+
+
 function find_root(f::F, g::G, x::T, a::T, b::T) where {F,G,T}
     @assert a <= b
 
