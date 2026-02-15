@@ -2,7 +2,7 @@ module Remez
 
 using LinearAlgebra: ColumnNorm, dot, ldiv!, qr!
 
-export minimax_polynomial, relative_minimax_polynomial
+export minimax_polynomial
 
 
 @inline _halve(x::T) where {T} = ldexp(x, -1)
@@ -199,137 +199,24 @@ function minimax_polynomial(
     f::F, df::G, d2f::H, a::T, b::T, ::Val{N};
     fixed_coefficients::NTuple{K,Pair{Int,T}}=(),
     initial_nodes=nothing,
+    objective::Symbol=:absolute,
 ) where {F,G,H,T,N,K}
 
     # Validate inputs.
     @assert a <= b
-    @assert isnothing(initial_nodes) || issorted(initial_nodes)
     M = N - K + 2
     @assert M >= 2
     for (d, _) in fixed_coefficients
         @assert 0 <= d <= N
     end
+    @assert isnothing(initial_nodes) || issorted(initial_nodes)
     if isnothing(initial_nodes)
         initial_nodes = chebyshev_nodes(a, b, Val{M}())
     end
     x = collect(initial_nodes)
     @assert eltype(x) <: T
     @assert length(x) == M
-
-    _zero = zero(T)
-    _one = one(T)
-
-    # Compute scaling parameters that map [a, b] to [-1, +1].
-    inv_width = inv(b - a)
-    scale = _twice(inv_width)
-    scale2 = scale^2
-    shift = -(a + b) * inv_width
-
-    # Allocate workspace arrays.
-    A = Matrix{T}(undef, N + 2, N + 2)
-    B = chebyshev_to_monomial_matrix(a, b, N)
-    v = Vector{T}(undef, N + 2)
-    x_next = Vector{T}(undef, M)
-    prev_deviation = nothing
-    @inbounds while true
-
-        # Set up equioscillation equations (rows 1:M).
-        for i = 1:M
-            A[i, 1:N+1] .= chebyshev_values(
-                muladd(x[i], scale, shift), Val{N}())
-            A[i, N+2] = ifelse(isodd(i), +_one, -_one)
-            v[i] = f(x[i])
-        end
-
-        # Set up constraint equations (rows M+1:N+2).
-        for (i, (d, c)) in enumerate(fixed_coefficients)
-            A[M+i, 1:N+1] .= view(B, d + 1, 1:N+1)
-            A[M+i, N+2] = _zero
-            v[M+i] = c
-        end
-
-        # Solve linear system using column-pivoted QR.
-        ldiv!(qr!(A, ColumnNorm()), v)
-        c = _to_ntuple(v, Val{N + 1}())
-        E_nominal = v[N+2]
-
-        E_max = _zero
-        max_deviation = _zero
-        for i = 1:M
-
-            # Find new equioscillation nodes.
-            x_lo = isone(i) ? a : max(a, _halve(x[i-1] + x[i]))
-            x_hi = (i == M) ? b : min(b, _halve(x[i] + x[i+1]))
-            r_lo, r_hi = find_root(
-                x -> begin
-                    u = muladd(x, scale, shift)
-                    dpx = scale * dot(c, chebyshev_derivatives(u, Val{N}()))
-                    return dpx - df(x)
-                end,
-                x -> begin
-                    u = muladd(x, scale, shift)
-                    d2px = scale2 * dot(c,
-                        chebyshev_second_derivatives(u, Val{N}()))
-                    return d2px - d2f(x)
-                end,
-                x[i], x_lo, x_hi)
-
-            # Check both endpoints of both intervals.
-            x_best = nothing
-            E_best = nothing
-            for z in (r_lo, r_hi, x_lo, x_hi)
-                E = dot(c, chebyshev_values(
-                    muladd(z, scale, shift), Val{N}())) - f(z)
-                if isnothing(E_best) || (abs(E) > abs(E_best))
-                    x_best = z
-                    E_best = E
-                end
-            end
-            @assert !isnothing(x_best)
-            @assert !isnothing(E_best)
-
-            x_next[i] = x_best
-            E_max = max(E_max, abs(E_best))
-            max_deviation = max(max_deviation,
-                abs(abs(E_best) - abs(E_nominal)))
-        end
-
-        # Terminate Remez iteration when E_best converges to E_nominal or
-        # equioscillation nodes become invalid.
-        if (isnothing(prev_deviation) || (max_deviation < prev_deviation)) &&
-           issorted(x_next) && allunique(x_next)
-            prev_deviation = max_deviation
-            x, x_next = x_next, x
-        else
-            coefficients = _to_ntuple(B * view(v, 1:N+1), Val{N + 1}())
-            nodes = _to_ntuple(x, Val{M}())
-            return (coefficients, nodes, E_max)
-        end
-
-    end
-end
-
-
-function relative_minimax_polynomial(
-    f::F, df::G, d2f::H, a::T, b::T, ::Val{N};
-    fixed_coefficients::NTuple{K,Pair{Int,T}}=(),
-    initial_nodes=nothing,
-) where {F,G,H,T,N,K}
-
-    # Validate inputs.
-    @assert a <= b
-    @assert isnothing(initial_nodes) || issorted(initial_nodes)
-    M = N - K + 2
-    @assert M >= 2
-    for (d, _) in fixed_coefficients
-        @assert 0 <= d <= N
-    end
-    if isnothing(initial_nodes)
-        initial_nodes = chebyshev_nodes(a, b, Val{M}())
-    end
-    x = collect(initial_nodes)
-    @assert eltype(x) <: T
-    @assert length(x) == M
+    @assert (objective == :absolute) || (objective == :relative)
 
     _zero = zero(T)
     _one = one(T)
@@ -353,7 +240,11 @@ function relative_minimax_polynomial(
             fi = f(x[i])
             A[i, 1:N+1] .= chebyshev_values(
                 muladd(x[i], scale, shift), Val{N}())
-            A[i, N+2] = ifelse(isodd(i), +fi, -fi)
+            if objective == :absolute
+                A[i, N+2] = ifelse(isodd(i), +_one, -_one)
+            else # objective == :relative
+                A[i, N+2] = ifelse(isodd(i), +fi, -fi)
+            end
             v[i] = fi
         end
 
@@ -376,28 +267,51 @@ function relative_minimax_polynomial(
             # Find new equioscillation nodes.
             x_lo = isone(i) ? a : max(a, _halve(x[i-1] + x[i]))
             x_hi = (i == M) ? b : min(b, _halve(x[i] + x[i+1]))
-            r_lo, r_hi = find_root(
-                x -> begin
-                    u = muladd(x, scale, shift)
-                    px = dot(c, chebyshev_values(u, Val{N}()))
-                    dpx = scale * dot(c, chebyshev_derivatives(u, Val{N}()))
-                    return dpx * f(x) - px * df(x)
-                end,
-                x -> begin
-                    u = muladd(x, scale, shift)
-                    px = dot(c, chebyshev_values(u, Val{N}()))
-                    d2px = scale2 * dot(c,
-                        chebyshev_second_derivatives(u, Val{N}()))
-                    return d2px * f(x) - px * d2f(x)
-                end,
-                x[i], x_lo, x_hi)
+            if objective == :absolute
+                r_lo, r_hi = find_root(
+                    x -> begin
+                        u = muladd(x, scale, shift)
+                        dpx = scale * dot(c,
+                            chebyshev_derivatives(u, Val{N}()))
+                        return dpx - df(x)
+                    end,
+                    x -> begin
+                        u = muladd(x, scale, shift)
+                        d2px = scale2 * dot(c,
+                            chebyshev_second_derivatives(u, Val{N}()))
+                        return d2px - d2f(x)
+                    end,
+                    x[i], x_lo, x_hi)
+            else # objective == :relative
+                r_lo, r_hi = find_root(
+                    x -> begin
+                        u = muladd(x, scale, shift)
+                        px = dot(c, chebyshev_values(u, Val{N}()))
+                        dpx = scale * dot(c,
+                            chebyshev_derivatives(u, Val{N}()))
+                        return dpx * f(x) - px * df(x)
+                    end,
+                    x -> begin
+                        u = muladd(x, scale, shift)
+                        px = dot(c, chebyshev_values(u, Val{N}()))
+                        d2px = scale2 * dot(c,
+                            chebyshev_second_derivatives(u, Val{N}()))
+                        return d2px * f(x) - px * d2f(x)
+                    end,
+                    x[i], x_lo, x_hi)
+            end
 
             # Check both endpoints of both intervals.
             x_best = nothing
             E_best = nothing
             for z in (r_lo, r_hi, x_lo, x_hi)
-                E = dot(c, chebyshev_values(
-                    muladd(z, scale, shift), Val{N}())) / f(z) - _one
+                pz = dot(c, chebyshev_values(
+                    muladd(z, scale, shift), Val{N}()))
+                if objective == :absolute
+                    E = pz - f(z)
+                else # objective == :relative
+                    E = pz / f(z) - _one
+                end
                 if isnothing(E_best) || (abs(E) > abs(E_best))
                     x_best = z
                     E_best = E
