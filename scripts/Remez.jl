@@ -13,6 +13,10 @@ export minimax_polynomial
 @inline _twice(x::BigFloat) = ldexp(x, 1)
 
 
+@inline _to_ntuple(x::Vector{T}, ::Val{N}) where {T,N} =
+    ntuple(i -> (@inbounds x[i]), Val{N}())
+
+
 function chebyshev_nodes(a::T, b::T, ::Val{N}) where {T,N}
     midpoint = _halve(a + b)
     half_width = _halve(b - a)
@@ -192,56 +196,70 @@ end
 
 
 function minimax_polynomial(
-    f::F, g::G, h::H, a::T, b::T, ::Val{N},
-    x=nothing,
-) where {F,G,H,T,N}
+    f::F, g::G, h::H, a::T, b::T, ::Val{N};
+    fixed_coefficients::NTuple{K,Pair{Int,T}}=(),
+    initial_nodes=nothing,
+) where {F,G,H,T,N,K}
 
+    # Validate inputs.
     @assert a <= b
+    @assert isnothing(initial_nodes) || issorted(initial_nodes)
+    M = N - K + 2
+    @assert M >= 2
+    for (d, _) in fixed_coefficients
+        @assert 0 <= d <= N
+    end
+    if isnothing(initial_nodes)
+        initial_nodes = chebyshev_nodes(a, b, Val{M}())
+    end
+    x = collect(initial_nodes)
+    @assert eltype(x) <: T
+    @assert length(x) == M
+
     _zero = zero(T)
     _one = one(T)
 
-    # Initialize equioscillation nodes.
-    if isnothing(x)
-        x = collect(chebyshev_nodes(a, b, Val{N + 2}()))
-    else
-        @assert length(x) == N + 2
-        x = collect(x)
-    end
-    @assert issorted(x)
-    x_next = Vector{T}(undef, N + 2)
-
     # Compute scaling parameters that map [a, b] to [-1, +1].
-    width = b - a
-    inv_width = inv(width)
+    inv_width = inv(b - a)
     scale = _twice(inv_width)
     scale_sq = scale^2
     shift = -(a + b) * inv_width
 
+    # Allocate workspace arrays.
     A = Matrix{T}(undef, N + 2, N + 2)
+    B = chebyshev_to_monomial_matrix(a, b, N)
     v = Vector{T}(undef, N + 2)
+    x_next = Vector{T}(undef, M)
     prev_deviation = nothing
     @inbounds while true
 
-        # Set up equioscillation equations.
-        for i = 1:N+2
+        # Set up equioscillation equations (rows 1:M).
+        for i = 1:M
             A[i, 1:N+1] .= chebyshev_values(
                 muladd(x[i], scale, shift), Val{N}())
             A[i, N+2] = ifelse(isodd(i), +_one, -_one)
             v[i] = f(x[i])
         end
 
-        # Solve equioscillation equations.
+        # Set up constraint equations (rows M+1:N+2).
+        for (i, (d, c)) in enumerate(fixed_coefficients)
+            A[M+i, 1:N+1] .= B[d+1, 1:N+1]
+            A[M+i, N+2] = _zero
+            v[M+i] = c
+        end
+
+        # Solve linear system using column-pivoted QR.
         ldiv!(qr!(A, ColumnNorm()), v)
-        c = ntuple(i -> (@inbounds v[i]), Val{N + 1}())
+        c = _to_ntuple(v, Val{N + 1}())
         E_nominal = v[N+2]
 
         E_max = _zero
         max_deviation = _zero
-        for i = 1:N+2
+        for i = 1:M
 
             # Find new equioscillation nodes.
             x_lo = isone(i) ? a : max(a, _halve(x[i-1] + x[i]))
-            x_hi = (i == N + 2) ? b : min(b, _halve(x[i] + x[i+1]))
+            x_hi = (i == M) ? b : min(b, _halve(x[i] + x[i+1]))
             r_lo, r_hi = find_root(
                 x -> scale * dot(c, chebyshev_derivatives(
                     muladd(x, scale, shift), Val{N}())) - g(x),
@@ -253,15 +271,11 @@ function minimax_polynomial(
             x_best = nothing
             E_best = nothing
             for z in (r_lo, r_hi, x_lo, x_hi)
-                if !isnan(z)
-                    E = dot(c, chebyshev_values(
-                        muladd(z, scale, shift), Val{N}())) - f(z)
-                    if !isnan(E)
-                        if isnothing(E_best) || (abs(E) > abs(E_best))
-                            x_best = z
-                            E_best = E
-                        end
-                    end
+                E = dot(c, chebyshev_values(
+                    muladd(z, scale, shift), Val{N}())) - f(z)
+                if isnothing(E_best) || (abs(E) > abs(E_best))
+                    x_best = z
+                    E_best = E
                 end
             end
             @assert !isnothing(x_best)
@@ -280,7 +294,9 @@ function minimax_polynomial(
             prev_deviation = max_deviation
             x, x_next = x_next, x
         else
-            return (c, E_max)
+            coefficients = _to_ntuple(B * view(v, 1:N+1), Val{N + 1}())
+            nodes = _to_ntuple(x, Val{M}())
+            return (coefficients, nodes, E_max)
         end
 
     end
