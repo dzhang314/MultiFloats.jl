@@ -330,6 +330,18 @@ end
     end
 end
 
+@inline function renormalize(x::NTuple{N,Vec{M,T}}) where {N,M,T}
+    total = +(reverse(x)...)
+    mask = isfinite(total)
+    while true
+        x_next = _renorm_pass(x)
+        if x_next === x
+            return ntuple(i -> vifelse(mask, x[i], total), Val{N}())
+        end
+        x = x_next
+    end
+end
+
 
 @inline renormalize(x::_MF{T,N}) where {T,N} =
     _MF{T,N}(renormalize(x._limbs))
@@ -909,7 +921,9 @@ _ge_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] >= y._limbs[$n]) : :(
 # NOTE: MultiFloats.scale is not exported to avoid name conflicts.
 # Users are expected to call it as MultiFloats.scale(a, x).
 @inline scale(a, x) = a * x
-@inline scale(a::T, x::NTuple{N,T}) where {T,N} =
+@inline scale(a::T, x::NTuple{N,T}) where {N,T} =
+    ntuple(i -> a * x[i], Val{N}())
+@inline scale(a::T, x::NTuple{N,Vec{M,T}}) where {N,M,T} =
     ntuple(i -> a * x[i], Val{N}())
 @inline scale(a::T, x::_MF{T,N}) where {T,N} =
     _MF{T,N}(scale(a, x._limbs))
@@ -1075,7 +1089,7 @@ end
 ###################################################### KARP-MARKSTEIN ALGORITHMS
 
 
-@inline _resize(x::NTuple{N,T}, ::Val{M}) where {T,N,M} =
+@inline _resize(x::NTuple{N,T}, ::Val{M}) where {N,T,M} =
     ntuple(i -> ((i <= N) ? x[i] : zero(T)), Val{M}())
 
 
