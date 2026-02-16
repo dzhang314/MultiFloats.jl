@@ -2,7 +2,7 @@ module Remez
 
 using LinearAlgebra: ColumnNorm, dot, ldiv!, qr!
 
-export minimax_polynomial
+export minimax_polynomial, minimax_rational
 
 
 @inline _halve(x::T) where {T} = ldexp(x, -1)
@@ -13,7 +13,7 @@ export minimax_polynomial
 @inline _twice(x::BigFloat) = ldexp(x, 1)
 
 
-@inline _to_ntuple(x::Vector{T}, ::Val{N}) where {T,N} =
+@inline _to_ntuple(x::AbstractVector{T}, ::Val{N}) where {T,N} =
     ntuple(i -> (@inbounds x[i]), Val{N}())
 
 
@@ -204,18 +204,18 @@ function minimax_polynomial(
 
     # Validate inputs.
     @assert a <= b
-    M = N - K + 2
-    @assert M >= 2
+    L = N - K + 2
+    @assert L >= 2
     for (d, _) in fixed_coefficients
         @assert 0 <= d <= N
     end
     @assert isnothing(initial_nodes) || issorted(initial_nodes)
     if isnothing(initial_nodes)
-        initial_nodes = chebyshev_nodes(a, b, Val{M}())
+        initial_nodes = chebyshev_nodes(a, b, Val{L}())
     end
-    x = collect(initial_nodes)
-    @assert eltype(x) <: T
-    @assert length(x) == M
+    nodes = collect(initial_nodes)
+    @assert eltype(nodes) <: T
+    @assert length(nodes) == L
     @assert (objective == :absolute) || (objective == :relative)
 
     _zero = zero(T)
@@ -231,15 +231,15 @@ function minimax_polynomial(
     A = Matrix{T}(undef, N + 2, N + 2)
     B = chebyshev_to_monomial_matrix(a, b, N)
     v = Vector{T}(undef, N + 2)
-    x_next = Vector{T}(undef, M)
+    next_nodes = Vector{T}(undef, L)
     prev_deviation = nothing
     @inbounds while true
 
-        # Set up equioscillation equations (rows 1:M).
-        for i = 1:M
-            fi = f(x[i])
-            A[i, 1:N+1] .= chebyshev_values(
-                muladd(x[i], scale, shift), Val{N}())
+        # Set up equioscillation equations (rows 1:L).
+        for i = 1:L
+            fi = f(nodes[i])
+            u = muladd(nodes[i], scale, shift)
+            A[i, 1:N+1] .= chebyshev_values(u, Val{N}())
             if objective == :absolute
                 A[i, N+2] = ifelse(isodd(i), +_one, -_one)
             else # objective == :relative
@@ -248,11 +248,11 @@ function minimax_polynomial(
             v[i] = fi
         end
 
-        # Set up constraint equations (rows M+1:N+2).
+        # Set up constraint equations (rows L+1:N+2).
         for (i, (d, c)) in enumerate(fixed_coefficients)
-            A[M+i, 1:N+1] .= view(B, d + 1, 1:N+1)
-            A[M+i, N+2] = _zero
-            v[M+i] = c
+            A[L+i, 1:N+1] .= view(B, d + 1, 1:N+1)
+            A[L+i, N+2] = _zero
+            v[L+i] = c
         end
 
         # Solve linear system using column-pivoted QR.
@@ -262,11 +262,11 @@ function minimax_polynomial(
 
         E_max = _zero
         max_deviation = _zero
-        for i = 1:M
+        for i = 1:L
 
             # Find new equioscillation nodes.
-            x_lo = isone(i) ? a : max(a, _halve(x[i-1] + x[i]))
-            x_hi = (i == M) ? b : min(b, _halve(x[i] + x[i+1]))
+            x_lo = isone(i) ? a : max(a, _halve(nodes[i-1] + nodes[i]))
+            x_hi = (i == L) ? b : min(b, _halve(nodes[i] + nodes[i+1]))
             if objective == :absolute
                 r_lo, r_hi = find_root(
                     x -> begin
@@ -281,7 +281,7 @@ function minimax_polynomial(
                             chebyshev_second_derivatives(u, Val{N}()))
                         return d2px - d2f(x)
                     end,
-                    x[i], x_lo, x_hi)
+                    nodes[i], x_lo, x_hi)
             else # objective == :relative
                 r_lo, r_hi = find_root(
                     x -> begin
@@ -298,29 +298,29 @@ function minimax_polynomial(
                             chebyshev_second_derivatives(u, Val{N}()))
                         return d2px * f(x) - px * d2f(x)
                     end,
-                    x[i], x_lo, x_hi)
+                    nodes[i], x_lo, x_hi)
             end
 
             # Check both endpoints of both intervals.
             x_best = nothing
             E_best = nothing
-            for z in (r_lo, r_hi, x_lo, x_hi)
-                pz = dot(c, chebyshev_values(
-                    muladd(z, scale, shift), Val{N}()))
+            for x in (r_lo, r_hi, x_lo, x_hi)
+                u = muladd(x, scale, shift)
+                px = dot(c, chebyshev_values(u, Val{N}()))
                 if objective == :absolute
-                    E = pz - f(z)
+                    E = px - f(x)
                 else # objective == :relative
-                    E = pz / f(z) - _one
+                    E = px / f(x) - _one
                 end
                 if isnothing(E_best) || (abs(E) > abs(E_best))
-                    x_best = z
+                    x_best = x
                     E_best = E
                 end
             end
             @assert !isnothing(x_best)
             @assert !isnothing(E_best)
 
-            x_next[i] = x_best
+            next_nodes[i] = x_best
             E_max = max(E_max, abs(E_best))
             max_deviation = max(max_deviation,
                 abs(abs(E_best) - abs(E_nominal)))
@@ -329,13 +329,201 @@ function minimax_polynomial(
         # Terminate Remez iteration when E_best converges to E_nominal or
         # equioscillation nodes become invalid.
         if (isnothing(prev_deviation) || (max_deviation < prev_deviation)) &&
-           issorted(x_next) && allunique(x_next)
+           issorted(next_nodes) && allunique(next_nodes)
             prev_deviation = max_deviation
-            x, x_next = x_next, x
+            nodes, next_nodes = next_nodes, nodes
         else
             coefficients = _to_ntuple(B * view(v, 1:N+1), Val{N + 1}())
-            nodes = _to_ntuple(x, Val{M}())
-            return (coefficients, nodes, E_max)
+            return (coefficients, _to_ntuple(nodes, Val{L}()), E_max)
+        end
+
+    end
+end
+
+
+function minimax_rational(
+    f::F, df::G, d2f::H, a::T, b::T, ::Val{M}, ::Val{N};
+    fixed_numerator_coefficients::NTuple{Kp,Pair{Int,T}}=(),
+    fixed_denominator_coefficients::NTuple{Kq,Pair{Int,T}}=(),
+    initial_nodes=nothing,
+    objective::Symbol=:absolute,
+) where {F,G,H,T,M,N,Kp,Kq}
+
+    # Validate inputs.
+    @assert a <= b
+    L = (M + N) - (Kp + Kq) + 2
+    @assert L >= 2
+    for (d, _) in fixed_numerator_coefficients
+        @assert 0 <= d <= M
+    end
+    for (d, _) in fixed_denominator_coefficients
+        @assert 0 <= d <= N
+    end
+    @assert isnothing(initial_nodes) || issorted(initial_nodes)
+    if isnothing(initial_nodes)
+        initial_nodes = chebyshev_nodes(a, b, Val{L}())
+    end
+    nodes = collect(initial_nodes)
+    @assert eltype(nodes) <: T
+    @assert length(nodes) == L
+    @assert (objective == :absolute) || (objective == :relative)
+
+    _zero = zero(T)
+    _one = one(T)
+
+    # Compute scaling parameters that map [a, b] to [-1, +1].
+    inv_width = inv(b - a)
+    scale = _twice(inv_width)
+    scale2 = scale^2
+    shift = -(a + b) * inv_width
+
+    # Allocate workspace arrays.
+    A = Matrix{T}(undef, M + N + 2, M + N + 2)
+    Bp = chebyshev_to_monomial_matrix(a, b, M)
+    Bq = chebyshev_to_monomial_matrix(a, b, N)
+    cq_prev = ntuple(j -> ifelse(isone(j), _one, _zero), Val{N + 1}())
+    v = Vector{T}(undef, M + N + 2)
+    next_nodes = Vector{T}(undef, L)
+    prev_deviation = nothing
+    @inbounds while true
+
+        # Set up linearized equioscillation equations (rows 1:L).
+        for i = 1:L
+            fi = f(nodes[i])
+            u = muladd(nodes[i], scale, shift)
+            A[i, 1:M+1] .= chebyshev_values(u, Val{M}())
+            A[i, M+2:M+N+1] .= -fi .* chebyshev_values(u, Val{N}())[2:N+1]
+            qi_prev = dot(cq_prev, chebyshev_values(u, Val{N}()))
+            if objective == :absolute
+                A[i, M+N+2] = ifelse(isodd(i), +qi_prev, -qi_prev)
+            else # objective == :relative
+                A[i, M+N+2] = ifelse(isodd(i), +fi * qi_prev, -fi * qi_prev)
+            end
+            v[i] = fi
+        end
+
+        # Set up numerator constraint equations (rows L+1:L+Kp).
+        for (i, (d, c)) in enumerate(fixed_numerator_coefficients)
+            A[L+i, 1:M+1] .= view(Bp, d + 1, 1:M+1)
+            A[L+i, M+2:M+N+2] .= _zero
+            v[L+i] = c
+        end
+
+        # Set up denominator constraint equations (rows L+Kp+1:M+N+2).
+        for (i, (d, c)) in enumerate(fixed_denominator_coefficients)
+            A[L+Kp+i, 1:M+1] .= _zero
+            A[L+Kp+i, M+2:M+N+1] .= view(Bq, d + 1, 2:N+1)
+            A[L+Kp+i, M+N+2] = _zero
+            v[L+Kp+i] = c - Bq[d+1, 1]
+        end
+
+        # Solve linear system using column-pivoted QR.
+        ldiv!(qr!(A, ColumnNorm()), v)
+        cp = _to_ntuple(v, Val{M + 1}())
+        cq = _to_ntuple(view(v, M+1:M+N+1), Val{N + 1}())
+        cq = Base.setindex(cq, _one, 1)
+        E_nominal = v[M+N+2]
+
+        E_max = _zero
+        max_deviation = _zero
+        for i = 1:L
+
+            # Find new equioscillation nodes.
+            x_lo = isone(i) ? a : max(a, _halve(nodes[i-1] + nodes[i]))
+            x_hi = (i == L) ? b : min(b, _halve(nodes[i] + nodes[i+1]))
+            if objective == :absolute
+                r_lo, r_hi = find_root(
+                    x -> begin
+                        u = muladd(x, scale, shift)
+                        px = dot(cp, chebyshev_values(u, Val{M}()))
+                        qx = dot(cq, chebyshev_values(u, Val{N}()))
+                        dpx = scale * dot(cp,
+                            chebyshev_derivatives(u, Val{M}()))
+                        dqx = scale * dot(cq,
+                            chebyshev_derivatives(u, Val{N}()))
+                        return dpx * qx - px * dqx - qx^2 * df(x)
+                    end,
+                    x -> begin
+                        u = muladd(x, scale, shift)
+                        px = dot(cp, chebyshev_values(u, Val{M}()))
+                        qx = dot(cq, chebyshev_values(u, Val{N}()))
+                        dqx = scale * dot(cq,
+                            chebyshev_derivatives(u, Val{N}()))
+                        d2px = scale2 * dot(cp,
+                            chebyshev_second_derivatives(u, Val{M}()))
+                        d2qx = scale2 * dot(cq,
+                            chebyshev_second_derivatives(u, Val{N}()))
+                        return d2px * qx - px * d2qx - qx^2 * d2f(x) -
+                               _twice(qx * dqx) * df(x)
+                    end,
+                    nodes[i], x_lo, x_hi)
+            else # objective == :relative
+                r_lo, r_hi = find_root(
+                    x -> begin
+                        u = muladd(x, scale, shift)
+                        px = dot(cp, chebyshev_values(u, Val{M}()))
+                        qx = dot(cq, chebyshev_values(u, Val{N}()))
+                        dpx = scale * dot(cp,
+                            chebyshev_derivatives(u, Val{M}()))
+                        dqx = scale * dot(cq,
+                            chebyshev_derivatives(u, Val{N}()))
+                        return (dpx * qx - px * dqx) * f(x) - px * qx * df(x)
+                    end,
+                    x -> begin
+                        u = muladd(x, scale, shift)
+                        px = dot(cp, chebyshev_values(u, Val{M}()))
+                        qx = dot(cq, chebyshev_values(u, Val{N}()))
+                        dqx = scale * dot(cq,
+                            chebyshev_derivatives(u, Val{N}()))
+                        d2px = scale2 * dot(cp,
+                            chebyshev_second_derivatives(u, Val{M}()))
+                        d2qx = scale2 * dot(cq,
+                            chebyshev_second_derivatives(u, Val{N}()))
+                        return (d2px * qx - px * d2qx) * f(x) -
+                               _twice(px * dqx) * df(x) - px * qx * d2f(x)
+                    end,
+                    nodes[i], x_lo, x_hi)
+            end
+
+            # Check both endpoints of both intervals.
+            x_best = nothing
+            E_best = nothing
+            for x in (r_lo, r_hi, x_lo, x_hi)
+                u = muladd(x, scale, shift)
+                px = dot(cp, chebyshev_values(u, Val{M}()))
+                qx = dot(cq, chebyshev_values(u, Val{N}()))
+                if objective == :absolute
+                    E = px / qx - f(x)
+                else # objective == :relative
+                    E = px / (qx * f(x)) - _one
+                end
+                if isnothing(E_best) || (abs(E) > abs(E_best))
+                    x_best = x
+                    E_best = E
+                end
+            end
+            @assert !isnothing(x_best)
+            @assert !isnothing(E_best)
+
+            next_nodes[i] = x_best
+            E_max = max(E_max, abs(E_best))
+            max_deviation = max(max_deviation,
+                abs(abs(E_best) - abs(E_nominal)))
+        end
+
+        # Terminate Remez iteration when E_best converges to E_nominal or
+        # equioscillation nodes become invalid.
+        if (isnothing(prev_deviation) || (max_deviation < prev_deviation)) &&
+           issorted(next_nodes) && allunique(next_nodes)
+            prev_deviation = max_deviation
+            cq_prev = cq
+            nodes, next_nodes = next_nodes, nodes
+        else
+            coefficients_p = _to_ntuple(Bp * view(v, 1:M+1), Val{M + 1}())
+            v[M+1] = _one
+            coefficients_q = _to_ntuple(Bq * view(v, M+1:M+N+1), Val{N + 1}())
+            return (coefficients_p, coefficients_q,
+                _to_ntuple(nodes, Val{L}()), E_max)
         end
 
     end
