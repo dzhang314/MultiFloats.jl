@@ -590,8 +590,6 @@ end
 
 @inline Base.signbit(x::_MF{T,N}) where {T,N} = signbit(first(x._limbs))
 @inline Base.signbit(x::_MFV{M,T,N}) where {M,T,N} = signbit(first(x._limbs))
-@inline Base.exponent(x::_MF{T,N}) where {T,N} = exponent(first(x._limbs))
-# NOTE: SIMD.jl does not define Base.exponent for vectors.
 @inline Base.issubnormal(x::_MF{T,N}) where {T,N} =
     issubnormal(first(x._limbs))
 @inline Base.issubnormal(x::_MFV{M,T,N}) where {M,T,N} =
@@ -669,22 +667,68 @@ end
 #################################################### FLOATING-POINT MANIPULATION
 
 
-@inline function mpfr_add!(
-    x::BigFloat,
-    y::BigFloat,
-    z::CdoubleMax,
-    rounding::RoundingMode,
-)
-    ccall((:mpfr_add_d, libmpfr), Cint,
-        (Ref{BigFloat}, Ref{BigFloat}, Cdouble, MPFRRoundingMode),
-        x, y, z, convert(MPFRRoundingMode, rounding))
-    return x
-end
+@inline Base.exponent(x::_MF{T,N}) where {T,N} = exponent(first(x._limbs))
+# NOTE: SIMD.jl does not define Base.exponent for vectors.
 
 
 @inline Base.ldexp(x::_MF{T,N}, n::Integer) where {T,N} =
     _MF{T,N}(ntuple(i -> ldexp(x._limbs[i], n), Val{N}()))
 # NOTE: SIMD.jl does not define Base.ldexp for vectors.
+
+
+@inline function unsafe_exponent(x::T) where {T<:Base.IEEEFloat}
+    U = Base.uinttype(T)
+    bits = reinterpret(U, x)
+    mask = Base.exponent_mask(T)
+    biased_exponent = (bits & mask) >> Base.significand_bits(T)
+    return Int(biased_exponent) - Base.exponent_bias(T)
+end
+
+@inline function unsafe_exponent(x::Vec{M,T}) where {M,T<:Base.IEEEFloat}
+    U = Base.uinttype(T)
+    S = signed(U)
+    bits = reinterpret(Vec{M,U}, x)
+    mask = Base.exponent_mask(T)
+    biased_exponent = (bits & mask) >> Base.significand_bits(T)
+    return Vec{M,S}(biased_exponent) - S(Base.exponent_bias(T))
+end
+
+@inline unsafe_exponent(x::_MF{T,N}) where {T,N} =
+    unsafe_exponent(first(x._limbs))
+@inline unsafe_exponent(x::_MFV{M,T,N}) where {M,T,N} =
+    unsafe_exponent(first(x._limbs))
+
+
+@inline function unsafe_ldexp(x::T, k::Integer) where {T<:Base.IEEEFloat}
+    U = Base.uinttype(T)
+    bits = reinterpret(U, x)
+    exponent_shift = (k % U) << Base.significand_bits(T)
+    return ifelse(iszero(x), x, reinterpret(T, bits + exponent_shift))
+end
+
+@inline function unsafe_ldexp(
+    x::Vec{M,T}, k::I,
+) where {M,T<:Base.IEEEFloat,I<:Integer}
+    U = Base.uinttype(T)
+    bits = reinterpret(Vec{M,U}, x)
+    exponent_shift = (k % U) << Base.significand_bits(T)
+    return vifelse(iszero(x), x, reinterpret(Vec{M,T}, bits + exponent_shift))
+end
+
+@inline function unsafe_ldexp(
+    x::Vec{M,T}, k::Vec{M,I},
+) where {M,T<:Base.IEEEFloat,I<:Integer}
+    U = Base.uinttype(T)
+    bits = reinterpret(Vec{M,U}, x)
+    k_U = reinterpret(Vec{M,U}, convert(Vec{M,signed(U)}, k))
+    exponent_shift = k_U << Base.significand_bits(T)
+    return vifelse(iszero(x), x, reinterpret(Vec{M,T}, bits + exponent_shift))
+end
+
+@inline unsafe_ldexp(x::_MF{T,N}, k::Integer) where {T,N} =
+    _MF{T,N}(ntuple(i -> unsafe_ldexp(x._limbs[i], k), Val{N}()))
+@inline unsafe_ldexp(x::_MFV{M,T,N}, k) where {M,T,N} =
+    _MFV{M,T,N}(ntuple(i -> unsafe_ldexp(x._limbs[i], k), Val{N}()))
 
 
 function Base.decompose(x::_MF{T,N}) where {T,N}
@@ -716,6 +760,19 @@ function Base.decompose(x::_MF{T,N}) where {T,N}
         end
     end
     return (num, e_min, 1)
+end
+
+
+@inline function mpfr_add!(
+    x::BigFloat,
+    y::BigFloat,
+    z::CdoubleMax,
+    rounding::RoundingMode,
+)
+    ccall((:mpfr_add_d, libmpfr), Cint,
+        (Ref{BigFloat}, Ref{BigFloat}, Cdouble, MPFRRoundingMode),
+        x, y, z, convert(MPFRRoundingMode, rounding))
+    return x
 end
 
 
@@ -816,7 +873,7 @@ export mfvgather, mfvscatter
 
 
 @inline function mfvgather(
-    pointer::Ptr{_MF{T,N}}, index::Vec{M,I}
+    pointer::Ptr{_MF{T,N}}, index::Vec{M,I},
 ) where {M,T,N,I<:Integer}
     base = reinterpret(Ptr{T}, pointer) + N * sizeof(T) * index
     return _MFV{M,T,N}(ntuple(
@@ -825,7 +882,7 @@ end
 
 
 @inline function mfvscatter(
-    x::_MFV{M,T,N}, pointer::Ptr{_MF{T,N}}, index::Vec{M,I}
+    x::_MFV{M,T,N}, pointer::Ptr{_MF{T,N}}, index::Vec{M,I},
 ) where {M,T,N,I<:Integer}
     base = reinterpret(Ptr{T}, pointer) + N * sizeof(T) * index
     for i = 1:N
