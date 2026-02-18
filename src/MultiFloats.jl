@@ -731,6 +731,69 @@ end
     _MFV{M,T,N}(ntuple(i -> unsafe_ldexp(x._limbs[i], k), Val{N}()))
 
 
+@inline _fast_sweep_down(x::NTuple{1,T}, y::T) where {T} = (x[1] + y,)
+@inline function _fast_sweep_down(x::NTuple{N,T}, y::T) where {N,T}
+    s, e = fast_two_sum(x[1], y)
+    return (s, _fast_sweep_down(Base.tail(x), e)...)
+end
+
+
+@inline _fast_sweep_up(x::NTuple{1,T}) where {T} = x
+@inline function _fast_sweep_up(x::NTuple{N,T}) where {N,T}
+    s, e = fast_two_sum(x[N-1], x[N])
+    return (_fast_sweep_up(Base.setindex(Base.front(x), s, N - 1))..., e)
+end
+
+
+@inline _inc_int(x::_MF{T,N}) where {T,N} =
+    _MF{T,N}(_fast_sweep_up(_fast_sweep_down(x._limbs, +one(T))))
+@inline _inc_int(x::_MFV{M,T,N}) where {M,T,N} =
+    _MFV{M,T,N}(_fast_sweep_up(_fast_sweep_down(x._limbs, +one(Vec{M,T}))))
+@inline _dec_int(x::_MF{T,N}) where {T,N} =
+    _MF{T,N}(_fast_sweep_up(_fast_sweep_down(x._limbs, -one(T))))
+@inline _dec_int(x::_MFV{M,T,N}) where {M,T,N} =
+    _MFV{M,T,N}(_fast_sweep_up(_fast_sweep_down(x._limbs, -one(Vec{M,T}))))
+
+
+@inline function Base.trunc(x::_MF{T,N}) where {T,N}
+    s = signbit(x)
+    t = _MF{T,N}(trunc.(x._limbs))
+    u = _dec_int(t)
+    v = _inc_int(t)
+    return ifelse((t > x) & !s, u, ifelse((t < x) & s, v, t))
+end
+
+@inline function Base.trunc(x::_MFV{M,T,N}) where {M,T,N}
+    s = signbit(x)
+    t = _MFV{M,T,N}(trunc.(x._limbs))
+    u = _dec_int(t)
+    v = _inc_int(t)
+    return vifelse((t > x) & !s, u, vifelse((t < x) & s, v, t))
+end
+
+
+@inline function Base.floor(x::_MF{T,N}) where {T,N}
+    t = trunc(x)
+    return ifelse((t != x) & signbit(x), _dec_int(t), t)
+end
+
+@inline function Base.floor(x::_MFV{M,T,N}) where {M,T,N}
+    t = trunc(x)
+    return vifelse((t != x) & signbit(x), _dec_int(t), t)
+end
+
+
+@inline function Base.ceil(x::_MF{T,N}) where {T,N}
+    t = trunc(x)
+    return ifelse((t != x) & !signbit(x), _inc_int(t), t)
+end
+
+@inline function Base.ceil(x::_MFV{M,T,N}) where {M,T,N}
+    t = trunc(x)
+    return vifelse((t != x) & !signbit(x), _inc_int(t), t)
+end
+
+
 function Base.decompose(x::_MF{T,N}) where {T,N}
     if iszero(x)
         return (zero(BigInt), 0, ifelse(signbit(x), -1, +1))
