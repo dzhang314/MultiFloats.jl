@@ -1770,31 +1770,9 @@ const _BASE_TRANSCENDENTAL_FUNCTIONS = Symbol[
     :sinpi, :cospi, :sinc, :cosc, :deg2rad, :rad2deg,
 ]
 
-
 const _BASE_TRANSCENDENTAL_TUPLE_FUNCTIONS = Symbol[
     :sincos, :sincosd, :sincospi,
 ]
-
-
-for name in _BASE_TRANSCENDENTAL_FUNCTIONS
-    eval(:(Base.$name(::MultiFloat{T,N}) where {T,N} = error($(
-        "$name(::MultiFloat) is not yet implemented. For a workaround,\n" *
-        "call MultiFloats.use_bigfloat_transcendentals() after importing\n" *
-        "MultiFloats. This will use the BigFloat implementation of $name,\n" *
-        "which will not be as fast as a pure-MultiFloat implementation.\n"
-    ))))
-end
-
-
-for name in _BASE_TRANSCENDENTAL_TUPLE_FUNCTIONS
-    eval(:(Base.$name(::MultiFloat{T,N}) where {T,N} = error($(
-        "$name(::MultiFloat) is not yet implemented. For a workaround,\n" *
-        "call MultiFloats.use_bigfloat_transcendentals() after importing\n" *
-        "MultiFloats. This will use the BigFloat implementation of $name,\n" *
-        "which will not be as fast as a pure-MultiFloat implementation.\n"
-    ))))
-end
-
 
 function _eval_big(f::Function, x::MultiFloat{T,N}, p::Integer) where {T,N}
     return setprecision(BigFloat, p) do
@@ -1802,18 +1780,25 @@ function _eval_big(f::Function, x::MultiFloat{T,N}, p::Integer) where {T,N}
     end
 end
 
+const _NUM_EXTRA_BITS = 10
 
-function use_bigfloat_transcendentals(num_extra_bits::Int=10)
-    for name in _BASE_TRANSCENDENTAL_FUNCTIONS
-        eval(:(Base.$name(x::MultiFloat{T,N}) where {T,N} = MultiFloat{T,N}(
-            _eval_big($name, x, precision(MultiFloat{T,N}) + $num_extra_bits))))
-    end
-    for name in _BASE_TRANSCENDENTAL_TUPLE_FUNCTIONS
-        eval(:(Base.$name(x::MultiFloat{T,N}) where {T,N} = MultiFloat{T,N}.(
-            _eval_big($name, x, precision(MultiFloat{T,N}) + $num_extra_bits))))
-    end
+for name in _BASE_TRANSCENDENTAL_FUNCTIONS
+    eval(:(
+    function Base.$name(x::MultiFloat{T,N}) where {T,N}
+        @warn $("$name(::MultiFloat) uses a BigFloat implementation of $name,\n" *
+        "which will not be as fast as a pure-MultiFloat implementation.\n") maxlog = 1
+        return MultiFloat{T,N}(_eval_big($name, x, precision(MultiFloat{T,N}) + _NUM_EXTRA_BITS))
+    end))
 end
 
+for name in _BASE_TRANSCENDENTAL_TUPLE_FUNCTIONS
+    eval(:(
+    function Base.$name(x::MultiFloat{T,N}) where {T,N}
+        @warn $("$name(::MultiFloat) uses a BigFloat implementation of $name,\n" *
+        "which will not be as fast as a pure-MultiFloat implementation.\n") maxlog = 1
+        return MultiFloat{T,N}.(_eval_big($name, x, precision(MultiFloat{T,N}) + _NUM_EXTRA_BITS))
+    end))
+end
 
 include("cbrt.jl")
 include("exp.jl")
