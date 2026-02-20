@@ -1750,8 +1750,8 @@ function _horner_expr_mf(
         end
         k = k_next
         val_k = Expr(:call, Expr(:curly, :Val, k))
-        rhs = Expr(:call, :mfmul, ps[k], xs[k], val_k)
-        rhs = Expr(:call, :mfadd, rhs, coefficients[i], val_k)
+        rhs = Expr(:call, mfmul, ps[k], xs[k], val_k)
+        rhs = Expr(:call, mfadd, rhs, coefficients[i], val_k)
         push!(body, Expr(:(=), ps[k], rhs))
     end
     push!(body, Expr(:return, ps[k]))

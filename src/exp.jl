@@ -1,52 +1,129 @@
-# max, min, and subnormal arguments
-@generated function MAX_EXP(::Val{base}, ::T) where {base,T}
-    res = T(Base.exponent_bias(T)*log(base, big(2)) + log(base, 2 - exp2(big(-Base.significand_bits(T)))))
-    return :($res)
-end
-@generated function MIN_EXP(::Val{base}, ::T) where {base,T}
-    res = T(-(Base.exponent_bias(T)+Base.significand_bits(T)) * log(base, big(2)))
-    return :($res)
-end
-SUBNORM_EXP(::Val{base}, T) where base = log(base, floatmin(T))
+const _EXP_COEFFICIENTS_F32X1 = (
+    (Float32(+0x1.000000p+000),),
+    (Float32(+0x1.62E430p-001),),
+    (Float32(+0x1.EBFBE0p-003),),
+    (Float32(+0x1.C6BE34p-005),),
+    (Float32(+0x1.3B338Cp-007),),
+)
 
-function Log2B(::Val{base}, ::Type{T}) where {base, T}
-    log2(base)
-end
-@generated function EXP_REDUCTION_COEFS(::Val{base}, ::_MF{T,N}) where {base, T,N}
-    setprecision(BigFloat, precision(T)*(N+1)) do
-        res = (_MF{T,N+1}(log(big(base))), _MF{T,N+1}(log(big(2))))
-        return :($res)
-    end
-end
+const _EXP_COEFFICIENTS_F32X2 = (
+    (Float32(+0x1.000000p+000), Float32(-0x1.62C458p-059)),
+    (Float32(+0x1.62E430p-001), Float32(-0x1.05C610p-029)),
+    (Float32(+0x1.EBFBE0p-003), Float32(-0x1.F4DEB0p-033)),
+    (Float32(+0x1.C6B08Ep-005), Float32(-0x1.1F6B9Cp-030)),
+    (Float32(+0x1.3B2AB6p-007), Float32(+0x1.DB9286p-032)),
+    (Float32(+0x1.5D87FEp-010),),
+    (Float32(+0x1.430E9Ep-013),),
+    (Float32(+0x1.FFD486p-017),),
+)
 
-# computes exp(y) for |y| <= log(2)/2
-function exp_kernel(y::_MF{T,N}) where {T,N}
-    N_REDUCTIONS = 4+2N
-    N_TERMS = 3+3N
-    # ERROR = (log(2)*exp2(-N_REDUCTIONS))^N_TERMS/factorial(N_TERMS)
-    y = scale(T(exp2(-N_REDUCTIONS)), y)
-    small_part = evalpoly(y, ntuple(i->one(_MF{T,N})/factorial(i-1), Val(N_TERMS)))._limbs
-    for _ in 1:N_REDUCTIONS
-        small_part = mfsqr(small_part, Val(N))
-    end
-    return _MF{T,N}(small_part)
-end
+const _EXP_COEFFICIENTS_F32X3 = (
+    (Float32(+0x1.000000p+000), Float32(-0x1.C3C196p-094), Float32(-0x1.C4440Ep-119)),
+    (Float32(+0x1.62E430p-001), Float32(-0x1.05C610p-029), Float32(-0x1.950D86p-054)),
+    (Float32(+0x1.EBFBE0p-003), Float32(-0x1.F4E9C6p-033), Float32(+0x1.4378BCp-058)),
+    (Float32(+0x1.C6B08Ep-005), Float32(-0x1.1F6BE8p-030), Float32(-0x1.D67986p-059)),
+    (Float32(+0x1.3B2AB6p-007), Float32(+0x1.F749CEp-032), Float32(+0x1.CA50FEp-057)),
+    (Float32(+0x1.5D87FEp-010), Float32(+0x1.E299F2p-036)),
+    (Float32(+0x1.430912p-013), Float32(+0x1.F0D902p-038)),
+    (Float32(+0x1.FFCBFCp-017), Float32(+0x1.382A76p-043)),
+    (Float32(+0x1.62C022p-020),),
+    (Float32(+0x1.B52A7Ep-024),),
+    (Float32(+0x1.E4D50Ep-028),),
+)
 
-# b^x = 2^(x*log(b)/log(2)) = 2^n*exp(y)
-# where n::Int32 = round(x*log(b)/log(2))
-# y = x*log(b) - n*log(2), |y| <= log(2)/2
-function exp_impl(x::_MF{T,N}, base) where {T,N}
-    max_exp = Int32(Base.exponent_bias(T))
-    head = first(x._limbs)
-    head > MAX_EXP(base, head) && return _MF{T,N}(Inf)
-    head < MIN_EXP(base, head) && return zero(_MF{T,N})
-    n = round(Int32, head*Log2B(base, T))
-    logb, log2 = EXP_REDUCTION_COEFS(base, x)
-    y = _MF{T,N}(_MF{T,N+1}(x)*logb - n*log2)
-    small_part = exp_kernel(y)
-    return ldexp(small_part, n)
-end
+const _EXP_COEFFICIENTS_F32X4 = (
+    (Float32(+0x1.000000p+000), Float32(+0x1.314BDAp-112), Float32(-0x0.003C76p-126), Float32(+0x0.000000p+000)),
+    (Float32(+0x1.62E430p-001), Float32(-0x1.05C610p-029), Float32(-0x1.950D88p-054), Float32(+0x1.D9CB66p-079)),
+    (Float32(+0x1.EBFBE0p-003), Float32(-0x1.F4E9C6p-033), Float32(+0x1.4378B6p-058), Float32(-0x1.F22D28p-084)),
+    (Float32(+0x1.C6B08Ep-005), Float32(-0x1.1F6BE8p-030), Float32(-0x1.D33162p-059), Float32(+0x1.39D488p-084)),
+    (Float32(+0x1.3B2AB6p-007), Float32(+0x1.F749CEp-032), Float32(+0x1.CA7330p-057), Float32(-0x1.F93600p-082)),
+    (Float32(+0x1.5D87FEp-010), Float32(+0x1.E299CCp-036), Float32(+0x1.102D00p-062)),
+    (Float32(+0x1.430912p-013), Float32(+0x1.F0D8F0p-038), Float32(+0x1.DBC3A2p-063)),
+    (Float32(+0x1.FFCBFCp-017), Float32(+0x1.622C4Ep-043), Float32(+0x1.F99E0Cp-068)),
+    (Float32(+0x1.62C022p-020), Float32(+0x1.D2E43Ap-047)),
+    (Float32(+0x1.B5253Ep-024), Float32(-0x1.997E54p-049)),
+    (Float32(+0x1.E4CF52p-028), Float32(-0x1.5BD28Cp-053)),
+    (Float32(+0x1.E8CFACp-032), Float32(-0x1.1FF800p-058)),
+    (Float32(+0x1.C3C1DEp-036),),
+)
 
-Base.exp(x::_MF) = exp_impl(x, Val(ℯ))
-Base.exp2(x::_MF) = exp_impl(x, Val(2))
-Base.exp10(x::_MF) = exp_impl(x, Val(10))
+
+const _EXP_COEFFICIENTS_F64X1 = (
+    (+0x1.0000000000000p+0000,),
+    (+0x1.62E42FEFA39EFp-0001,),
+    (+0x1.EBFBDFF82C58Fp-0003,),
+    (+0x1.C6B08D704A259p-0005,),
+    (+0x1.3B2AB6FBA4F80p-0007,),
+    (+0x1.5D87FE6D1F9D9p-0010,),
+    (+0x1.430912EE3E876p-0013,),
+    (+0x1.FFD3AB8D38F1Fp-0017,),
+    (+0x1.62C5577D34F86p-0020,),
+)
+
+const _EXP_COEFFICIENTS_F64X2 = (
+    (+0x1.0000000000000p+0000, +0x1.314BACF0323FFp-0113),
+    (+0x1.62E42FEFA39EFp-0001, +0x1.ABC9E3B39803Fp-0056),
+    (+0x1.EBFBDFF82C58Fp-0003, -0x1.5E43A53E454F1p-0057),
+    (+0x1.C6B08D704A0C0p-0005, -0x1.D3316275139AEp-0059),
+    (+0x1.3B2AB6FBA4E77p-0007, +0x1.4E65DFEF67D34p-0062),
+    (+0x1.5D87FE78A6731p-0010, +0x1.0717F88815ADFp-0066),
+    (+0x1.430912F86C787p-0013, +0x1.BC7CDBCDC0339p-0067),
+    (+0x1.FFCBFC588B0C7p-0017, -0x1.E645E286FE571p-0071),
+    (+0x1.62C0223A5C863p-0020, -0x1.99EF542AA8E1Ep-0074),
+    (+0x1.B5253D395E80Fp-0024,),
+    (+0x1.E4CF5152FBB30p-0028,),
+    (+0x1.E8CAC72F6E9E5p-0032,),
+    (+0x1.C3C1919538484p-0036,),
+    (+0x1.816519F74C4AFp-0040,),
+)
+
+const _EXP_COEFFICIENTS_F64X3 = (
+    (+0x1.0000000000000p+0000, -0x1.45AE8ADE8BE00p-0171, +0x1.1A4EE3B642AEFp-0225),
+    (+0x1.62E42FEFA39EFp-0001, +0x1.ABC9E3B39803Fp-0056, +0x1.7B57A079A1934p-0111),
+    (+0x1.EBFBDFF82C58Fp-0003, -0x1.5E43A53E44DA3p-0057, -0x1.406AB8BB15A7Dp-0112),
+    (+0x1.C6B08D704A0C0p-0005, -0x1.D331627513351p-0059, +0x1.2DEE9EB88E96Bp-0113),
+    (+0x1.3B2AB6FBA4E77p-0007, +0x1.4E65DF05A9F75p-0062, +0x1.8A0E48B03BB1Fp-0116),
+    (+0x1.5D87FE78A6731p-0010, +0x1.0717F69A514BFp-0066, -0x1.E67D45B2B54C0p-0121),
+    (+0x1.430912F86C787p-0013, +0x1.BD2C2A261AC8Dp-0067, +0x1.FA7C10E68194Bp-0125),
+    (+0x1.FFCBFC588B0C7p-0017, -0x1.E53AB8CDE09C6p-0071, -0x1.6CABBD89673B2p-0125),
+    (+0x1.62C0223A5C824p-0020, -0x1.3800CFC92CEC7p-0079, +0x1.F725ACFE88614p-0133),
+    (+0x1.B5253D395E7C4p-0024, -0x1.2DAC78D2D8104p-0079),
+    (+0x1.E4CF5158B8ECAp-0028, -0x1.204BC43674356p-0085),
+    (+0x1.E8CAC7351BB25p-0032, -0x1.F8543329B1980p-0087),
+    (+0x1.C3BD650FC2986p-0036, -0x1.D55E5BE260085p-0092),
+    (+0x1.816193166D0F9p-0040, +0x1.89E0D888E9E3Dp-0094),
+    (+0x1.314964D5878B9p-0044, +0x1.6BCCC8ED7C9FFp-0098),
+    (+0x1.C36E843B04039p-0049, +0x1.4569838910831p-0105),
+    (+0x1.38E89AE5EF001p-0053,),
+    (+0x1.98444B3F935E3p-0058,),
+    (+0x1.F71A9A0DA0F0Ep-0063,),
+    (+0x1.25A9C5B4980F7p-0067,),
+)
+
+const _EXP_COEFFICIENTS_F64X4 = (
+    (+0x1.0000000000000p+0000, +0x1.D3EDD82C8CCC3p-0231, -0x1.FCE0410A40696p-0286, -0x1.83E7CCE217359p-0340),
+    (+0x1.62E42FEFA39EFp-0001, +0x1.ABC9E3B39803Fp-0056, +0x1.7B57A079A1934p-0111, -0x1.ACE93A4EBE5ECp-0165),
+    (+0x1.EBFBDFF82C58Fp-0003, -0x1.5E43A53E44DA3p-0057, -0x1.406AB8BB15C7Ap-0112, +0x1.9CD3A9857D230p-0168),
+    (+0x1.C6B08D704A0C0p-0005, -0x1.D331627513351p-0059, +0x1.2DEE9EB88E88Ap-0113, -0x1.2FF778B5F48F7p-0167),
+    (+0x1.3B2AB6FBA4E77p-0007, +0x1.4E65DF05A9F75p-0062, +0x1.8A0E48F1D4A7Dp-0116, -0x1.C6EE295EFFA51p-0171),
+    (+0x1.5D87FE78A6731p-0010, +0x1.0717F69A514BFp-0066, -0x1.E67D449ACB48Cp-0121, -0x1.CD71FE75E0E48p-0175),
+    (+0x1.430912F86C787p-0013, +0x1.BD2C2A261AC8Dp-0067, +0x1.F3ECC53FF3312p-0125, -0x1.164337514743Dp-0181),
+    (+0x1.FFCBFC588B0C7p-0017, -0x1.E53AB8CDE09C6p-0071, -0x1.6D4C7BAB45DE9p-0125, -0x1.9E19679D56D7Ep-0182),
+    (+0x1.62C0223A5C824p-0020, -0x1.3800CFC92C41Ep-0079, +0x1.61B8683DC437Ep-0133, +0x1.9F2865517954Cp-0188),
+    (+0x1.B5253D395E7C4p-0024, -0x1.2DAC78D2D8038p-0079, +0x1.14632E2950C3Dp-0133),
+    (+0x1.E4CF5158B8ECAp-0028, -0x1.204BC4D5A312Dp-0085, +0x1.C540C0C34226Dp-0140),
+    (+0x1.E8CAC7351BB25p-0032, -0x1.F8543350DC6F6p-0087, +0x1.3BA02AC151168p-0141),
+    (+0x1.C3BD650FC2986p-0036, -0x1.D4A9781E85D12p-0092, +0x1.878EF706B383Bp-0146),
+    (+0x1.816193166D0F9p-0040, +0x1.8A06B0C03DC5Ap-0094, -0x1.15AB03421C584p-0148),
+    (+0x1.314964D5878A9p-0044, +0x1.CFC50D89572ADp-0098, -0x1.F016CF6E85F37p-0152),
+    (+0x1.C36E843B04022p-0049, -0x1.984EA7FA0FCEDp-0105, +0x1.48371AFAC73B6p-0159),
+    (+0x1.38E89AE79F8B4p-0053, -0x1.B71C06C164314p-0107),
+    (+0x1.98444B41C25A8p-0058, -0x1.550F0CEFFFEF1p-0113),
+    (+0x1.F7176BDB43696p-0063, -0x1.468CE03F0CD83p-0118),
+    (+0x1.25A7ECB835C6Cp-0067, +0x1.6D0D8914C9ADFp-0122),
+    (+0x1.45ACC4B50513Ep-0072, -0x1.BC8D95D5A48E6p-0126),
+    (+0x1.57FC5782BA01Ep-0077, -0x1.E1A633F20B03Ap-0132),
+    (+0x1.5ACFAD35DAA9Ep-0082,),
+    (+0x1.4E76C2600CB49p-0087,),
+    (+0x1.351C3A3C99042p-0092,),
+)
