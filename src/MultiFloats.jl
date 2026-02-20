@@ -584,17 +584,23 @@ end
 
 
 @inline Base.floatmin(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(floatmin(T))
+@inline Base.floatmin(::Type{_MFV{M,T,N}}) where {M,T,N} =
+    _MFV{M,T,N}(floatmin(_MF{T,N}))
 @inline Base.floatmax(::Type{_MF{T,N}}) where {T,N} = _MF{T,N}(ntuple(
     i -> ldexp(floatmax(T), -((i - 1) * (precision(T) + 1))),
     Val{N}()))
-# NOTE: SIMD.jl does not define Base.floatmin or Base.floatmax for vectors.
+@inline Base.floatmax(::Type{_MFV{M,T,N}}) where {M,T,N} =
+    _MFV{M,T,N}(floatmax(_MF{T,N}))
 
 
 @inline Base.typemin(::Type{_MF{T,N}}) where {T,N} =
     _MF{T,N}(ntuple(_ -> typemin(T), Val{N}()))
+@inline Base.typemin(::Type{_MFV{M,T,N}}) where {M,T,N} =
+    _MFV{M,T,N}(typemin(_MF{T,N}))
 @inline Base.typemax(::Type{_MF{T,N}}) where {T,N} =
     _MF{T,N}(ntuple(_ -> typemax(T), Val{N}()))
-# NOTE: SIMD.jl does not define Base.typemin or Base.typemax for vectors.
+@inline Base.typemax(::Type{_MFV{M,T,N}}) where {M,T,N} =
+    _MFV{M,T,N}(typemax(_MF{T,N}))
 
 
 ################################################## FLOATING-POINT CLASSIFICATION

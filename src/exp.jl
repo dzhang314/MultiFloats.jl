@@ -1,4 +1,10 @@
-const _EXP_COEFFICIENTS_F32X1 = (
+@inline _exp2_min(::Type{Float32}) = Float32(-0x1.F80000p+006)
+@inline _exp2_max(::Type{Float32}) = Float32(+0x1.FFFFFEp+006)
+@inline _exp2_min(::Type{Float64}) = -0x1.FF00000000000p+0009
+@inline _exp2_max(::Type{Float64}) = +0x1.FFFFFFFFFFFFFp+0009
+
+
+@inline _exp2_coefficients(::Type{Float32}, ::Val{1}) = (
     (Float32(+0x1.000000p+000),),
     (Float32(+0x1.62E430p-001),),
     (Float32(+0x1.EBFBE0p-003),),
@@ -6,7 +12,7 @@ const _EXP_COEFFICIENTS_F32X1 = (
     (Float32(+0x1.3B338Cp-007),),
 )
 
-const _EXP_COEFFICIENTS_F32X2 = (
+@inline _exp2_coefficients(::Type{Float32}, ::Val{2}) = (
     (Float32(+0x1.000000p+000), Float32(-0x1.62C458p-059)),
     (Float32(+0x1.62E430p-001), Float32(-0x1.05C610p-029)),
     (Float32(+0x1.EBFBE0p-003), Float32(-0x1.F4DEB0p-033)),
@@ -17,7 +23,7 @@ const _EXP_COEFFICIENTS_F32X2 = (
     (Float32(+0x1.FFD486p-017),),
 )
 
-const _EXP_COEFFICIENTS_F32X3 = (
+@inline _exp2_coefficients(::Type{Float32}, ::Val{3}) = (
     (Float32(+0x1.000000p+000), Float32(-0x1.C3C196p-094), Float32(-0x1.C4440Ep-119)),
     (Float32(+0x1.62E430p-001), Float32(-0x1.05C610p-029), Float32(-0x1.950D86p-054)),
     (Float32(+0x1.EBFBE0p-003), Float32(-0x1.F4E9C6p-033), Float32(+0x1.4378BCp-058)),
@@ -31,7 +37,7 @@ const _EXP_COEFFICIENTS_F32X3 = (
     (Float32(+0x1.E4D50Ep-028),),
 )
 
-const _EXP_COEFFICIENTS_F32X4 = (
+@inline _exp2_coefficients(::Type{Float32}, ::Val{4}) = (
     (Float32(+0x1.000000p+000), Float32(+0x1.314BDAp-112), Float32(-0x0.003C76p-126), Float32(+0x0.000000p+000)),
     (Float32(+0x1.62E430p-001), Float32(-0x1.05C610p-029), Float32(-0x1.950D88p-054), Float32(+0x1.D9CB66p-079)),
     (Float32(+0x1.EBFBE0p-003), Float32(-0x1.F4E9C6p-033), Float32(+0x1.4378B6p-058), Float32(-0x1.F22D28p-084)),
@@ -47,8 +53,7 @@ const _EXP_COEFFICIENTS_F32X4 = (
     (Float32(+0x1.C3C1DEp-036),),
 )
 
-
-const _EXP_COEFFICIENTS_F64X1 = (
+@inline _exp2_coefficients(::Type{Float64}, ::Val{1}) = (
     (+0x1.0000000000000p+0000,),
     (+0x1.62E42FEFA39EFp-0001,),
     (+0x1.EBFBDFF82C58Fp-0003,),
@@ -60,7 +65,7 @@ const _EXP_COEFFICIENTS_F64X1 = (
     (+0x1.62C5577D34F86p-0020,),
 )
 
-const _EXP_COEFFICIENTS_F64X2 = (
+@inline _exp2_coefficients(::Type{Float64}, ::Val{2}) = (
     (+0x1.0000000000000p+0000, +0x1.314BACF0323FFp-0113),
     (+0x1.62E42FEFA39EFp-0001, +0x1.ABC9E3B39803Fp-0056),
     (+0x1.EBFBDFF82C58Fp-0003, -0x1.5E43A53E454F1p-0057),
@@ -77,7 +82,7 @@ const _EXP_COEFFICIENTS_F64X2 = (
     (+0x1.816519F74C4AFp-0040,),
 )
 
-const _EXP_COEFFICIENTS_F64X3 = (
+@inline _exp2_coefficients(::Type{Float64}, ::Val{3}) = (
     (+0x1.0000000000000p+0000, -0x1.45AE8ADE8BE00p-0171, +0x1.1A4EE3B642AEFp-0225),
     (+0x1.62E42FEFA39EFp-0001, +0x1.ABC9E3B39803Fp-0056, +0x1.7B57A079A1934p-0111),
     (+0x1.EBFBDFF82C58Fp-0003, -0x1.5E43A53E44DA3p-0057, -0x1.406AB8BB15A7Dp-0112),
@@ -100,7 +105,7 @@ const _EXP_COEFFICIENTS_F64X3 = (
     (+0x1.25A9C5B4980F7p-0067,),
 )
 
-const _EXP_COEFFICIENTS_F64X4 = (
+@inline _exp2_coefficients(::Type{Float64}, ::Val{4}) = (
     (+0x1.0000000000000p+0000, +0x1.D3EDD82C8CCC3p-0231, -0x1.FCE0410A40696p-0286, -0x1.83E7CCE217359p-0340),
     (+0x1.62E42FEFA39EFp-0001, +0x1.ABC9E3B39803Fp-0056, +0x1.7B57A079A1934p-0111, -0x1.ACE93A4EBE5ECp-0165),
     (+0x1.EBFBDFF82C58Fp-0003, -0x1.5E43A53E44DA3p-0057, -0x1.406AB8BB15C7Ap-0112, +0x1.9CD3A9857D230p-0168),
@@ -127,3 +132,113 @@ const _EXP_COEFFICIENTS_F64X4 = (
     (+0x1.4E76C2600CB49p-0087,),
     (+0x1.351C3A3C99042p-0092,),
 )
+
+
+@generated _exp2_polynomial(x::NTuple{N,T}) where {N,T} =
+    _horner_expr_mf(_exp2_coefficients(T, Val{N}()))
+@generated _exp2_polynomial(x::NTuple{N,Vec{M,T}}) where {N,M,T} =
+    _horner_expr_mfv(_exp2_coefficients(T, Val{N}()), M)
+
+
+@inline _float_to_int(x::Float32) = unsafe_trunc(Int32, x)
+@inline _float_to_int(x::Float64) = unsafe_trunc(Int64, x)
+@inline _float_to_int(x::Vec{M,Float32}) where {M} = convert(Vec{M,Int32}, x)
+@inline _float_to_int(x::Vec{M,Float64}) where {M} = convert(Vec{M,Int64}, x)
+
+
+@inline function _exp2_kernel(x::NTuple{N,T}) where {N,T}
+    _zero = zero(T)
+    _one = one(T)
+    _two = _one + _one
+    _four = _two + _two
+    _eight = _four + _four
+    _one_eighth = inv(_eight)
+
+    n_float = round(first(x))
+    neg_n = ntuple(i -> isone(i) ? -n_float : _zero, Val{N}())
+    p = _exp2_polynomial(scale(_one_eighth, mfadd(x, neg_n, Val{N}())))
+    result = mfsqr(mfsqr(mfsqr(p, Val{N}()), Val{N}()), Val{N}())
+    n = _float_to_int(n_float)
+    half_n = n >> 1
+    result = scale(unsafe_ldexp(_one, half_n), result)
+    result = scale(unsafe_ldexp(_one, n - half_n), result)
+    return result
+end
+
+
+function Base.exp2(x::_MF{T,N}) where {T,N}
+    head = first(x._limbs)
+    result = _MF{T,N}(_exp2_kernel(x._limbs))
+    result = ifelse(head < _exp2_min(T), zero(_MF{T,N}), result)
+    result = ifelse(head > _exp2_max(T), typemax(_MF{T,N}), result)
+    return result
+end
+
+function Base.exp2(x::_MFV{M,T,N}) where {M,T,N}
+    head = first(x._limbs)
+    result = _MFV{M,T,N}(_exp2_kernel(x._limbs))
+    result = vifelse(head < _exp2_min(T), zero(_MFV{M,T,N}), result)
+    result = vifelse(head > _exp2_max(T), typemax(_MFV{M,T,N}), result)
+    return result
+end
+
+
+const _LOG2_E_FULL_F32 = (
+    Float32(+0x1.715476p+000), Float32(+0x1.4AE0C0p-026),
+    Float32(-0x1.E88830p-052), Float32(+0x1.FFB41Ap-077),
+    Float32(+0x1.1D3E88p-103), Float32(+0x0.75ABBEp-126),
+)
+
+const _LOG2_10_FULL_F32 = (
+    Float32(+0x1.A934F0p+001), Float32(+0x1.2F346Ep-024),
+    Float32(+0x1.5FC926p-051), Float32(-0x1.02402Cp-076),
+    Float32(-0x1.28125Ap-101), Float32(+0x0.D96C56p-126),
+)
+
+const _LOG2_E_FULL_F64 = (
+    +0x1.71547652B82FEp+0000, +0x1.777D0FFDA0D24p-0056,
+    -0x1.60BB8A5442AB9p-0110, -0x1.4B52D3BA6D74Dp-0166,
+    +0x1.9A342648FBC39p-0220, -0x1.E0455744994EEp-0274,
+    +0x1.B25EEB82D7C16p-0328, +0x1.F5485CF306255p-0382,
+    -0x1.EC07680A1F958p-0436, -0x1.06326680EB5B6p-0490,
+    -0x1.B3D04C549BC98p-0544, +0x1.EABCEAD10305Bp-0598,
+    -0x1.4440C57D7AB97p-0655, -0x1.7185D42A4E6D6p-0710,
+    -0x1.F332B5BE48526p-0766, +0x1.2CE4F199E108Dp-0820,
+    -0x1.8DAFCC6077F2Ap-0877, +0x1.9ABB71EC25E12p-0932,
+    -0x1.1473D7A3366BDp-0989, -0x0.000004977D38Ap-1022,
+)
+
+const _LOG2_10_FULL_F64 = (
+    +0x1.A934F0979A371p+0001, +0x1.7F2495FB7FA6Dp-0053,
+    +0x1.FB699B2D8ABFCp-0107, +0x1.BD9D6A748DB56p-0161,
+    +0x1.0105CF0B3A0CDp-0215, -0x1.7810B1157062Ep-0269,
+    -0x1.DB41549C52F43p-0326, +0x1.850D7B9201597p-0380,
+    +0x1.4A99FE2C59A9Fp-0435, -0x1.FCC7E09B0693Fp-0490,
+    +0x1.F66D7537FB9B1p-0544, -0x1.947073642FC7Ap-0598,
+    -0x1.A06FE33D2E537p-0654, -0x1.708A88AEF6ACFp-0710,
+    -0x1.1E69CE4805704p-0764, -0x1.28ECFB0774BC1p-0818,
+    -0x1.351E4155B270Cp-0872, -0x1.8F99DCECA58EDp-0928,
+    -0x1.EFBB0F04F4A22p-0985, -0x0.00008D3C165ABp-1022,
+)
+
+
+@inline _log2_e(::Type{_MF{Float32,N}}) where {N} =
+    _MF{Float32,N}(ntuple(i -> _LOG2_E_FULL_F32[i], Val{N}()))
+@inline _log2_e(::Type{_MF{Float64,N}}) where {N} =
+    _MF{Float64,N}(ntuple(i -> _LOG2_E_FULL_F64[i], Val{N}()))
+@inline _log2_e(::Type{_MFV{M,T,N}}) where {M,T,N} =
+    _MFV{M,T,N}(_log2_e(_MF{T,N}))
+
+
+@inline _log2_10(::Type{_MF{Float32,N}}) where {N} =
+    _MF{Float32,N}(ntuple(i -> _LOG2_10_FULL_F32[i], Val{N}()))
+@inline _log2_10(::Type{_MF{Float64,N}}) where {N} =
+    _MF{Float64,N}(ntuple(i -> _LOG2_10_FULL_F64[i], Val{N}()))
+@inline _log2_10(::Type{_MFV{M,T,N}}) where {M,T,N} =
+    _MFV{M,T,N}(_log2_10(_MF{T,N}))
+
+
+Base.exp(x::_MF{T,N}) where {T,N} = exp2(x * _log2_e(_MF{T,N}))
+Base.exp(x::_MFV{M,T,N}) where {M,T,N} = exp2(x * _log2_e(_MFV{M,T,N}))
+Base.exp10(x::_MF{T,N}) where {T,N} = exp2(x * _log2_10(_MF{T,N}))
+Base.exp10(x::_MFV{M,T,N}) where {M,T,N} = exp2(x * _log2_10(_MFV{M,T,N}))
