@@ -22,8 +22,8 @@ end
 
 struct MultiFloatVec{M,T,N}
     _limbs::NTuple{N,Vec{M,T}}
-    @inline MultiFloatVec{M,T,N}(
-        limbs::NTuple{N,Vec{M,T}}) where {M,T,N} = new(limbs)
+    @inline MultiFloatVec{M,T,N}(limbs::NTuple{N,Vec{M,T}}) where {M,T,N} =
+        new(limbs)
 end
 
 
@@ -282,6 +282,9 @@ const _Fits64xN = Union{_Fits64x2,_Fits64x3}
 ################################################################ RENORMALIZATION
 
 
+# MultiFloats.two_sum is a qualified public function.
+# Users are expected to call it as MultiFloats.two_sum(a, b).
+
 @inline function two_sum(a::T, b::T) where {T}
     sum = a + b
     a_prime = sum - b
@@ -311,10 +314,15 @@ end
 end
 
 
+# MultiFloats.isnormalized is a qualified public function.
+# Users are expected to call it as MultiFloats.isnormalized(x).
 @inline isnormalized(x::NTuple{N,T}) where {N,T} = (x === _renorm_pass(x))
 @inline isnormalized(x::_MF{T,N}) where {T,N} = isnormalized(x._limbs)
 @inline isnormalized(x::_MFV{M,T,N}) where {M,T,N} = isnormalized(x._limbs)
 
+
+# MultiFloats.renormalize is a qualified public function.
+# Users are expected to call it as MultiFloats.renormalize(x).
 
 @inline function renormalize(x::NTuple{N,T}) where {N,T}
     total = +(reverse(x)...)
@@ -341,7 +349,6 @@ end
         x = x_next
     end
 end
-
 
 @inline renormalize(x::_MF{T,N}) where {T,N} =
     _MF{T,N}(renormalize(x._limbs))
@@ -523,6 +530,9 @@ Base.Rational(x::_MF{T,N}) where {T,N} = Rational{BigInt}(x)
 ################################################################### CANONIZATION
 
 
+# MultiFloats.canonize is a qualified public function.
+# Users are expected to call it as MultiFloats.canonize(x).
+
 function canonize(x::_MF{T,N}) where {T,N}
     temp = BigFloat(; precision=(_full_precision(T) + ndigits(N; base=2)))
     mpfr_zero!(temp)
@@ -548,6 +558,8 @@ function canonize(x::_MFV{M,T,N}) where {M,T,N}
 end
 
 
+# MultiFloats.iscanonical is a qualified public function.
+# Users are expected to call it as MultiFloats.iscanonical(x).
 iscanonical(x::_MF{T,N}) where {T,N} = (x === canonize(x))
 iscanonical(x::_MFV{M,T,N}) where {M,T,N} = (x === canonize(x))
 
@@ -676,6 +688,9 @@ end
 # NOTE: SIMD.jl does not define Base.ldexp for vectors.
 
 
+# MultiFloats.unsafe_exponent is a qualified public function.
+# Users are expected to call it as MultiFloats.unsafe_exponent(x).
+
 @inline function unsafe_exponent(x::T) where {T<:Base.IEEEFloat}
     U = Base.uinttype(T)
     bits = reinterpret(U, x)
@@ -698,6 +713,9 @@ end
 @inline unsafe_exponent(x::_MFV{M,T,N}) where {M,T,N} =
     unsafe_exponent(first(x._limbs))
 
+
+# MultiFloats.unsafe_ldexp is a qualified public function.
+# Users are expected to call it as MultiFloats.unsafe_ldexp(x, k).
 
 @inline function unsafe_ldexp(x::T, k::Integer) where {T<:Base.IEEEFloat}
     U = Base.uinttype(T)
@@ -975,9 +993,9 @@ _ge_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] >= y._limbs[$n]) : :(
 @inline Base.abs(x::_MFV{M,T,N}) where {M,T,N} = vifelse(signbit(x), -x, x)
 
 
-# NOTE: MultiFloats.scale is not exported to avoid name conflicts.
+# MultiFloats.scale is a qualified public function.
 # Users are expected to call it as MultiFloats.scale(a, x).
-@inline scale(a, x) = a * x
+@inline scale(a::Any, x::Any) = a * x
 @inline scale(a::T, x::NTuple{N,T}) where {N,T} =
     ntuple(i -> a * x[i], Val{N}())
 @inline scale(a::T, x::NTuple{N,Vec{M,T}}) where {N,M,T} =
@@ -990,6 +1008,9 @@ _ge_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] >= y._limbs[$n]) : :(
 
 ############################################################## ADDITION NETWORKS
 
+
+# MultiFloats.fast_two_sum is a qualified public function.
+# Users are expected to call it as MultiFloats.fast_two_sum(a, b).
 
 @inline function fast_two_sum(a::T, b::T) where {T}
     sum = a + b
@@ -1005,8 +1026,14 @@ include("mfadd.jl")
 ######################################################## MULTIPLICATION NETWORKS
 
 
+# MultiFloats.one_prod is a qualified public function.
+# Users are expected to call it as MultiFloats.one_prod(a, b).
+
 @inline one_prod(a::T, b::T) where {T} = a * b
 
+
+# MultiFloats.two_prod is a qualified public function.
+# Users are expected to call it as MultiFloats.two_prod(a, b).
 
 @inline function two_prod(a::T, b::T) where {T}
     prod = a * b
@@ -1021,9 +1048,9 @@ include("mfmul.jl")
 ############################################################## SQUARING NETWORKS
 
 
-# NOTE: MultiFloats.twice is not exported to avoid name conflicts.
+# MultiFloats.twice is a qualified public function.
 # Users are expected to call it as MultiFloats.twice(x).
-@inline twice(x) = x + x
+@inline twice(x::Any) = x + x
 @inline twice(x::_MF{T,N}) where {T,N} = _MF{T,N}(twice.(x._limbs))
 @inline twice(x::_MFV{M,T,N}) where {M,T,N} = _MFV{M,T,N}(twice.(x._limbs))
 
@@ -1116,7 +1143,7 @@ end
 # unsafe_sqrt and rsqrt functions that return NaN instead of throwing.
 
 
-# NOTE: MultiFloats.unsafe_sqrt is not exported to avoid name conflicts.
+# MultiFloats.unsafe_sqrt is a qualified public function.
 # Users are expected to call it as MultiFloats.unsafe_sqrt(x).
 
 @inline unsafe_sqrt(x::Any) = sqrt(x)
@@ -1132,7 +1159,7 @@ function unsafe_sqrt(x::BigFloat)
 end
 
 
-# NOTE: MultiFloats.rsqrt is not exported to avoid name conflicts.
+# MultiFloats.rsqrt is a qualified public function.
 # Users are expected to call it as MultiFloats.rsqrt(x).
 
 @inline rsqrt(x::Any) = inv(unsafe_sqrt(x))
@@ -1340,6 +1367,9 @@ end
 
 using Printf: @sprintf
 
+
+# MultiFloats.hexfloat is a qualified public function.
+# Users are expected to call it as MultiFloats.hexfloat(x).
 
 function hexfloat(x::T) where {T<:Base.IEEEFloat}
     _num_mantissa_bits = Base.significand_bits(T)
@@ -1697,8 +1727,52 @@ Base.promote_rule(::Type{_MF{T,N}}, ::Type{BigFloat}) where {T,N} = BigFloat
 ####################################################### TRANSCENDENTAL FUNCTIONS
 
 
-# TODO: Implement transcendental functions.
-# TODO: frexp, modf, isqrt
+function _horner_expr_mf(
+    coefficients::Tuple{Vararg{Tuple{Vararg{T}}}},
+) where {T}
+    N = maximum(length.(coefficients))
+    xs = [Symbol('x', i) for i = 1:N]
+    body = Expr[]
+    push!(body, Expr(:meta, :inline))
+    for i = 1:N
+        rhs = [Expr(:ref, :x, j) for j = 1:i]
+        push!(body, Expr(:(=), xs[i], Expr(:tuple, rhs...)))
+    end
+    ps = [Symbol('p', i) for i = 1:N]
+    k = length(coefficients[end])
+    push!(body, Expr(:(=), ps[k], coefficients[end]))
+    for i = length(coefficients)-1:-1:1
+        k_next = length(coefficients[i])
+        if k_next > k
+            rhs = Expr(:tuple, Expr(:(...), ps[k]),
+                ntuple(_ -> zero(T), k_next - k)...)
+            push!(body, Expr(:(=), ps[k_next], rhs))
+        end
+        k = k_next
+        val_k = Expr(:call, Expr(:curly, :Val, k))
+        rhs = Expr(:call, :mfmul, ps[k], xs[k], val_k)
+        rhs = Expr(:call, :mfadd, rhs, coefficients[i], val_k)
+        push!(body, Expr(:(=), ps[k], rhs))
+    end
+    push!(body, Expr(:return, ps[k]))
+    return Expr(:block, body...)
+end
+
+
+function _horner_expr_mfv(
+    coefficients::Tuple{Vararg{Tuple{Vararg{T}}}},
+    M::Int,
+) where {T}
+    return _horner_expr_mf(map(c -> Vec{M,T}.(c), coefficients))
+end
+
+
+include("cbrt.jl")
+include("exp.jl")
+include("log.jl")
+
+
+# TODO: frexp, modf
 const _BASE_TRANSCENDENTAL_FUNCTIONS = Symbol[
     :expm1, :log1p,
     :sin, :cos, :tan, :sec, :csc, :cot,
@@ -1743,6 +1817,9 @@ function _eval_big(f::Function, x::MultiFloat{T,N}, p::Integer) where {T,N}
 end
 
 
+# MultiFloats.use_bigfloat_transcendentals is a qualified public function.
+# Users are expected to call it as MultiFloats.use_bigfloat_transcendentals().
+
 function use_bigfloat_transcendentals(num_extra_bits::Int=10)
     for name in _BASE_TRANSCENDENTAL_FUNCTIONS
         eval(:(Base.$name(x::MultiFloat{T,N}) where {T,N} = MultiFloat{T,N}(
@@ -1753,11 +1830,6 @@ function use_bigfloat_transcendentals(num_extra_bits::Int=10)
             _eval_big($name, x, precision(MultiFloat{T,N}) + $num_extra_bits))))
     end
 end
-
-
-include("cbrt.jl")
-include("exp.jl")
-include("log.jl")
 
 
 ################################################################# RANDOM NUMBERS
