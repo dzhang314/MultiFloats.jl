@@ -1126,9 +1126,12 @@ end
 
 include("round.jl")
 
+@inline Base.:(^)(r::_MF{T,N}, n::_MF{T,N}) where {T,N} =
+    exp2(n * log2(r))
+@inline Base.:(^)(r::_MFV{M,T,N}, n::_MFV{M,T,N}) where {M,T,N} =
+    exp2(n * log2(r))
 
 ######################################################### SQUARE ROOT OPERATIONS
-
 
 # In Julia, Base.sqrt throws a DomainError when given a negative real argument.
 # This is, in my opinion, a very unfortunate design choice. It forces otherwise
