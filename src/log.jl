@@ -182,6 +182,98 @@
     _horner_expr_mfv(_log2_kernel_coefficients_wide(T, Val{N}()), M)
 
 
+@generated function _log2_table(::Type{T}, ::Val{N}) where {T,N}
+    setprecision(BigFloat, 2 * _full_precision(T) + 1) do
+        setrounding(BigFloat, RoundNearest) do
+            centers = ntuple(
+                i -> _MF{T,N}(1 + (2 * i - 1) // 64),
+                Val{32}())
+            values = ntuple(
+                i -> _MF{T,N}(log2(BigFloat(1 + (2 * i - 1) // 64))),
+                Val{32}())
+            return :((centers=$centers, values=$values))
+        end
+    end
+end
+
+
+@inline function _log2_table_index(x::T) where {T<:Base.IEEEFloat}
+    U = Base.uinttype(T)
+    bits = reinterpret(U, x)
+    return (bits >> (Base.significand_bits(T) - 5)) & U(0x1F)
+end
+
+@inline function _log2_table_index(x::Vec{M,T}) where {M,T<:Base.IEEEFloat}
+    U = Base.uinttype(T)
+    bits = reinterpret(Vec{M,U}, x)
+    return (bits >> (Base.significand_bits(T) - 5)) & U(0x1F)
+end
+
+
+function Base.log2(x::_MF{T,N}) where {T,N}
+    _one = one(T)
+    _direct_lo = T(15) / T(16)
+    _direct_hi = T(17) / T(16)
+    _table = _log2_table(T, Val{N}())
+    _nan = _MF{T,N}(ntuple(_ -> T(NaN), Val{N}()))
+
+    first_limb = first(x._limbs)
+    index = _log2_table_index(first_limb)
+    e = unsafe_exponent(first_limb)
+    m = unsafe_ldexp(x, -e)
+    center = _table.centers[index+1]
+    value = _table.values[index+1]
+
+    t_direct = (x - _one) / (x + _one)
+    t_table = (m - center) / (m + center)
+    p_direct = _MF{T,N}(_log2_kernel_wide(mfsqr(t_direct._limbs, Val{N}())))
+    p_table = _MF{T,N}(_log2_kernel_narrow(mfsqr(t_table._limbs, Val{N}())))
+    result = ifelse(
+        (_direct_lo < first_limb) & (first_limb < _direct_hi),
+        t_direct * p_direct,
+        convert(T, e) + value + t_table * p_table)
+
+    result = ifelse(iszero(x), typemin(_MF{T,N}), result)
+    result = ifelse(isinf(x) & !signbit(x), typemax(_MF{T,N}), result)
+    result = ifelse(isnan(x) | (signbit(x) & !iszero(x)), _nan, result)
+    return result
+end
+
+
+function Base.log2(x::_MFV{M,T,N}) where {M,T,N}
+    _one = one(T)
+    _direct_lo = T(15) / T(16)
+    _direct_hi = T(17) / T(16)
+    _table = _log2_table(T, Val{N}())
+    _nan = _MFV{M,T,N}(ntuple(_ -> Vec{M,T}(T(NaN)), Val{N}()))
+
+    first_limb = first(x._limbs)
+    index = _log2_table_index(first_limb)
+    e = unsafe_exponent(first_limb)
+    m = unsafe_ldexp(x, -e)
+    centers = _MFV{M,T,N}(ntuple(i -> Vec{M,T}(ntuple(j ->
+                _table.centers[extractelement(index.data, j - 1)+1]._limbs[i],
+            Val{M}())), Val{N}()))
+    values = _MFV{M,T,N}(ntuple(i -> Vec{M,T}(ntuple(j ->
+                _table.values[extractelement(index.data, j - 1)+1]._limbs[i],
+            Val{M}())), Val{N}()))
+
+    t_direct = (x - _one) / (x + _one)
+    t_table = (m - centers) / (m + centers)
+    p_direct = _MFV{M,T,N}(_log2_kernel_wide(mfsqr(t_direct._limbs, Val{N}())))
+    p_table = _MFV{M,T,N}(_log2_kernel_narrow(mfsqr(t_table._limbs, Val{N}())))
+    result = vifelse(
+        (_direct_lo < first_limb) & (first_limb < _direct_hi),
+        t_direct * p_direct,
+        convert(Vec{M,T}, e) + values + t_table * p_table)
+
+    result = vifelse(iszero(x), typemin(_MFV{M,T,N}), result)
+    result = vifelse(isinf(x) & !signbit(x), typemax(_MFV{M,T,N}), result)
+    result = vifelse(isnan(x) | (signbit(x) & !iszero(x)), _nan, result)
+    return result
+end
+
+
 const _LN_2_FULL_F32 = (
     Float32(+0x1.62E430p-001), Float32(-0x1.05C610p-029),
     Float32(-0x1.950D88p-054), Float32(+0x1.D9CC02p-079),
