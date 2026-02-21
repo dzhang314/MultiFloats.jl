@@ -116,6 +116,6 @@ end
 
 
 @inline Base.cbrt(x::_MF{T,N}) where {T,N} =
-    ifelse(iszero(x), zero(x), _MF{T,N}(mfcbrt(x._limbs, Val{N}())))
+    ifelse(iszero(x), x, _MF{T,N}(mfcbrt(x._limbs, Val{N}())))
 @inline Base.cbrt(x::_MFV{M,T,N}) where {M,T,N} =
-    vifelse(iszero(x), zero(x), _MFV{M,T,N}(mfcbrt(x._limbs, Val{N}())))
+    vifelse(iszero(x), x, _MFV{M,T,N}(mfcbrt(x._limbs, Val{N}())))

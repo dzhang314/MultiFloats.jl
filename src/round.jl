@@ -1,3 +1,9 @@
+@inline _clear_signed_zeros(x::NTuple{N,T}) where {N,T} =
+    ntuple(i -> x[i] + zero(T), Val{N}())
+@inline _clear_signed_zeros(x::NTuple{N,Vec{M,T}}) where {N,M,T} =
+    ntuple(i -> x[i] + zero(T), Val{N}())
+
+
 @inline _fast_sweep_down(x::NTuple{1,T}, y::T) where {T} = (x[1] + y,)
 @inline function _fast_sweep_down(x::NTuple{N,T}, y::T) where {N,T}
     s, e = fast_two_sum(x[1], y)
@@ -12,19 +18,19 @@ end
 end
 
 
-@inline _inc_int(x::_MF{T,N}) where {T,N} =
-    _MF{T,N}(_fast_sweep_up(_fast_sweep_down(x._limbs, +one(T))))
-@inline _inc_int(x::_MFV{M,T,N}) where {M,T,N} =
-    _MFV{M,T,N}(_fast_sweep_up(_fast_sweep_down(x._limbs, +one(Vec{M,T}))))
 @inline _dec_int(x::_MF{T,N}) where {T,N} =
     _MF{T,N}(_fast_sweep_up(_fast_sweep_down(x._limbs, -one(T))))
 @inline _dec_int(x::_MFV{M,T,N}) where {M,T,N} =
     _MFV{M,T,N}(_fast_sweep_up(_fast_sweep_down(x._limbs, -one(Vec{M,T}))))
+@inline _inc_int(x::_MF{T,N}) where {T,N} =
+    _MF{T,N}(_fast_sweep_up(_fast_sweep_down(x._limbs, +one(T))))
+@inline _inc_int(x::_MFV{M,T,N}) where {M,T,N} =
+    _MFV{M,T,N}(_fast_sweep_up(_fast_sweep_down(x._limbs, +one(Vec{M,T}))))
 
 
 @inline function Base.trunc(x::_MF{T,N}) where {T,N}
     s = signbit(x)
-    t = _MF{T,N}(trunc.(x._limbs))
+    t = _MF{T,N}(_clear_signed_zeros(trunc.(x._limbs)))
     u = _dec_int(t)
     v = _inc_int(t)
     return ifelse((t > x) & !s, u, ifelse((t < x) & s, v, t))
@@ -32,7 +38,7 @@ end
 
 @inline function Base.trunc(x::_MFV{M,T,N}) where {M,T,N}
     s = signbit(x)
-    t = _MFV{M,T,N}(trunc.(x._limbs))
+    t = _MFV{M,T,N}(_clear_signed_zeros(trunc.(x._limbs)))
     u = _dec_int(t)
     v = _inc_int(t)
     return vifelse((t > x) & !s, u, vifelse((t < x) & s, v, t))

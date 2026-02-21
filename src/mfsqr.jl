@@ -2,7 +2,7 @@
     x::NTuple{1,T},
     ::Val{1},
 ) where {T}
-    return (x[1] * x[1],)
+    return (one_prod(x[1], x[1]),)
 end
 
 

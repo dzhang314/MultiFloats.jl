@@ -1042,7 +1042,7 @@ include("mfadd.jl")
 # Users are expected to call it as MultiFloats.two_prod(a, b).
 
 @inline function two_prod(a::T, b::T) where {T}
-    prod = a * b
+    prod = one_prod(a, b)
     err = fma(a, b, -prod)
     return (prod, err)
 end
