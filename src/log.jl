@@ -210,12 +210,11 @@ end
 end
 
 
-function Base.log2(x::_MF{T,N}) where {T,N}
+@inline function unsafe_log2(x::_MF{T,N}) where {T,N}
     _one = one(T)
     _direct_lo = T(15) / T(16)
     _direct_hi = T(17) / T(16)
     _table = _log2_table(T, Val{N}())
-    _nan = _MF{T,N}(ntuple(_ -> T(NaN), Val{N}()))
 
     first_limb = first(x._limbs)
     index = _log2_table_index(first_limb)
@@ -228,24 +227,16 @@ function Base.log2(x::_MF{T,N}) where {T,N}
     t_table = (m - center) / (m + center)
     p_direct = _MF{T,N}(_log2_kernel_wide(mfsqr(t_direct._limbs, Val{N}())))
     p_table = _MF{T,N}(_log2_kernel_narrow(mfsqr(t_table._limbs, Val{N}())))
-    result = ifelse(
-        (_direct_lo < first_limb) & (first_limb < _direct_hi),
+    return ifelse((_direct_lo < first_limb) & (first_limb < _direct_hi),
         t_direct * p_direct,
         convert(T, e) + value + t_table * p_table)
-
-    result = ifelse(iszero(x), typemin(_MF{T,N}), result)
-    result = ifelse(isinf(x) & !signbit(x), typemax(_MF{T,N}), result)
-    result = ifelse(isnan(x) | (signbit(x) & !iszero(x)), _nan, result)
-    return result
 end
 
-
-function Base.log2(x::_MFV{M,T,N}) where {M,T,N}
+@inline function unsafe_log2(x::_MFV{M,T,N}) where {M,T,N}
     _one = one(T)
     _direct_lo = T(15) / T(16)
     _direct_hi = T(17) / T(16)
     _table = _log2_table(T, Val{N}())
-    _nan = _MFV{M,T,N}(ntuple(_ -> Vec{M,T}(T(NaN)), Val{N}()))
 
     first_limb = first(x._limbs)
     index = _log2_table_index(first_limb)
@@ -262,15 +253,9 @@ function Base.log2(x::_MFV{M,T,N}) where {M,T,N}
     t_table = (m - centers) / (m + centers)
     p_direct = _MFV{M,T,N}(_log2_kernel_wide(mfsqr(t_direct._limbs, Val{N}())))
     p_table = _MFV{M,T,N}(_log2_kernel_narrow(mfsqr(t_table._limbs, Val{N}())))
-    result = vifelse(
-        (_direct_lo < first_limb) & (first_limb < _direct_hi),
+    return vifelse((_direct_lo < first_limb) & (first_limb < _direct_hi),
         t_direct * p_direct,
         convert(Vec{M,T}, e) + values + t_table * p_table)
-
-    result = vifelse(iszero(x), typemin(_MFV{M,T,N}), result)
-    result = vifelse(isinf(x) & !signbit(x), typemax(_MFV{M,T,N}), result)
-    result = vifelse(isnan(x) | (signbit(x) & !iszero(x)), _nan, result)
-    return result
 end
 
 
@@ -328,7 +313,48 @@ const _LOG10_2_FULL_F64 = (
     _MFV{M,T,N}(_log10_2(_MF{T,N}))
 
 
-Base.log(x::_MF{T,N}) where {T,N} = log2(x) * _ln_2(_MF{T,N})
-Base.log(x::_MFV{M,T,N}) where {M,T,N} = log2(x) * _ln_2(_MFV{M,T,N})
-Base.log10(x::_MF{T,N}) where {T,N} = log2(x) * _log10_2(_MF{T,N})
-Base.log10(x::_MFV{M,T,N}) where {M,T,N} = log2(x) * _log10_2(_MFV{M,T,N})
+@inline unsafe_log(x::_MF{T,N}) where {T,N} =
+    unsafe_log2(x) * _ln_2(_MF{T,N})
+@inline unsafe_log(x::_MFV{M,T,N}) where {M,T,N} =
+    unsafe_log2(x) * _ln_2(_MFV{M,T,N})
+@inline unsafe_log10(x::_MF{T,N}) where {T,N} =
+    unsafe_log2(x) * _log10_2(_MF{T,N})
+@inline unsafe_log10(x::_MFV{M,T,N}) where {M,T,N} =
+    unsafe_log2(x) * _log10_2(_MFV{M,T,N})
+
+
+@inline function _handle_special_log(
+    x::_MF{T,N},
+    y::_MF{T,N},
+) where {T,N}
+    _nan = _MF{T,N}(ntuple(_ -> T(NaN), Val{N}()))
+    y = ifelse(iszero(x), typemin(_MF{T,N}), y)
+    y = ifelse(isinf(x) & !signbit(x), typemax(_MF{T,N}), y)
+    y = ifelse(isnan(x) | (signbit(x) & !iszero(x)), _nan, y)
+    return y
+end
+
+@inline function _handle_special_log(
+    x::_MFV{M,T,N},
+    y::_MFV{M,T,N},
+) where {M,T,N}
+    _nan = _MFV{M,T,N}(ntuple(_ -> Vec{M,T}(T(NaN)), Val{N}()))
+    y = vifelse(iszero(x), typemin(_MFV{M,T,N}), y)
+    y = vifelse(isinf(x) & !signbit(x), typemax(_MFV{M,T,N}), y)
+    y = vifelse(isnan(x) | (signbit(x) & !iszero(x)), _nan, y)
+    return y
+end
+
+
+@inline Base.log(x::MF{T,N}) where {T,N} =
+    _handle_special_log(x, unsafe_log(x))
+@inline Base.log(x::MFV{M,T,N}) where {M,T,N} =
+    _handle_special_log(x, unsafe_log(x))
+@inline Base.log2(x::MF{T,N}) where {T,N} =
+    _handle_special_log(x, unsafe_log2(x))
+@inline Base.log2(x::MFV{M,T,N}) where {M,T,N} =
+    _handle_special_log(x, unsafe_log2(x))
+@inline Base.log10(x::MF{T,N}) where {T,N} =
+    _handle_special_log(x, unsafe_log10(x))
+@inline Base.log10(x::MFV{M,T,N}) where {M,T,N} =
+    _handle_special_log(x, unsafe_log10(x))
