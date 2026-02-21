@@ -1,1 +1,7 @@
 /Manifest.toml
+.DS_Store
+.idea/*
+.vscode/*
+.zed/*
+*.heapsnapshot
+.cache
