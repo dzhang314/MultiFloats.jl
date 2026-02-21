@@ -1126,10 +1126,6 @@ end
 
 include("round.jl")
 
-@inline Base.:(^)(r::_MF{T,N}, n::_MF{T,N}) where {T,N} =
-    exp2(n * log2(r))
-@inline Base.:(^)(r::_MFV{M,T,N}, n::_MFV{M,T,N}) where {M,T,N} =
-    exp2(n * log2(r))
 
 ######################################################### SQUARE ROOT OPERATIONS
 
@@ -1719,6 +1715,10 @@ Base.promote_rule(::Type{_MF{T,N}}, ::Type{BigFloat}) where {T,N} = BigFloat
 @inline Base.:/(x::Any, y::_MFV{M,T,N}) where {M,T,N} = /(promote(x, y)...)
 @inline Base.:/(x::_MFV{M,T,N1}, y::_MFV{M,T,N2}) where {M,T,N1,N2} =
     /(promote(x, y)...)
+@inline Base.:^(x::_MFV{M,T,N}, y::Any) where {M,T,N} = ^(promote(x, y)...)
+@inline Base.:^(x::Any, y::_MFV{M,T,N}) where {M,T,N} = ^(promote(x, y)...)
+@inline Base.:^(x::_MFV{M,T,N1}, y::_MFV{M,T,N2}) where {M,T,N1,N2} =
+    ^(promote(x, y)...)
 
 
 ####################################################### TRANSCENDENTAL FUNCTIONS
@@ -1767,6 +1767,12 @@ end
 include("cbrt.jl")
 include("exp.jl")
 include("log.jl")
+
+
+@inline Base.:^(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
+    exp2(y * log2(x))
+@inline Base.:^(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
+    exp2(y * log2(x))
 
 
 # TODO: frexp, modf
