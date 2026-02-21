@@ -430,15 +430,10 @@ _MF{T,N}(x::BigFloat) where {T,N} = _MF{T,N}(_split(x, T, Val{N}()))
 # Construct MultiFloat scalar from any other type by passing through BigFloat.
 function _from_big(x::Any, ::Type{T}, ::Val{N}) where {T,N}
     p = 2 * _full_precision(T) + 1
-    try
-        return _MF{T,N}(_split!(
-            BigFloat(x, RoundNearest; precision=p), T, Val{N}()))
-    catch e
-        if e isa MethodError
-            return _MF{T,N}(_split!(BigFloat(x; precision=p), T, Val{N}()))
-        end
-        rethrow()
-    end
+    big_x = applicable(BigFloat, x, RoundNearest) ?
+            BigFloat(x, RoundNearest; precision=p) :
+            BigFloat(x; precision=p)
+    return _MF{T,N}(_split!(big_x, T, Val{N}()))
 end
 
 _MF{T,N}(x::AbstractString) where {T,N} = _from_big(x, T, Val{N}())
@@ -1093,7 +1088,7 @@ include("mfsqr.jl")
     _MFV{M,T,N}(mfsqr(x._limbs, Val{N}()))
 
 
-@inline function _power_by_abs2(x::Any, p::Integer)
+@inline function _power_by_abs2(x::Any, p::Union{Unsigned,BigInt})
     if iszero(p)
         return one(x)
     elseif isone(p)
@@ -1118,10 +1113,24 @@ include("mfsqr.jl")
 end
 
 
+@inline _to_unsigned(p::Signed) = unsigned(p)
+@inline _to_unsigned(p::BigInt) = p
+@inline _to_unsigned(p::Integer) = p
+
+
+@inline _neg_unsigned(p::Signed) = -unsigned(p)
+@inline _neg_unsigned(p::BigInt) = -p
+@inline _neg_unsigned(p::Integer) = -p
+
+
 @inline Base.:^(x::_MF{T,N}, p::Integer) where {T,N} =
-    signbit(p) ? _power_by_abs2(inv(x), -p) : _power_by_abs2(x, p)
+    signbit(p) ?
+    _power_by_abs2(inv(x), _neg_unsigned(p)) :
+    _power_by_abs2(x, _to_unsigned(p))
 @inline Base.:^(x::_MFV{M,T,N}, p::Integer) where {M,T,N} =
-    signbit(p) ? _power_by_abs2(inv(x), -p) : _power_by_abs2(x, p)
+    signbit(p) ?
+    _power_by_abs2(inv(x), _neg_unsigned(p)) :
+    _power_by_abs2(x, _to_unsigned(p))
 
 
 include("round.jl")
@@ -1350,9 +1359,9 @@ end
 
 
 @inline Base.sqrt(x::_MF{T,N}) where {T,N} =
-    ifelse(iszero(x), zero(x), unsafe_sqrt(x))
+    ifelse(iszero(x), x, unsafe_sqrt(x))
 @inline Base.sqrt(x::_MFV{M,T,N}) where {M,T,N} =
-    vifelse(iszero(x), zero(x), unsafe_sqrt(x))
+    vifelse(iszero(x), x, unsafe_sqrt(x))
 
 
 ####################################################################### PRINTING
