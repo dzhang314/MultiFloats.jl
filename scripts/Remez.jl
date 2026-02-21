@@ -162,7 +162,7 @@ function find_root(f::F, a::T, b::T) where {F,T}
                 bisecting = false
             end
         else
-            x = (x_lo * f_hi - x_hi * f_lo) / (f_hi - r_lo)
+            x = (x_lo * f_hi - x_hi * f_lo) / (f_hi - f_lo)
             fx = f(x)
         end
 
@@ -180,10 +180,6 @@ function find_root(f::F, a::T, b::T) where {F,T}
             m = 1 - fx / f_hi
             f_hi *= m <= 0 ? inv(2 * one(T)) : m
         end
-        
-        # Accept step and update interval endpoints.
-        x = x_next
-        fx = f(x)
         if signbit(fx) == signbit(f_lo)
             if !bisecting
                 side  = 1
