@@ -1077,6 +1077,10 @@ include("mfsqr.jl")
 @inline Base.:-(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} = x + (-y)
 
 
+@inline Base.sum(x::_MFV{M,T,N}) where {M,T,N} =
+    +(ntuple(i -> x[i], Val{M}())...)
+
+
 @inline Base.:*(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
     _MF{T,N}(mfmul(x._limbs, y._limbs, Val{N}()))
 @inline Base.:*(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
@@ -1089,54 +1093,38 @@ include("mfsqr.jl")
     _MFV{M,T,N}(mfsqr(x._limbs, Val{N}()))
 
 
-@inline Base.sum(x::_MFV{M,T,N}) where {M,T,N} =
-    +(ntuple(i -> x[i], Val{M}())...)
-
-
-include("round.jl")
-
-
-############################################################### POWER OPERATIONS
+@inline function _power_by_abs2(x::Any, p::Integer)
+    if iszero(p)
+        return one(x)
+    elseif isone(p)
+        return x
+    else
+        t = trailing_zeros(p) + 1
+        p >>= t
+        while (t -= 1) > 0
+            x = abs2(x)
+        end
+        result = x
+        while p > 0
+            t = trailing_zeros(p) + 1
+            p >>= t
+            while (t -= 1) >= 0
+                x = abs2(x)
+            end
+            result *= x
+        end
+        return result
+    end
+end
 
 
 @inline Base.:^(x::_MF{T,N}, p::Integer) where {T,N} =
-    signbit(p) ?
-    power_by_squaring(inv(x), -p) :
-    power_by_squaring(x, p)
+    signbit(p) ? _power_by_abs2(inv(x), -p) : _power_by_abs2(x, p)
 @inline Base.:^(x::_MFV{M,T,N}, p::Integer) where {M,T,N} =
-    signbit(p) ?
-    power_by_squaring(inv(x), -p) :
-    power_by_squaring(x, p)
+    signbit(p) ? _power_by_abs2(inv(x), -p) : _power_by_abs2(x, p)
 
 
-function power_by_squaring(x, p::Integer)
-    if p == 1
-        return x
-    elseif p == 0
-        return one(x)
-    elseif p == 2
-        return abs2(x)
-    elseif p < 0
-        isone(x) && return x
-        isone(-x) && return iseven(p) ? one(x) : x
-        Base.throw_domerr_powbysq(x, p)
-    end
-    t = trailing_zeros(p) + 1
-    p >>= t
-    while (t -= 1) > 0
-        x = abs2(x)
-    end
-    y = x
-    while p > 0
-        t = trailing_zeros(p) + 1
-        p >>= t
-        while (t -= 1) >= 0
-            x = abs2(x)
-        end
-        y *= x
-    end
-    return y
-end
+include("round.jl")
 
 
 ######################################################### SQUARE ROOT OPERATIONS
