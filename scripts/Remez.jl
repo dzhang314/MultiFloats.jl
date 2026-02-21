@@ -202,7 +202,7 @@ end
 
 
 function minimax_polynomial(
-    f::F, df::G, d2f::H, a::T, b::T, ::Val{N};
+    f::F, df::G, a::T, b::T, ::Val{N};
     fixed_coefficients::NTuple{K,Pair{Int,T}}=(),
     initial_nodes=nothing,
     objective::Symbol=:absolute,
@@ -335,7 +335,7 @@ end
 
 
 function minimax_rational(
-    f::F, df::G, d2f::H, a::T, b::T, ::Val{M}, ::Val{N};
+    f::F, df::G, a::T, b::T, ::Val{M}, ::Val{N};
     fixed_numerator_coefficients::NTuple{Kp,Pair{Int,T}}=(),
     fixed_denominator_coefficients::NTuple{Kq,Pair{Int,T}}=(),
     initial_nodes=nothing,
