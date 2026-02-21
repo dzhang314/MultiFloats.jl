@@ -346,15 +346,15 @@ end
 end
 
 
-@inline Base.log(x::MF{T,N}) where {T,N} =
+@inline Base.log(x::_MF{T,N}) where {T,N} =
     _handle_special_log(x, unsafe_log(x))
-@inline Base.log(x::MFV{M,T,N}) where {M,T,N} =
+@inline Base.log(x::_MFV{M,T,N}) where {M,T,N} =
     _handle_special_log(x, unsafe_log(x))
-@inline Base.log2(x::MF{T,N}) where {T,N} =
+@inline Base.log2(x::_MF{T,N}) where {T,N} =
     _handle_special_log(x, unsafe_log2(x))
-@inline Base.log2(x::MFV{M,T,N}) where {M,T,N} =
+@inline Base.log2(x::_MFV{M,T,N}) where {M,T,N} =
     _handle_special_log(x, unsafe_log2(x))
-@inline Base.log10(x::MF{T,N}) where {T,N} =
+@inline Base.log10(x::_MF{T,N}) where {T,N} =
     _handle_special_log(x, unsafe_log10(x))
-@inline Base.log10(x::MFV{M,T,N}) where {M,T,N} =
+@inline Base.log10(x::_MFV{M,T,N}) where {M,T,N} =
     _handle_special_log(x, unsafe_log10(x))
