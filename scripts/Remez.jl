@@ -206,7 +206,7 @@ function minimax_polynomial(
     fixed_coefficients::NTuple{K,Pair{Int,T}}=(),
     initial_nodes=nothing,
     objective::Symbol=:absolute,
-) where {F,G,H,T,N,K}
+) where {F,G,T,N,K}
 
     # Validate inputs.
     @assert a <= b
@@ -340,7 +340,7 @@ function minimax_rational(
     fixed_denominator_coefficients::NTuple{Kq,Pair{Int,T}}=(),
     initial_nodes=nothing,
     objective::Symbol=:absolute,
-) where {F,G,H,T,M,N,Kp,Kq}
+) where {F,G,T,M,N,Kp,Kq}
 
     # Validate inputs.
     @assert a <= b
