@@ -151,9 +151,10 @@
     _two = _one + _one
     _four = _two + _two
     _eight = _four + _four
+    _half = inv(_two)
     _one_eighth = inv(_eight)
 
-    n_float = round(first(x))
+    n_float = trunc(first(x) + copysign(_half, first(x)))
     neg_n = ntuple(i -> isone(i) ? -n_float : _zero, Val{N}())
     p = _exp2_polynomial(scale(_one_eighth, mfadd(x, neg_n, Val{N}())))
     result = mfsqr(mfsqr(mfsqr(p, Val{N}()), Val{N}()), Val{N}())
