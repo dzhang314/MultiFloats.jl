@@ -133,7 +133,6 @@
     (+0x1.351C3A3C99042p-0092,),
 )
 
-
 @generated _exp2_polynomial(x::NTuple{N,T}) where {N,T} =
     _horner_expr_mf(_exp2_coefficients(T, Val{N}()))
 @generated _exp2_polynomial(x::NTuple{N,Vec{M,T}}) where {N,M,T} =
@@ -189,12 +188,6 @@ const _LOG2_E_FULL_F32 = (
     Float32(+0x1.1D3E88p-103), Float32(+0x0.75ABBEp-126),
 )
 
-const _LOG2_10_FULL_F32 = (
-    Float32(+0x1.A934F0p+001), Float32(+0x1.2F346Ep-024),
-    Float32(+0x1.5FC926p-051), Float32(-0x1.02402Cp-076),
-    Float32(-0x1.28125Ap-101), Float32(+0x0.D96C56p-126),
-)
-
 const _LOG2_E_FULL_F64 = (
     +0x1.71547652B82FEp+0000, +0x1.777D0FFDA0D24p-0056,
     -0x1.60BB8A5442AB9p-0110, -0x1.4B52D3BA6D74Dp-0166,
@@ -206,6 +199,20 @@ const _LOG2_E_FULL_F64 = (
     -0x1.F332B5BE48526p-0766, +0x1.2CE4F199E108Dp-0820,
     -0x1.8DAFCC6077F2Ap-0877, +0x1.9ABB71EC25E12p-0932,
     -0x1.1473D7A3366BDp-0989, -0x0.000004977D38Ap-1022,
+)
+
+@inline _log2_e(::Type{_MF{Float32,N}}) where {N} =
+    _MF{Float32,N}(ntuple(i -> _LOG2_E_FULL_F32[i], Val{N}()))
+@inline _log2_e(::Type{_MF{Float64,N}}) where {N} =
+    _MF{Float64,N}(ntuple(i -> _LOG2_E_FULL_F64[i], Val{N}()))
+@inline _log2_e(::Type{_MFV{M,T,N}}) where {M,T,N} =
+    _MFV{M,T,N}(_log2_e(_MF{T,N}))
+
+
+const _LOG2_10_FULL_F32 = (
+    Float32(+0x1.A934F0p+001), Float32(+0x1.2F346Ep-024),
+    Float32(+0x1.5FC926p-051), Float32(-0x1.02402Cp-076),
+    Float32(-0x1.28125Ap-101), Float32(+0x0.D96C56p-126),
 )
 
 const _LOG2_10_FULL_F64 = (
@@ -220,15 +227,6 @@ const _LOG2_10_FULL_F64 = (
     -0x1.351E4155B270Cp-0872, -0x1.8F99DCECA58EDp-0928,
     -0x1.EFBB0F04F4A22p-0985, -0x0.00008D3C165ABp-1022,
 )
-
-
-@inline _log2_e(::Type{_MF{Float32,N}}) where {N} =
-    _MF{Float32,N}(ntuple(i -> _LOG2_E_FULL_F32[i], Val{N}()))
-@inline _log2_e(::Type{_MF{Float64,N}}) where {N} =
-    _MF{Float64,N}(ntuple(i -> _LOG2_E_FULL_F64[i], Val{N}()))
-@inline _log2_e(::Type{_MFV{M,T,N}}) where {M,T,N} =
-    _MFV{M,T,N}(_log2_e(_MF{T,N}))
-
 
 @inline _log2_10(::Type{_MF{Float32,N}}) where {N} =
     _MF{Float32,N}(ntuple(i -> _LOG2_10_FULL_F32[i], Val{N}()))
