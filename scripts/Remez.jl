@@ -128,6 +128,8 @@ function find_root(f::F, a::T, b::T) where {F,T}
 
     fa = f(a)
     fb = f(b)
+    iszero(fa) && return (a,a)
+    iszero(fb) && return (b,b)
     if signbit(fa) == signbit(fb)
         if abs(fa) < abs(fb)
             return (a, a)
@@ -165,7 +167,8 @@ function find_root(f::F, a::T, b::T) where {F,T}
             x = (x_lo * f_hi - x_hi * f_lo) / (f_hi - f_lo)
             fx = f(x)
         end
-
+        
+        iszero(fx) && return (x,x)
         if !(x_lo < x < x_hi)
             # The interval has become so small that its midpoint coincides
             # with one of its endpoints. We cannot make any more progress.
@@ -175,10 +178,10 @@ function find_root(f::F, a::T, b::T) where {F,T}
         # Apply Anderson-Bjork modification
         if side == 1
             m = 1 - fx / f_lo
-            f_lo *= m <= 0 ? inv(2 * one(T)) : m
+            f_lo *= m > 0 ? m : inv(2 * one(T))
         elseif side == 2
             m = 1 - fx / f_hi
-            f_hi *= m <= 0 ? inv(2 * one(T)) : m
+            f_hi *= m > 0 ? m : inv(2 * one(T))
         end
         if signbit(fx) == signbit(f_lo)
             if !bisecting
