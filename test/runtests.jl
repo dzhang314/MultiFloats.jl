@@ -120,3 +120,24 @@ end
         end
     end
 end
+
+
+@testset "elementary functions" begin
+    for T in _MF_TYPES
+        setprecision(BigFloat, precision(T)*2) do
+            for func in (exp2, log2, sqrt, cbrt)
+                for _ = 1:64
+                    x = rand(T)
+                    xbig = big(x)
+                    try
+                        ybig = func(xbig)
+                        @test (func(x)-ybig)/eps(T(ybig)) < 10
+                    catch e
+                        e isa DomainError || retrhow(e)
+                    end
+                end
+            end
+        end
+    end
+end
+
