@@ -195,14 +195,21 @@ const Vec32Float64x4 = MultiFloatVec{32,Float64,4}
 ################################################ CONVERSION FROM PRIMITIVE TYPES
 
 
+const _BITS_PER_BYTE = div(64, sizeof(UInt64))
+
+
 @inline _split_impl(::Integer, ::Type, ::Val{0}) = ()
 @inline _split_impl(::AbstractFloat, ::Type, ::Val{0}) = ()
 @inline _split_impl(x::Integer, ::Type{T}, ::Val{1}) where {T} = (T(x),)
 @inline _split_impl(x::AbstractFloat, ::Type{T}, ::Val{1}) where {T} = (T(x),)
 
 @inline function _split_impl(x::I, ::Type{T}, ::Val{N}) where {I<:Integer,T,N}
+    _num_bits = _BITS_PER_BYTE * sizeof(I) - (I <: Signed)
+    _threshold = ldexp(one(T), _num_bits)
     next_limb = T(x)
-    remainder = reinterpret(signed(I), x - I(next_limb))
+    overflow = !(abs(next_limb) < _threshold)
+    int_value = ifelse(overflow, typemin(I), unsafe_trunc(I, next_limb))
+    remainder = reinterpret(signed(I), x - int_value)
     return (next_limb, _split_impl(remainder, T, Val{N - 1}())...)
 end
 
