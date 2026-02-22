@@ -15,10 +15,10 @@ end
 end
 
 function sinpi_kernel(x::_MF{T,N}) where {T, N}
-    x*evalpoly(x*x, _sinpi_coefs(x))
+    x*evalpoly(abs2(x), _sinpi_coefs(x))
 end
 function cospi_kernel(x::_MF{T,N}) where {T, N}
-    evalpoly(x*x, _cospi_coefs(x))
+    evalpoly(abs2(x), _cospi_coefs(x))
 end
 
 function _shuffle_down(x::_MF{T,N}) where {T, N}
