@@ -1782,6 +1782,7 @@ end
 include("cbrt.jl")
 include("exp.jl")
 include("log.jl")
+include("trig.jl")
 
 
 @inline function Base.:^(x::_MF{T,N}, y::_MF{T,N}) where {T,N}
@@ -1808,12 +1809,12 @@ const _BASE_TRANSCENDENTAL_FUNCTIONS = Symbol[
     :asind, :acosd, :atand, :asecd, :acscd, :acotd,
     :sinh, :cosh, :tanh, :sech, :csch, :coth,
     :asinh, :acosh, :atanh, :asech, :acsch, :acoth,
-    :sinpi, :cospi, :sinc, :cosc, :deg2rad, :rad2deg,
+    :sinc, :cosc, :deg2rad, :rad2deg,
 ]
 
 
 const _BASE_TRANSCENDENTAL_TUPLE_FUNCTIONS = Symbol[
-    :sincos, :sincosd, :sincospi,
+    :sincos, :sincosd
 ]
 
 
