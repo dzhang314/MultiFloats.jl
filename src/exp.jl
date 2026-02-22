@@ -167,18 +167,18 @@ end
 
 
 function Base.exp2(x::_MF{T,N}) where {T,N}
-    head = first(x._limbs)
+    first_limb = first(x._limbs)
     result = _MF{T,N}(_exp2_kernel(x._limbs))
-    result = ifelse(head < _exp2_min(T), zero(_MF{T,N}), result)
-    result = ifelse(head > _exp2_max(T), typemax(_MF{T,N}), result)
+    result = ifelse(first_limb < _exp2_min(T), zero(_MF{T,N}), result)
+    result = ifelse(first_limb > _exp2_max(T), typemax(_MF{T,N}), result)
     return result
 end
 
 function Base.exp2(x::_MFV{M,T,N}) where {M,T,N}
-    head = first(x._limbs)
+    first_limb = first(x._limbs)
     result = _MFV{M,T,N}(_exp2_kernel(x._limbs))
-    result = vifelse(head < _exp2_min(T), zero(_MFV{M,T,N}), result)
-    result = vifelse(head > _exp2_max(T), typemax(_MFV{M,T,N}), result)
+    result = vifelse(first_limb < _exp2_min(T), zero(_MFV{M,T,N}), result)
+    result = vifelse(first_limb > _exp2_max(T), typemax(_MFV{M,T,N}), result)
     return result
 end
 

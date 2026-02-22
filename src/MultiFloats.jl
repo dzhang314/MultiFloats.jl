@@ -609,23 +609,29 @@ end
     issubnormal(first(x._limbs))
 
 
+@inline _any(::Tuple{}) = zero(Bool)
+@inline _any(x::Tuple{Bool}) = x[1]
+@inline _any(x::NTuple{N,Bool}) where {N} = (|)(x...)
 @inline _vany(::Tuple{}, ::Val{M}) where {M} = zero(Vec{M,Bool})
 @inline _vany(x::Tuple{Vec{M,Bool}}, ::Val{M}) where {M} = x[1]
 @inline _vany(x::NTuple{N,Vec{M,Bool}}, ::Val{M}) where {M,N} = (|)(x...)
 
 
+@inline _all(::Tuple{}) = one(Bool)
+@inline _all(x::Tuple{Bool}) = x[1]
+@inline _all(x::NTuple{N,Bool}) where {N} = (&)(x...)
 @inline _vall(::Tuple{}, ::Val{M}) where {M} = one(Vec{M,Bool})
 @inline _vall(x::Tuple{Vec{M,Bool}}, ::Val{M}) where {M} = x[1]
 @inline _vall(x::NTuple{N,Vec{M,Bool}}, ::Val{M}) where {M,N} = (&)(x...)
 
 
 @inline Base.iszero(x::_MF{T,N}) where {T,N} =
-    all(iszero.(x._limbs))
+    _all(iszero.(x._limbs))
 @inline Base.iszero(x::_MFV{M,T,N}) where {M,T,N} =
     _vall(iszero.(x._limbs), Val{M}())
 
 
-@inline Base.isone(x::_MF{T,N}) where {T,N} = all(ntuple(
+@inline Base.isone(x::_MF{T,N}) where {T,N} = _all(ntuple(
     i -> (isone(i) ? isone(x._limbs[i]) : iszero(x._limbs[i])),
     Val{N}()))
 @inline Base.isone(x::_MFV{M,T,N}) where {M,T,N} = _vall(ntuple(
@@ -634,12 +640,12 @@ end
 
 
 @inline Base.isfinite(x::_MF{T,N}) where {T,N} =
-    all(isfinite.(x._limbs))
+    _all(isfinite.(x._limbs))
 @inline Base.isfinite(x::_MFV{M,T,N}) where {M,T,N} =
     _vall(isfinite.(x._limbs), Val{M}())
 
 
-@inline _has_pos_inf(x::_MF{T,N}) where {T,N} = any(ntuple(
+@inline _has_pos_inf(x::_MF{T,N}) where {T,N} = _any(ntuple(
     i -> isinf(x._limbs[i]) & !signbit(x._limbs[i]),
     Val{N}()))
 @inline _has_pos_inf(x::_MFV{M,T,N}) where {M,T,N} = _vany(ntuple(
@@ -647,7 +653,7 @@ end
         Val{N}()), Val{M}())
 
 
-@inline _has_neg_inf(x::_MF{T,N}) where {T,N} = any(ntuple(
+@inline _has_neg_inf(x::_MF{T,N}) where {T,N} = _any(ntuple(
     i -> isinf(x._limbs[i]) & signbit(x._limbs[i]),
     Val{N}()))
 @inline _has_neg_inf(x::_MFV{M,T,N}) where {M,T,N} = _vany(ntuple(
@@ -656,7 +662,7 @@ end
 
 
 @inline _has_nan(x::_MF{T,N}) where {T,N} =
-    any(isnan.(x._limbs))
+    _any(isnan.(x._limbs))
 @inline _has_nan(x::_MFV{M,T,N}) where {M,T,N} =
     _vany(isnan.(x._limbs), Val{M}())
 
@@ -673,7 +679,7 @@ end
     _has_nan(x) | (_has_pos_inf(x) & _has_neg_inf(x))
 
 
-@inline Base.isinteger(x::_MF{T,N}) where {T,N} = all(isinteger.(x._limbs))
+@inline Base.isinteger(x::_MF{T,N}) where {T,N} = _all(isinteger.(x._limbs))
 # NOTE: SIMD.jl does not define Base.isinteger for vectors.
 
 
@@ -1780,17 +1786,18 @@ include("log.jl")
 
 @inline function Base.:^(x::_MF{T,N}, y::_MF{T,N}) where {T,N}
     result = exp2(y * log2(x))
-    result = ifelse(iszero(x) & (y > 0), zero(x), result)
-    result = ifelse(iszero(y), one(x), result)
+    result = ifelse(iszero(x) & (first(y._limbs) > zero(T)), zero(x), result)
+    result = ifelse(iszero(y) | isone(x), one(x), result)
     return result
 end
 
 @inline function Base.:^(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N}
     result = exp2(y * log2(x))
-    result = vifelse(iszero(x) & (y > 0), zero(x), result)
-    result = vifelse(iszero(y), one(x), result)
+    result = vifelse(iszero(x) & (first(y._limbs) > zero(T)), zero(x), result)
+    result = vifelse(iszero(y) | isone(x), one(x), result)
     return result
 end
+
 
 # TODO: frexp, modf
 const _BASE_TRANSCENDENTAL_FUNCTIONS = Symbol[
