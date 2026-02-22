@@ -1778,11 +1778,19 @@ include("exp.jl")
 include("log.jl")
 
 
-@inline Base.:^(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-    exp2(y * log2(x))
-@inline Base.:^(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-    exp2(y * log2(x))
+@inline function Base.:^(x::_MF{T,N}, y::_MF{T,N}) where {T,N}
+    result = exp2(y * log2(x))
+    result = ifelse(iszero(x) & (y > 0), zero(x), result)
+    result = ifelse(iszero(y), one(x), result)
+    return result
+end
 
+@inline function Base.:^(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N}
+    result = exp2(y * log2(x))
+    result = vifelse(iszero(x) & (y > 0), zero(x), result)
+    result = vifelse(iszero(y), one(x), result)
+    return result
+end
 
 # TODO: frexp, modf
 const _BASE_TRANSCENDENTAL_FUNCTIONS = Symbol[
