@@ -137,7 +137,7 @@ end
                     end
                 end
             end
-            @testset "$func" for func in (+, *, ^)
+            @testset "$func" for func in (+, *, ^, (x, y) -> x^Int(big(round(10y-5))))
                 for _ = 1:64
                     x = rand(T)
                     y = rand(T)
