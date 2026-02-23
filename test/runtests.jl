@@ -131,7 +131,7 @@ end
                     xbig = big(x)
                     try
                         ybig = func(xbig)
-                        @test (func(x)-ybig)/eps(T(ybig)) < 10
+                        @test abs(func(x)-ybig) < 10 * eps(T(ybig))
                     catch e
                         e isa DomainError || retrhow(e)
                     end
