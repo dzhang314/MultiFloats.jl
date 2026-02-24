@@ -120,3 +120,38 @@ end
         end
     end
 end
+
+
+@testset "elementary functions" begin
+    for T in _MF_TYPES
+        setprecision(BigFloat, precision(T)*2) do
+            @testset "$func" for func in (exp2, log2, sqrt, cbrt)
+                for _ = 1:64
+                    x = rand(T)
+                    xbig = big(x)
+                    try
+                        ybig = func(xbig)
+                        @test abs(func(x)-ybig) < 10 * eps(T(ybig))
+                    catch e
+                        e isa DomainError || retrhow(e)
+                    end
+                end
+            end
+            @testset "$func" for func in (+, *, ^, (x, y) -> x^Int(big(round(10y-5))))
+                for _ = 1:64
+                    x = rand(T)
+                    y = rand(T)
+                    xbig = big(x)
+                    ybig = big(y)
+                    try
+                        ybig = func(xbig, ybig)
+                        @test abs(func(x, y)-ybig) < 10 * eps(T(ybig))
+                    catch e
+                        e isa DomainError || retrhow(e)
+                    end
+                end
+            end
+        end
+    end
+end
+
