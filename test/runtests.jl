@@ -221,12 +221,58 @@ function common_bits(x::BigFloat, y::BigFloat)
 end
 
 
+function test_unary_operation(
+    f::F,
+    ::Type{MultiFloat{T,N}},
+    precondition::P,
+    deficit::Int,
+    n::Int;
+    positive_inputs::Bool=false,
+) where {F,T,N,P}
+    e_lo = exponent(floatmin(T)) + (N - 1) * precision(T)
+    e_hi = exponent(floatmax(T)) - (N - 1) * precision(T)
+    p = precision(MultiFloat{T,N})
+    setprecision(BigFloat, 2 * MultiFloats._full_precision(T) + 1) do
+        setrounding(BigFloat, RoundNearest) do
+            big_min = BigFloat(nextfloat(zero(T)))
+            big_max = BigFloat(floatmax(MultiFloat{T,N}))
+            for _ = 1:n
+                x = _bit_rand(MultiFloat{T,N})
+                if positive_inputs
+                    x = abs(x)
+                end
+                num_allocations = @allocated begin
+                    z = f(x)
+                end
+                @test iszero(num_allocations)
+
+                big_f = f(BigFloat(x))
+                if iszero(z)
+                    @test abs(big_f) < big_min
+                elseif isfinite(z)
+                    if precondition(e_lo, e_hi, exponent(x))
+                        big_z = BigFloat(z)
+                        @test (common_bits(big_z, big_f) >= p - deficit) ||
+                              (abs(big_z - big_f) < N * big_min)
+                    end
+                else
+                    @test (big_f < -big_max) || (big_f > +big_max)
+                end
+            end
+        end
+    end
+end
+
+
 function test_binary_operation(
     f::F,
     ::Type{MultiFloat{T,N}},
-    k::Int,
+    precondition::P,
+    deficit::Int,
     n::Int,
-) where {F,T,N}
+) where {F,T,N,P}
+    e_lo = exponent(floatmin(T)) + (N - 1) * precision(T)
+    e_hi = exponent(floatmax(T)) - (N - 1) * precision(T)
     p = precision(MultiFloat{T,N})
     setprecision(BigFloat, 2 * MultiFloats._full_precision(T) + 1) do
         setrounding(BigFloat, RoundNearest) do
@@ -240,15 +286,15 @@ function test_binary_operation(
                 end
                 @test iszero(num_allocations)
 
-                big_x = BigFloat(x)
-                big_y = BigFloat(y)
-                big_f = f(big_x, big_y)
+                big_f = f(BigFloat(x), BigFloat(y))
                 if iszero(z)
                     @test abs(big_f) < big_min
                 elseif isfinite(z)
-                    big_z = BigFloat(z)
-                    @test (common_bits(big_z, big_f) >= p + k) ||
-                          (abs(big_z - big_f) < N * big_min)
+                    if precondition(e_lo, e_hi, exponent(x), exponent(y))
+                        big_z = BigFloat(z)
+                        @test (common_bits(big_z, big_f) >= p - deficit) ||
+                              (abs(big_z - big_f) < N * big_min)
+                    end
                 else
                     @test (big_f < -big_max) || (big_f > +big_max)
                 end
@@ -260,15 +306,46 @@ end
 
 @testset "addition and subtraction" begin
     for T in _MF_TYPES
-        test_binary_operation(+, T, 0, 2^18)
-        test_binary_operation(-, T, 0, 2^18)
+        test_binary_operation(+, T, (_, _, _, _) -> true, 0, 2^18)
+        test_binary_operation(-, T, (_, _, _, _) -> true, 0, 2^18)
     end
 end
 
 
 @testset "multiplication" begin
     for T in _MF_TYPES
-        test_binary_operation(*, T, -1, 2^20)
+        test_binary_operation(*, T, (_, _, _, _) -> true, 1, 2^20)
+    end
+end
+
+
+@testset "reciprocal" begin
+    for T in _MF_TYPES
+        test_unary_operation(inv, T, (_, e_hi, ex) -> (ex <= e_hi), 1, 2^18)
+    end
+end
+
+
+@testset "division" begin
+    for T in _MF_TYPES
+        test_binary_operation(/, T, (e_lo, e_hi, ex, ey) ->
+                (ex >= e_lo) & (ey <= e_hi) & (ex - ey >= e_lo), 1, 2^18)
+    end
+end
+
+
+@testset "reciprocal square root" begin
+    for T in _MF_TYPES
+        test_unary_operation(MultiFloats.rsqrt, T, (_, e_hi, ex) ->
+                (ex <= e_hi), 3, 2^18; positive_inputs=true)
+    end
+end
+
+
+@testset "square root" begin
+    for T in _MF_TYPES
+        test_unary_operation(sqrt, T, (e_lo, e_hi, ex) ->
+                (e_lo <= ex <= e_hi), 3, 2^18; positive_inputs=true)
     end
 end
 
@@ -313,7 +390,7 @@ end
 # @testset "elementary functions" begin
 #     for T in _MF_TYPES
 #         setprecision(BigFloat, precision(T) * 2) do
-#             @testset "$func" for func in (exp2, log2, sqrt, cbrt)
+#             @testset "$func" for func in (exp2, log2, cbrt)
 #                 for _ = 1:64
 #                     x = rand(T)
 #                     xbig = big(x)
