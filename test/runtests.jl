@@ -2,6 +2,15 @@ using MultiFloats
 using Test: @test, @testset
 
 
+const _FIXED_INT_TYPES = (
+    Bool, Int8, Int16, Int32, Int64, Int128,
+    UInt8, UInt16, UInt32, UInt64, UInt128,
+)
+
+
+const _FIXED_FLOAT_TYPES = (Float16, Float32, Float64)
+
+
 const _MF_TYPES = (
     Float32x1, Float32x2, Float32x3, Float32x4,
     Float64x1, Float64x2, Float64x3, Float64x4,
@@ -43,6 +52,118 @@ end
 
 @inline _bit_rand(::Type{MultiFloatVec{M,T,N}}) where {M,T,N} =
     MultiFloatVec{M,T,N}(ntuple(_ -> _bit_rand(MultiFloat{T,N}), Val{M}()))
+
+
+function test_construction(
+    ::Type{MultiFloat{T,N}},
+    ::Type{I},
+    n::Int,
+) where {T,N,I<:Integer}
+    setprecision(BigFloat, 2 * MultiFloats._full_precision(T) + 1) do
+        setrounding(BigFloat, RoundNearest) do
+            for _ = 1:n
+                x = rand(I)
+                num_allocations = @allocated begin
+                    y = MultiFloat{T,N}(x)
+                end
+                @test num_allocations == 0
+
+                big_x = BigFloat(x)
+                big_y = BigFloat(y)
+                big_prev_y = BigFloat(prevfloat(y))
+                big_next_y = BigFloat(nextfloat(y))
+                @test big_prev_y < big_y < big_next_y
+
+                center_diff = abs(big_y - big_x)
+                prev_diff = abs(big_prev_y - big_x)
+                next_diff = abs(big_next_y - big_x)
+                prev_cmp = cmp(center_diff, prev_diff)
+                next_cmp = cmp(center_diff, next_diff)
+                @test ((prev_cmp <= 0) & (next_cmp < 0)) |
+                      ((prev_cmp < 0) & (next_cmp <= 0))
+
+                num_allocations = @allocated begin
+                    v1 = MultiFloatVec{4,T,N}(x)
+                    v2 = MultiFloatVec{4,T,N}(x, x, x, x)
+                    v3 = MultiFloatVec{4,T,N}((x, x, x, x))
+                    w1 = MultiFloatVec{4,T,N}(y)
+                    w2 = MultiFloatVec{4,T,N}(y, y, y, y)
+                    w3 = MultiFloatVec{4,T,N}((y, y, y, y))
+                end
+                @test iszero(num_allocations)
+                @test v1 === v2 === v3 === w1 === w2 === w3
+            end
+        end
+    end
+end
+
+
+@testset "construction from integers" begin
+    for T in _MF_TYPES, I in _FIXED_INT_TYPES
+        test_construction(T, I, 2^12)
+    end
+end
+
+
+function test_construction(
+    ::Type{MultiFloat{T,N}},
+    ::Type{F},
+    n::Int,
+) where {T,N,F<:AbstractFloat}
+    setprecision(BigFloat, 2 * MultiFloats._full_precision(T) + 1) do
+        setrounding(BigFloat, RoundNearest) do
+            big_max = BigFloat(floatmax(MultiFloat{T,N}))
+            for _ = 1:n
+                x = _bit_rand(F)
+                num_allocations = @allocated begin
+                    y = MultiFloat{T,N}(x)
+                end
+                @test iszero(num_allocations)
+
+                big_x = BigFloat(x)
+                if isfinite(y)
+                    big_y = BigFloat(y)
+                    big_prev_y = BigFloat(prevfloat(y))
+                    big_next_y = BigFloat(nextfloat(y))
+                    @test big_prev_y < big_y < big_next_y
+
+                    center_diff = abs(big_y - big_x)
+                    prev_diff = abs(big_prev_y - big_x)
+                    next_diff = abs(big_next_y - big_x)
+                    prev_cmp = cmp(center_diff, prev_diff)
+                    next_cmp = cmp(center_diff, next_diff)
+                    @test ((prev_cmp <= 0) & (next_cmp < 0)) |
+                          ((prev_cmp < 0) & (next_cmp <= 0))
+                else
+                    @test !isnan(y)
+                    if signbit(y)
+                        @test big_x < -big_max
+                    else
+                        @test big_x > +big_max
+                    end
+                end
+
+                num_allocations = @allocated begin
+                    v1 = MultiFloatVec{4,T,N}(x)
+                    v2 = MultiFloatVec{4,T,N}(x, x, x, x)
+                    v3 = MultiFloatVec{4,T,N}((x, x, x, x))
+                    w1 = MultiFloatVec{4,T,N}(y)
+                    w2 = MultiFloatVec{4,T,N}(y, y, y, y)
+                    w3 = MultiFloatVec{4,T,N}((y, y, y, y))
+                end
+                @test iszero(num_allocations)
+                @test v1 === v2 === v3 === w1 === w2 === w3
+            end
+        end
+    end
+end
+
+
+@testset "construction from floating-point numbers" begin
+    for T in _MF_TYPES, F in _FIXED_FLOAT_TYPES
+        test_construction(T, F, 2^16)
+    end
+end
 
 
 function test_prev_next(x::MultiFloat{T,N}, k::Int) where {T,N}
