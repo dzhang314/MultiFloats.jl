@@ -67,6 +67,8 @@ function test_construction(
                     y = MultiFloat{T,N}(x)
                 end
                 @test num_allocations == 0
+                @test MultiFloats.isnormalized(y)
+                @test MultiFloats.iscanonical(y)
 
                 big_x = BigFloat(x)
                 big_y = BigFloat(y)
@@ -119,6 +121,10 @@ function test_construction(
                     y = MultiFloat{T,N}(x)
                 end
                 @test iszero(num_allocations)
+
+                z = MultiFloats._clear_signed_zeros(y)
+                @test MultiFloats.isnormalized(z)
+                @test MultiFloats.iscanonical(z)
 
                 big_x = BigFloat(x)
                 if isfinite(y)

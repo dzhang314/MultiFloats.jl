@@ -2,19 +2,16 @@
     ntuple(i -> x[i] + zero(T), Val{N}())
 @inline _clear_signed_zeros(x::NTuple{N,Vec{M,T}}) where {N,M,T} =
     ntuple(i -> x[i] + zero(T), Val{N}())
+@inline _clear_signed_zeros(x::_MF{T,N}) where {T,N} =
+    _MF{T,N}(_clear_signed_zeros(x._limbs))
+@inline _clear_signed_zeros(x::_MFV{M,T,N}) where {M,T,N} =
+    _MFV{M,T,N}(_clear_signed_zeros(x._limbs))
 
 
 @inline _fast_sweep_down(x::NTuple{1,T}, y::T) where {T} = (x[1] + y,)
 @inline function _fast_sweep_down(x::NTuple{N,T}, y::T) where {N,T}
     s, e = fast_two_sum(x[1], y)
     return (s, _fast_sweep_down(Base.tail(x), e)...)
-end
-
-
-@inline _fast_sweep_up(x::NTuple{1,T}) where {T} = x
-@inline function _fast_sweep_up(x::NTuple{N,T}) where {N,T}
-    s, e = fast_two_sum(x[N-1], x[N])
-    return (_fast_sweep_up(Base.setindex(Base.front(x), s, N - 1))..., e)
 end
 
 

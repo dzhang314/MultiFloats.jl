@@ -229,10 +229,19 @@ end
     return (next_limb, _split_impl(remainder, T, Val{N - 1}())...)
 end
 
+
+@inline _fast_sweep_up(x::NTuple{1,T}) where {T} = x
+@inline function _fast_sweep_up(x::NTuple{N,T}) where {N,T}
+    s, e = fast_two_sum(x[N-1], x[N])
+    return (_fast_sweep_up(Base.setindex(Base.front(x), s, N - 1))..., e)
+end
+
+
 @inline function _split(x::Number, ::Type{T}, ::Val{N}, ::Val{K}) where {T,N,K}
-    result = tuple(_split_impl(x, T, _static_min(Val{N}(), Val{K}()))...,
+    limbs = _split_impl(x, T, _static_min(Val{N}(), Val{K}()))
+    first_limb = first(limbs)
+    result = tuple(_fast_sweep_up(limbs)...,
         ntuple(_ -> zero(T), _static_max(Val{N - K}(), Val{0}()))...)
-    first_limb = first(result)
     return ifelse(isfinite(first_limb), result,
         ntuple(_ -> first_limb, Val{N}()))
 end
@@ -329,7 +338,7 @@ end
 
 # MultiFloats.isnormalized is a qualified public function.
 # Users are expected to call it as MultiFloats.isnormalized(x).
-@inline isnormalized(x::NTuple{N,T}) where {N,T} = (x === _renorm_pass(x))
+@inline isnormalized(x::NTuple{N,T}) where {N,T} = (x === renormalize(x))
 @inline isnormalized(x::_MF{T,N}) where {T,N} = isnormalized(x._limbs)
 @inline isnormalized(x::_MFV{M,T,N}) where {M,T,N} = isnormalized(x._limbs)
 
