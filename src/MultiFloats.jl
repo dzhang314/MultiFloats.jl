@@ -443,8 +443,8 @@ _MF{T,N}(x::BigFloat) where {T,N} = _MF{T,N}(_split(x, T, Val{N}()))
 # Construct MultiFloat scalar from any other type by passing through BigFloat.
 function _from_big(x::Any, ::Type{T}, ::Val{N}) where {T,N}
     p = 2 * _full_precision(T) + 1
-    big_x = applicable(BigFloat, x, convert(MPFRRoundingMode, RoundNearest)) ?
-            BigFloat(x, RoundNearest; precision=p) :
+    big_x = applicable(BigFloat, x, MPFRRoundNearest) ?
+            BigFloat(x, MPFRRoundNearest; precision=p) :
             BigFloat(x; precision=p)
     return _MF{T,N}(_split!(big_x, T, Val{N}()))
 end
