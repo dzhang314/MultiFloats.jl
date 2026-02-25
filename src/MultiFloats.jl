@@ -143,6 +143,12 @@ const Vec32Float64x4 = MultiFloatVec{32,Float64,4}
 ################################################################### CONSTRUCTORS
 
 
+@inline _static_min(::Val{M}, ::Val{N}) where {M,N} =
+    (M < N) ? Val{M}() : Val{N}()
+@inline _static_max(::Val{M}, ::Val{N}) where {M,N} =
+    (M > N) ? Val{M}() : Val{N}()
+
+
 # Construct MultiFloat scalar from single scalar limb.
 @inline _MF{T,N}(x::T) where {T,N} = _MF{T,N}(
     ntuple(i -> (isone(i) ? x : zero(T)), Val{N}()))
@@ -163,26 +169,26 @@ const Vec32Float64x4 = MultiFloatVec{32,Float64,4}
 
 
 # Construct MultiFloat scalar from MultiFloat scalar.
-@inline _MF{T,N1}(x::_MF{T,N2}) where {T,N1,N2} = _MF{T,N1}(
-    tuple(ntuple(i -> x._limbs[i], Val{min(N1, N2)}())...,
-        ntuple(_ -> zero(T), Val{max(N1 - N2, 0)}())...))
+@inline _MF{T,N1}(x::_MF{T,N2}) where {T,N1,N2} = _MF{T,N1}(tuple(
+    ntuple(i -> x._limbs[i], _static_min(Val{N1}(), Val{N2}()))...,
+    ntuple(_ -> zero(T), _static_max(Val{N1 - N2}(), Val{0}()))...))
 
 
 # Construct MultiFloat vector from MultiFloat scalar.
-@inline _MFV{M,T,N1}(x::_MF{T,N2}) where {M,T,N1,N2} = _MFV{M,T,N1}(
-    tuple(ntuple(i -> Vec{M,T}(x._limbs[i]), Val{min(N1, N2)}())...,
-        ntuple(_ -> zero(Vec{M,T}), Val{max(N1 - N2, 0)}())...))
-@inline _MFV{1,T,N1}(x::_MF{T,N2}) where {T,N1,N2} = _MFV{1,T,N1}(
-    tuple(ntuple(i -> Vec{1,T}(x._limbs[i]), Val{min(N1, N2)}())...,
-        ntuple(_ -> zero(Vec{1,T}), Val{max(N1 - N2, 0)}())...))
-@inline _MFV{1,T,N}(x::_MF{T,N}) where {T,N} = _MFV{1,T,N}(
-    tuple(ntuple(i -> Vec{1,T}(x._limbs[i]), Val{N}())...))
+@inline _MFV{M,T,N1}(x::_MF{T,N2}) where {M,T,N1,N2} = _MFV{M,T,N1}(tuple(
+    ntuple(i -> Vec{M,T}(x._limbs[i]), _static_min(Val{N1}(), Val{N2}()))...,
+    ntuple(_ -> zero(Vec{M,T}), _static_max(Val{N1 - N2}(), Val{0}()))...))
+@inline _MFV{1,T,N1}(x::_MF{T,N2}) where {T,N1,N2} = _MFV{1,T,N1}(tuple(
+    ntuple(i -> Vec{1,T}(x._limbs[i]), _static_min(Val{N1}(), Val{N2}()))...,
+    ntuple(_ -> zero(Vec{1,T}), _static_max(Val{N1 - N2}(), Val{0}()))...))
+@inline _MFV{1,T,N}(x::_MF{T,N}) where {T,N} = _MFV{1,T,N}(tuple(
+    ntuple(i -> Vec{1,T}(x._limbs[i]), Val{N}())...))
 
 
 # Construct MultiFloat vector from MultiFloat vector.
-@inline _MFV{M,T,N1}(x::_MFV{M,T,N2}) where {M,T,N1,N2} = _MFV{M,T,N1}(
-    tuple(ntuple(i -> x._limbs[i], Val{min(N1, N2)}())...,
-        ntuple(_ -> zero(Vec{M,T}), Val{max(N1 - N2, 0)}())...))
+@inline _MFV{M,T,N1}(x::_MFV{M,T,N2}) where {M,T,N1,N2} = _MFV{M,T,N1}(tuple(
+    ntuple(i -> x._limbs[i], _static_min(Val{N1}(), Val{N2}()))...,
+    ntuple(_ -> zero(Vec{M,T}), _static_max(Val{N1 - N2}(), Val{0}()))...))
 
 
 # Construct MultiFloat vector from multiple MultiFloat scalars.
@@ -195,14 +201,21 @@ const Vec32Float64x4 = MultiFloatVec{32,Float64,4}
 ################################################ CONVERSION FROM PRIMITIVE TYPES
 
 
+const _BITS_PER_BYTE = div(64, sizeof(UInt64))
+
+
 @inline _split_impl(::Integer, ::Type, ::Val{0}) = ()
 @inline _split_impl(::AbstractFloat, ::Type, ::Val{0}) = ()
 @inline _split_impl(x::Integer, ::Type{T}, ::Val{1}) where {T} = (T(x),)
 @inline _split_impl(x::AbstractFloat, ::Type{T}, ::Val{1}) where {T} = (T(x),)
 
 @inline function _split_impl(x::I, ::Type{T}, ::Val{N}) where {I<:Integer,T,N}
+    _num_bits = _BITS_PER_BYTE * sizeof(I) - (I <: Signed)
+    _threshold = ldexp(one(T), _num_bits)
     next_limb = T(x)
-    remainder = reinterpret(signed(I), x - I(next_limb))
+    overflow = !(abs(next_limb) < _threshold)
+    int_value = ifelse(overflow, typemin(I), unsafe_trunc(I, next_limb))
+    remainder = reinterpret(signed(I), x - int_value)
     return (next_limb, _split_impl(remainder, T, Val{N - 1}())...)
 end
 
@@ -217,8 +230,8 @@ end
 end
 
 @inline function _split(x::Number, ::Type{T}, ::Val{N}, ::Val{K}) where {T,N,K}
-    result = tuple(_split_impl(x, T, Val{min(N, K)}())...,
-        ntuple(_ -> zero(T), Val{max(N - K, 0)}())...)
+    result = tuple(_split_impl(x, T, _static_min(Val{N}(), Val{K}()))...,
+        ntuple(_ -> zero(T), _static_max(Val{N - K}(), Val{0}()))...)
     first_limb = first(result)
     return ifelse(isfinite(first_limb), result,
         ntuple(_ -> first_limb, Val{N}()))
