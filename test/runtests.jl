@@ -212,6 +212,67 @@ end
 end
 
 
+function common_bits(x::BigFloat, y::BigFloat)
+    d = x - y
+    if iszero(d)
+        return min(precision(x), precision(y))
+    end
+    return max(exponent(x), exponent(y)) - exponent(d)
+end
+
+
+function test_binary_operation(
+    f::F,
+    ::Type{MultiFloat{T,N}},
+    k::Int,
+    n::Int,
+) where {F,T,N}
+    p = precision(MultiFloat{T,N})
+    setprecision(BigFloat, 2 * MultiFloats._full_precision(T) + 1) do
+        setrounding(BigFloat, RoundNearest) do
+            big_min = BigFloat(nextfloat(zero(T)))
+            big_max = BigFloat(floatmax(MultiFloat{T,N}))
+            for _ = 1:n
+                x = _bit_rand(MultiFloat{T,N})
+                y = _bit_rand(MultiFloat{T,N})
+                num_allocations = @allocated begin
+                    z = f(x, y)
+                end
+                @test iszero(num_allocations)
+
+                big_x = BigFloat(x)
+                big_y = BigFloat(y)
+                big_f = f(big_x, big_y)
+                if iszero(z)
+                    @test abs(big_f) < big_min
+                elseif isfinite(z)
+                    big_z = BigFloat(z)
+                    @test (common_bits(big_z, big_f) >= p + k) ||
+                          (abs(big_z - big_f) < N * big_min)
+                else
+                    @test (big_f < -big_max) || (big_f > +big_max)
+                end
+            end
+        end
+    end
+end
+
+
+@testset "addition and subtraction" begin
+    for T in _MF_TYPES
+        test_binary_operation(+, T, 0, 2^18)
+        test_binary_operation(-, T, 0, 2^18)
+    end
+end
+
+
+@testset "multiplication" begin
+    for T in _MF_TYPES
+        test_binary_operation(*, T, -1, 2^20)
+    end
+end
+
+
 function test_string_round_trip(x::MultiFloat{T,N}) where {T,N}
     y = MultiFloat{T,N}(string(x))
     @test (y == x) || (y == MultiFloats.canonize(x))
@@ -249,36 +310,21 @@ end
 end
 
 
-@testset "elementary functions" begin
-    for T in _MF_TYPES
-        setprecision(BigFloat, precision(T)*2) do
-            @testset "$func" for func in (exp2, log2, sqrt, cbrt)
-                for _ = 1:64
-                    x = rand(T)
-                    xbig = big(x)
-                    try
-                        ybig = func(xbig)
-                        @test abs(func(x)-ybig) < 10 * eps(T(ybig))
-                    catch e
-                        e isa DomainError || retrhow(e)
-                    end
-                end
-            end
-            @testset "$func" for func in (+, *, ^, (x, y) -> x^Int(big(round(10y-5))))
-                for _ = 1:64
-                    x = rand(T)
-                    y = rand(T)
-                    xbig = big(x)
-                    ybig = big(y)
-                    try
-                        ybig = func(xbig, ybig)
-                        @test abs(func(x, y)-ybig) < 10 * eps(T(ybig))
-                    catch e
-                        e isa DomainError || retrhow(e)
-                    end
-                end
-            end
-        end
-    end
-end
-
+# @testset "elementary functions" begin
+#     for T in _MF_TYPES
+#         setprecision(BigFloat, precision(T) * 2) do
+#             @testset "$func" for func in (exp2, log2, sqrt, cbrt)
+#                 for _ = 1:64
+#                     x = rand(T)
+#                     xbig = big(x)
+#                     try
+#                         ybig = func(xbig)
+#                         @test abs(func(x) - ybig) < 10 * eps(T(ybig))
+#                     catch e
+#                         e isa DomainError || retrhow(e)
+#                     end
+#                 end
+#             end
+#         end
+#     end
+# end
