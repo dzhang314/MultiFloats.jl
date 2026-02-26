@@ -361,6 +361,24 @@ end
 end
 
 
+@testset "reciprocal cube root" begin
+    for T in _MF_TYPES
+        test_unary_operation(MultiFloats.rcbrt, T, 5, 2^18;
+            precise_condition=(_, e_hi, ex) -> (ex <= e_hi),
+            nan_condition=issubnormal)
+    end
+end
+
+
+@testset "cube root" begin
+    for T in _MF_TYPES
+        test_unary_operation(cbrt, T, 6, 2^18;
+            precise_condition=(e_lo, e_hi, ex) -> (e_lo <= ex <= e_hi),
+            nan_condition=issubnormal)
+    end
+end
+
+
 function test_string_round_trip(x::MultiFloat{T,N}) where {T,N}
     y = MultiFloat{T,N}(string(x))
     @test (y == x) || (y == MultiFloats.canonize(x))
