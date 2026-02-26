@@ -224,11 +224,12 @@ end
 function test_unary_operation(
     f::F,
     ::Type{MultiFloat{T,N}},
-    precondition::P,
     deficit::Int,
     n::Int;
+    precise_condition::P=(_, _, _) -> true,
+    nan_condition::Q=_ -> false,
     positive_inputs::Bool=false,
-) where {F,T,N,P}
+) where {F,T,N,P,Q}
     e_lo = exponent(floatmin(T)) + (N - 1) * precision(T)
     e_hi = exponent(floatmax(T)) - (N - 1) * precision(T)
     p = precision(MultiFloat{T,N})
@@ -250,13 +251,14 @@ function test_unary_operation(
                 if iszero(z)
                     @test abs(big_f) < big_min
                 elseif isfinite(z)
-                    if precondition(e_lo, e_hi, exponent(x))
+                    if precise_condition(e_lo, e_hi, exponent(x))
                         big_z = BigFloat(z)
                         @test (common_bits(big_z, big_f) >= p - deficit) ||
                               (abs(big_z - big_f) < N * big_min)
                     end
                 else
-                    @test (big_f < -big_max) || (big_f > +big_max)
+                    @test (big_f < -big_max) || (big_f > +big_max) ||
+                          nan_condition(x)
                 end
             end
         end
@@ -267,10 +269,11 @@ end
 function test_binary_operation(
     f::F,
     ::Type{MultiFloat{T,N}},
-    precondition::P,
     deficit::Int,
-    n::Int,
-) where {F,T,N,P}
+    n::Int;
+    precise_condition::P=(_, _, _, _) -> true,
+    nan_condition::Q=(_, _) -> false,
+) where {F,T,N,P,Q}
     e_lo = exponent(floatmin(T)) + (N - 1) * precision(T)
     e_hi = exponent(floatmax(T)) - (N - 1) * precision(T)
     p = precision(MultiFloat{T,N})
@@ -290,13 +293,14 @@ function test_binary_operation(
                 if iszero(z)
                     @test abs(big_f) < big_min
                 elseif isfinite(z)
-                    if precondition(e_lo, e_hi, exponent(x), exponent(y))
+                    if precise_condition(e_lo, e_hi, exponent(x), exponent(y))
                         big_z = BigFloat(z)
                         @test (common_bits(big_z, big_f) >= p - deficit) ||
                               (abs(big_z - big_f) < N * big_min)
                     end
                 else
-                    @test (big_f < -big_max) || (big_f > +big_max)
+                    @test (big_f < -big_max) || (big_f > +big_max) ||
+                          nan_condition(x, y)
                 end
             end
         end
@@ -306,46 +310,51 @@ end
 
 @testset "addition and subtraction" begin
     for T in _MF_TYPES
-        test_binary_operation(+, T, (_, _, _, _) -> true, 0, 2^18)
-        test_binary_operation(-, T, (_, _, _, _) -> true, 0, 2^18)
+        test_binary_operation(+, T, 0, 2^18)
+        test_binary_operation(-, T, 0, 2^18)
     end
 end
 
 
 @testset "multiplication" begin
     for T in _MF_TYPES
-        test_binary_operation(*, T, (_, _, _, _) -> true, 1, 2^20)
+        test_binary_operation(*, T, 1, 2^20)
     end
 end
 
 
 @testset "reciprocal" begin
     for T in _MF_TYPES
-        test_unary_operation(inv, T, (_, e_hi, ex) -> (ex <= e_hi), 1, 2^18)
+        test_unary_operation(inv, T, 2, 2^18;
+            precise_condition=(_, e_hi, ex) -> (ex <= e_hi))
     end
 end
 
 
 @testset "division" begin
     for T in _MF_TYPES
-        test_binary_operation(/, T, (e_lo, e_hi, ex, ey) ->
-                (ex >= e_lo) & (ey <= e_hi) & (ex - ey >= e_lo), 1, 2^18)
+        test_binary_operation(/, T, 2, 2^18;
+            precise_condition=(e_lo, e_hi, ex, ey) ->
+                (ex >= e_lo) & (ey <= e_hi) & (ex - ey >= e_lo),
+            nan_condition=(_, y) -> issubnormal(y))
     end
 end
 
 
 @testset "reciprocal square root" begin
     for T in _MF_TYPES
-        test_unary_operation(MultiFloats.rsqrt, T, (_, e_hi, ex) ->
-                (ex <= e_hi), 3, 2^18; positive_inputs=true)
+        test_unary_operation(MultiFloats.rsqrt, T, 3, 2^18;
+            precise_condition=(_, e_hi, ex) -> (ex <= e_hi),
+            nan_condition=issubnormal, positive_inputs=true)
     end
 end
 
 
 @testset "square root" begin
     for T in _MF_TYPES
-        test_unary_operation(sqrt, T, (e_lo, e_hi, ex) ->
-                (e_lo <= ex <= e_hi), 3, 2^18; positive_inputs=true)
+        test_unary_operation(sqrt, T, 3, 2^18;
+            precise_condition=(e_lo, e_hi, ex) -> (e_lo <= ex <= e_hi),
+            nan_condition=issubnormal, positive_inputs=true)
     end
 end
 
