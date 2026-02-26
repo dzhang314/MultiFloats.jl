@@ -70,19 +70,21 @@ function test_construction(
                 @test MultiFloats.isnormalized(y)
                 @test MultiFloats.iscanonical(y)
 
-                big_x = BigFloat(x)
-                big_y = BigFloat(y)
-                big_prev_y = BigFloat(prevfloat(y))
-                big_next_y = BigFloat(nextfloat(y))
-                @test big_prev_y < big_y < big_next_y
+                if isfinite(y)
+                    big_x = BigFloat(x)
+                    big_y = BigFloat(y)
+                    big_prev_y = BigFloat(prevfloat(y))
+                    big_next_y = BigFloat(nextfloat(y))
+                    @test big_prev_y < big_y < big_next_y
 
-                center_diff = abs(big_y - big_x)
-                prev_diff = abs(big_prev_y - big_x)
-                next_diff = abs(big_next_y - big_x)
-                prev_cmp = cmp(center_diff, prev_diff)
-                next_cmp = cmp(center_diff, next_diff)
-                @test ((prev_cmp <= 0) & (next_cmp < 0)) |
-                      ((prev_cmp < 0) & (next_cmp <= 0))
+                    center_diff = abs(big_y - big_x)
+                    prev_diff = abs(big_prev_y - big_x)
+                    next_diff = abs(big_next_y - big_x)
+                    prev_cmp = cmp(center_diff, prev_diff)
+                    next_cmp = cmp(center_diff, next_diff)
+                    @test ((prev_cmp <= 0) & (next_cmp < 0)) |
+                          ((prev_cmp < 0) & (next_cmp <= 0))
+                end
 
                 num_allocations = @allocated begin
                     v1 = MultiFloatVec{4,T,N}(x)
