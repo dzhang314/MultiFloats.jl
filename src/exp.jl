@@ -3,7 +3,7 @@
 @inline _exp2_min(::Type{Float64}) = -0x1.FF00000000000p+0009
 @inline _exp2_max(::Type{Float64}) = +0x1.FFFFFFFFFFFFFp+0009
 
-
+# Remez.minimax_polynomial(exp2, x->log(2)*exp2(x), x->log(2)^2*exp2(x), (-1/8), (1/8), Val(4))
 @inline _exp2_coefficients(::Type{Float32}, ::Val{1}) = (
     (Float32(+0x1.000000p+000),),
     (Float32(+0x1.62E430p-001),),
@@ -146,22 +146,19 @@
 
 
 @inline function _exp2_kernel(x::NTuple{N,T}) where {N,T}
-    _zero = zero(T)
-    _one = one(T)
-    _two = _one + _one
-    _four = _two + _two
-    _eight = _four + _four
-    _half = inv(_two)
-    _one_eighth = inv(_eight)
-
-    n_float = trunc(first(x) + copysign(_half, first(x)))
-    neg_n = ntuple(i -> isone(i) ? -n_float : _zero, Val{N}())
-    p = _exp2_polynomial(scale(_one_eighth, mfadd(x, neg_n, Val{N}())))
+    n_float = round(first(x))
+    # |x_minus_n| < 1/2
+    # use _fast_sweep_down is faster than mf_sub
+    # and is correct because n_float ≈ first(x)
+    x_minus_n = _fast_sweep_down(x, -n_float)
+    # |r| < 1/8
+    r = scale(inv(T(8)), x_minus_n)
+    p = _exp2_polynomial(r)
     result = mfsqr(mfsqr(mfsqr(p, Val{N}()), Val{N}()), Val{N}())
     n = _float_to_int(n_float)
     half_n = n >> 1
-    result = scale(unsafe_ldexp(_one, half_n), result)
-    result = scale(unsafe_ldexp(_one, n - half_n), result)
+    result = scale(unsafe_ldexp(one(T), half_n), result)
+    result = scale(unsafe_ldexp(one(T), n - half_n), result)
     return result
 end
 
