@@ -1872,62 +1872,7 @@ function use_bigfloat_transcendentals(num_extra_bits::Int=10)
 end
 
 
-################################################################# RANDOM NUMBERS
-
-
-using Random: AbstractRNG, CloseOpen01, SamplerTrivial, UInt23, UInt52
-import Random: rand
-
-
-@inline _rand_mantissa(rng::AbstractRNG, ::Type{Float32}) = rand(rng, UInt23())
-@inline _rand_mantissa(rng::AbstractRNG, ::Type{Float64}) = rand(rng, UInt52())
-@inline _rand_sign_mantissa(rng::AbstractRNG, ::Type{Float32}) =
-    rand(rng, UInt32) & 0x807FFFFF
-@inline _rand_sign_mantissa(rng::AbstractRNG, ::Type{Float64}) =
-    rand(rng, UInt64) & 0x800FFFFFFFFFFFFF
-
-
-@inline function _rand_e(rng::AbstractRNG, ::Type{T}, k::Int) where {T}
-    # Subnormal numbers are intentionally not generated.
-    if k < exponent(floatmin(T))
-        return zero(T)
-    end
-    e = Base.uinttype(T)(exponent(floatmax(T)) + k) << (precision(T) - 1)
-    return reinterpret(T, e | _rand_mantissa(rng, T))
-end
-
-
-@inline function _rand_se(rng::AbstractRNG, ::Type{T}, k::Int) where {T}
-    # Subnormal numbers are intentionally not generated.
-    if k < exponent(floatmin(T))
-        return zero(T)
-    end
-    e = Base.uinttype(T)(exponent(floatmax(T)) + k) << (precision(T) - 1)
-    return reinterpret(T, e | _rand_sign_mantissa(rng, T))
-end
-
-
-@inline function _rand_mf(
-    rng::AbstractRNG,
-    ::Type{T},
-    offset::Int,
-    padding::NTuple{N,Int},
-) where {T,N}
-    _iota = ntuple(identity, Val{N}())
-    exponents = cumsum(padding) .+ (precision(T) + 1) .* _iota
-    return _MF{T,N + 1}((_rand_e(rng, T, offset),
-        _rand_se.(Ref(rng), T, offset .- exponents)...))
-end
-
-
-@inline function rand(
-    rng::AbstractRNG,
-    ::SamplerTrivial{CloseOpen01{_MF{T,N}}},
-) where {T,N}
-    offset = -leading_zeros(rand(rng, UInt64)) - 1
-    padding = ntuple(_ -> leading_zeros(rand(rng, UInt64)), Val{N - 1}())
-    return _rand_mf(rng, T, offset, padding)
-end
+include("rand.jl")
 
 
 end # module MultiFloats

@@ -1,5 +1,5 @@
 {
-    "cSpell.words": [
+    "words": [
         "AMDGPU",
         "chebyshev",
         "CUDA",
@@ -27,6 +27,7 @@
         "mfvscatter",
         "mpfr",
         "ocml",
+        "randexp",
         "rcbrt",
         "Remez",
         "renorm",
