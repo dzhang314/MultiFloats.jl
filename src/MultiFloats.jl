@@ -764,9 +764,9 @@ end
 end
 
 @inline unsafe_ldexp(x::_MF{T,N}, k::Integer) where {T,N} =
-    _MF{T,N}(ntuple(i -> unsafe_ldexp(x._limbs[i], k), Val{N}()))
+    _MF{T,N}(ntuple(@inline(i -> unsafe_ldexp(x._limbs[i], k)), Val{N}()))
 @inline unsafe_ldexp(x::_MFV{M,T,N}, k) where {M,T,N} =
-    _MFV{M,T,N}(ntuple(i -> unsafe_ldexp(x._limbs[i], k), Val{N}()))
+    _MFV{M,T,N}(ntuple(@inline(i -> unsafe_ldexp(x._limbs[i], k)), Val{N}()))
 
 
 function Base.decompose(x::_MF{T,N}) where {T,N}
@@ -900,14 +900,14 @@ export mfvgather, mfvscatter
 @inline Base.length(::_MFV{M,T,N}) where {M,T,N} = M
 
 
-@inline Base.getindex(x::_MFV{M,T,N}, i::I) where {M,T,N,I} = _MF{T,N}(
-    ntuple(j -> extractelement(x._limbs[j].data, i - one(I)), Val{N}()))
+@inline Base.getindex(x::_MFV{M,T,N}, i::I) where {M,T,N,I} = _MF{T,N}(ntuple(
+    @inline(j -> extractelement(x._limbs[j].data, i - one(I))), Val{N}()))
 
 
 @inline vifelse(
     mask::Vec{M,Bool}, x::_MFV{M,T,N}, y::_MFV{M,T,N},
-) where {M,T,N} = _MFV{M,T,N}(
-    ntuple(i -> vifelse(mask, x._limbs[i], y._limbs[i]), Val{N}()))
+) where {M,T,N} = _MFV{M,T,N}(ntuple(
+    @inline(i -> vifelse(mask, x._limbs[i], y._limbs[i])), Val{N}()))
 
 
 @inline function mfvgather(
@@ -915,7 +915,7 @@ export mfvgather, mfvscatter
 ) where {M,T,N,I<:Integer}
     base = reinterpret(Ptr{T}, pointer) + N * sizeof(T) * index
     return _MFV{M,T,N}(ntuple(
-        i -> vgather(base + (i - 1) * sizeof(T)), Val{N}()))
+        @inline(i -> vgather(base + (i - 1) * sizeof(T))), Val{N}()))
 end
 
 
