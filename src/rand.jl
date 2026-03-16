@@ -112,7 +112,6 @@ end
     ::Type{_MF{T,N}},
 ) where {T,N}
     leading_limb = randn(rng, T)
-    iszero(leading_limb) && return zero(_MF{T,N})
     return _rand_mf(rng, leading_limb, Val{N}())
 end
 
