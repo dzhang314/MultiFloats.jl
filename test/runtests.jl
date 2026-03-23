@@ -54,6 +54,6 @@ end
     MultiFloatVec{M,T,N}(ntuple(_ -> _bit_rand(MultiFloat{T,N}), Val{M}()))
 
 
-# include("conversion.jl")
-# include("arithmetic.jl")
+include("conversion.jl")
+include("arithmetic.jl")
 include("linalg.jl")
