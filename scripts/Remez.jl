@@ -122,12 +122,14 @@ function chebyshev_to_monomial_matrix(a::T, b::T, n::Int) where {T}
     return B
 end
 
-
-function find_root(f::F, df::G, x::T, a::T, b::T) where {F,G,T}
+# Use the [ModAB method](https://iopscience.iop.org/article/10.1088/1757-899X/1276/1/012010/)
+function find_root(f::F, a::T, b::T) where {F,T}
     @assert a <= b
 
     fa = f(a)
     fb = f(b)
+    iszero(fa) && return (a,a)
+    iszero(fb) && return (b,b)
     if signbit(fa) == signbit(fb)
         if abs(fa) < abs(fb)
             return (a, a)
@@ -138,69 +140,72 @@ function find_root(f::F, df::G, x::T, a::T, b::T) where {F,G,T}
         end
     end
 
-    x = clamp(x, a, b)
-    fx = f(x)
-    dfx = df(x)
     x_lo = a
     x_hi = b
     f_lo = fa
     f_hi = fb
-    dx_prev = b - a
+    x = x_lo
+    fx = f_lo
+    side = 0
+    bisecting = true
 
     while true
         @assert x_lo <= x <= x_hi
         @assert !isnan(f_lo)
         @assert !isnan(f_hi)
-        @assert signbit(f_lo) != signbit(f_hi)
         @assert !isnan(fx)
-        @assert !isnan(dfx)
-
-        x_mid = _halve(x_lo + x_hi)
-        if !(x_lo < x_mid < x_hi)
+        @assert signbit(f_lo) != signbit(f_hi)
+        
+        if bisecting
+            x = _halve(x_lo + x_hi)
+            fx = f(x)
+            fmid =  _halve(f_lo + f_hi)
+            if 4abs(fmid - fx) < abs(fmid) + abs(fx)
+                bisecting = false
+            end
+        else
+            x = (x_lo * f_hi - x_hi * f_lo) / (f_hi - f_lo)
+            fx = f(x)
+        end
+        
+        iszero(fx) && return (x,x)
+        if !(x_lo < x < x_hi)
             # The interval has become so small that its midpoint coincides
             # with one of its endpoints. We cannot make any more progress.
             return (x_lo, x_hi)
         end
-
-        x_next = x_mid
-        dx = fx / dfx
-        if abs(dx) < _halve(abs(dx_prev))
-            # Take Newton step if consecutive steps are getting smaller.
-            x_next = x - dx
-            if !(x_lo < x_next < x_hi)
-                # If Newton lands outside the interval, revert to bisection.
-                x_next = x_mid
-                dx = x_hi - x_lo
-            end
-        else
-            # If consecutive steps are not getting smaller, Newton's
-            # method may be failing to converge. Revert to bisection.
-            dx = x_hi - x_lo
+        
+        # Apply Anderson-Bjork modification
+        if side == 1
+            m = 1 - fx / f_lo
+            f_lo *= m > 0 ? m : inv(2 * one(T))
+        elseif side == 2
+            m = 1 - fx / f_hi
+            f_hi *= m > 0 ? m : inv(2 * one(T))
         end
-
-        # Accept step and update interval endpoints.
-        x = x_next
-        fx = f(x)
-        dfx = df(x)
         if signbit(fx) == signbit(f_lo)
+            if !bisecting
+                side  = 1
+            end
             x_lo = x
             f_lo = fx
         else
+            if !bisecting
+                side = 2
+            end
             x_hi = x
             f_hi = fx
         end
-        dx_prev = dx
-
     end
 end
 
 
 function minimax_polynomial(
-    f::F, df::G, d2f::H, a::T, b::T, ::Val{N};
+    f::F, df::G, a::T, b::T, ::Val{N};
     fixed_coefficients::NTuple{K,Pair{Int,T}}=(),
     initial_nodes=nothing,
     objective::Symbol=:absolute,
-) where {F,G,H,T,N,K}
+) where {F,G,T,N,K}
 
     # Validate inputs.
     @assert a <= b
@@ -275,13 +280,7 @@ function minimax_polynomial(
                             chebyshev_derivatives(u, Val{N}()))
                         return dpx - df(x)
                     end,
-                    x -> begin
-                        u = muladd(x, scale, shift)
-                        d2px = scale2 * dot(c,
-                            chebyshev_second_derivatives(u, Val{N}()))
-                        return d2px - d2f(x)
-                    end,
-                    nodes[i], x_lo, x_hi)
+                    x_lo, x_hi)
             else # objective == :relative
                 r_lo, r_hi = find_root(
                     x -> begin
@@ -291,14 +290,7 @@ function minimax_polynomial(
                             chebyshev_derivatives(u, Val{N}()))
                         return dpx * f(x) - px * df(x)
                     end,
-                    x -> begin
-                        u = muladd(x, scale, shift)
-                        px = dot(c, chebyshev_values(u, Val{N}()))
-                        d2px = scale2 * dot(c,
-                            chebyshev_second_derivatives(u, Val{N}()))
-                        return d2px * f(x) - px * d2f(x)
-                    end,
-                    nodes[i], x_lo, x_hi)
+                    x_lo, x_hi)
             end
 
             # Check both endpoints of both intervals.
@@ -342,12 +334,12 @@ end
 
 
 function minimax_rational(
-    f::F, df::G, d2f::H, a::T, b::T, ::Val{M}, ::Val{N};
+    f::F, df::G, a::T, b::T, ::Val{M}, ::Val{N};
     fixed_numerator_coefficients::NTuple{Kp,Pair{Int,T}}=(),
     fixed_denominator_coefficients::NTuple{Kq,Pair{Int,T}}=(),
     initial_nodes=nothing,
     objective::Symbol=:absolute,
-) where {F,G,H,T,M,N,Kp,Kq}
+) where {F,G,T,M,N,Kp,Kq}
 
     # Validate inputs.
     @assert a <= b
@@ -443,20 +435,7 @@ function minimax_rational(
                             chebyshev_derivatives(u, Val{N}()))
                         return dpx * qx - px * dqx - qx^2 * df(x)
                     end,
-                    x -> begin
-                        u = muladd(x, scale, shift)
-                        px = dot(cp, chebyshev_values(u, Val{M}()))
-                        qx = dot(cq, chebyshev_values(u, Val{N}()))
-                        dqx = scale * dot(cq,
-                            chebyshev_derivatives(u, Val{N}()))
-                        d2px = scale2 * dot(cp,
-                            chebyshev_second_derivatives(u, Val{M}()))
-                        d2qx = scale2 * dot(cq,
-                            chebyshev_second_derivatives(u, Val{N}()))
-                        return d2px * qx - px * d2qx - qx^2 * d2f(x) -
-                               _twice(qx * dqx) * df(x)
-                    end,
-                    nodes[i], x_lo, x_hi)
+                    x_lo, x_hi)
             else # objective == :relative
                 r_lo, r_hi = find_root(
                     x -> begin
@@ -469,20 +448,7 @@ function minimax_rational(
                             chebyshev_derivatives(u, Val{N}()))
                         return (dpx * qx - px * dqx) * f(x) - px * qx * df(x)
                     end,
-                    x -> begin
-                        u = muladd(x, scale, shift)
-                        px = dot(cp, chebyshev_values(u, Val{M}()))
-                        qx = dot(cq, chebyshev_values(u, Val{N}()))
-                        dqx = scale * dot(cq,
-                            chebyshev_derivatives(u, Val{N}()))
-                        d2px = scale2 * dot(cp,
-                            chebyshev_second_derivatives(u, Val{M}()))
-                        d2qx = scale2 * dot(cq,
-                            chebyshev_second_derivatives(u, Val{N}()))
-                        return (d2px * qx - px * d2qx) * f(x) -
-                               _twice(px * dqx) * df(x) - px * qx * d2f(x)
-                    end,
-                    nodes[i], x_lo, x_hi)
+                    x_lo, x_hi)
             end
 
             # Check both endpoints of both intervals.
