@@ -366,7 +366,7 @@ end
     while true
         x_next = _renorm_pass(x)
         if x_next === x
-            return ntuple(i -> vifelse(mask, x[i], total), Val{N}())
+            return map(@inline(limb -> vifelse(mask, limb, total)), x)
         end
         x = x_next
     end
@@ -713,7 +713,7 @@ end
 
 
 @inline Base.ldexp(x::_MF{T,N}, n::Integer) where {T,N} =
-    _MF{T,N}(ntuple(i -> ldexp(x._limbs[i], n), Val{N}()))
+    _MF{T,N}(map(@inline(limb -> ldexp(limb, n)), x._limbs))
 # NOTE: SIMD.jl does not define Base.ldexp for vectors.
 
 
@@ -773,9 +773,9 @@ end
 end
 
 @inline unsafe_ldexp(x::_MF{T,N}, k::Integer) where {T,N} =
-    _MF{T,N}(ntuple(@inline(i -> unsafe_ldexp(x._limbs[i], k)), Val{N}()))
+    _MF{T,N}(map(@inline(limb -> unsafe_ldexp(limb, k)), x._limbs))
 @inline unsafe_ldexp(x::_MFV{M,T,N}, k) where {M,T,N} =
-    _MFV{M,T,N}(ntuple(@inline(i -> unsafe_ldexp(x._limbs[i], k)), Val{N}()))
+    _MFV{M,T,N}(map(@inline(limb -> unsafe_ldexp(limb, k)), x._limbs))
 
 
 function Base.decompose(x::_MF{T,N}) where {T,N}
@@ -1026,9 +1026,9 @@ _ge_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] >= y._limbs[$n]) : :(
 # Users are expected to call it as MultiFloats.scale(a, x).
 @inline scale(a::Any, x::Any) = a * x
 @inline scale(a::T, x::NTuple{N,T}) where {N,T} =
-    ntuple(i -> a * x[i], Val{N}())
+    map(limb -> a * limb, x)
 @inline scale(a::T, x::NTuple{N,Vec{M,T}}) where {N,M,T} =
-    ntuple(i -> a * x[i], Val{N}())
+    map(limb -> a * limb, x)
 @inline scale(a::T, x::_MF{T,N}) where {T,N} =
     _MF{T,N}(scale(a, x._limbs))
 @inline scale(a::T, x::_MFV{M,T,N}) where {M,T,N} =
