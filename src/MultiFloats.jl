@@ -240,6 +240,9 @@ end
 @inline function _split(x::Number, ::Type{T}, ::Val{N}, ::Val{K}) where {T,N,K}
     limbs = _split_impl(x, T, _static_min(Val{N}(), Val{K}()))
     first_limb = first(limbs)
+    # In rare cases, _split_impl might not return a normalized result, e.g.:
+    #     _split_impl(1.0 + 0.5^23 + 0.5^24 - 0.5^52, Float32, Val(2))
+    # _fast_sweep_up is required here to fix this.
     result = tuple(_fast_sweep_up(limbs)...,
         ntuple(_ -> zero(T), _static_max(Val{N - K}(), Val{0}()))...)
     return ifelse(isfinite(first_limb), result,

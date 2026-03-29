@@ -154,6 +154,9 @@
     _half = inv(_two)
     _one_eighth = inv(_eight)
 
+    # Base.round is not implemented consistently on all Julia GPU backends.
+    # Some break ties to even; others break ties away from zero. To prevent
+    # CPU-GPU divergence, we add 1/2 and call Base.trunc instead.
     n_float = trunc(first(x) + copysign(_half, first(x)))
     neg_n = ntuple(i -> isone(i) ? -n_float : _zero, Val{N}())
     p = _exp2_polynomial(scale(_one_eighth, mfadd(x, neg_n, Val{N}())))
