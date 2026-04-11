@@ -79,7 +79,7 @@ end
 ) where {T,N}
     _one = one(T)
     _two = _one + _one
-    _half = inv(_two)
+    _half = inv_r(_two)
     s = signbit(x)
     t = trunc(x)
     mid = _MF{T,N}(_fast_sweep_up(_fast_sweep_down(
@@ -95,7 +95,7 @@ end
 ) where {M,T,N}
     _one = one(Vec{M,T})
     _two = _one + _one
-    _half = inv(_two)
+    _half = inv_r(_two)
     s = signbit(x)
     t = trunc(x)
     mid = _MFV{M,T,N}(_fast_sweep_up(_fast_sweep_down(
@@ -112,7 +112,7 @@ end
 ) where {T,N}
     _one = one(T)
     _two = _one + _one
-    _half = inv(_two)
+    _half = inv_r(_two)
     s = signbit(x)
     t = trunc(x)
     mid = _MF{T,N}(_fast_sweep_up(_fast_sweep_down(
@@ -128,7 +128,7 @@ end
 ) where {M,T,N}
     _one = one(Vec{M,T})
     _two = _one + _one
-    _half = inv(_two)
+    _half = inv_r(_two)
     s = signbit(x)
     t = trunc(x)
     mid = _MFV{M,T,N}(_fast_sweep_up(_fast_sweep_down(
@@ -143,7 +143,7 @@ end
 @inline function _isodd_float(x::T) where {T}
     _one = one(T)
     _two = _one + _one
-    _half = inv(_two)
+    _half = inv_r(_two)
     half_x = _half * x
     return (trunc(half_x) != half_x)
 end
@@ -159,7 +159,7 @@ end
 ) where {T,N}
     _one = one(T)
     _two = _one + _one
-    _half = inv(_two)
+    _half = inv_r(_two)
     s = signbit(x)
     t = trunc(x)
     mid = _MF{T,N}(_fast_sweep_up(_fast_sweep_down(
@@ -175,7 +175,7 @@ end
 ) where {M,T,N}
     _one = one(Vec{M,T})
     _two = _one + _one
-    _half = inv(_two)
+    _half = inv_r(_two)
     s = signbit(x)
     t = trunc(x)
     mid = _MFV{M,T,N}(_fast_sweep_up(_fast_sweep_down(

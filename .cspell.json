@@ -6,6 +6,7 @@
         "Cvoid",
         "equioscillation",
         "extractelement",
+        "Floatsone",
         "hexfloat",
         "iscanonical",
         "isnormalized",
@@ -25,6 +26,7 @@
         "mfsqrt",
         "mfvgather",
         "mfvscatter",
+        "microarchitectures",
         "mpfr",
         "ocml",
         "randexp",
@@ -43,6 +45,7 @@
         "vgather",
         "vifelse",
         "vscatter",
+        "weakdeps",
         "Zhang"
     ]
 }

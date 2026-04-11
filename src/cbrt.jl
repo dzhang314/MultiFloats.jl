@@ -1,7 +1,7 @@
 # NOTE: MultiFloats.rcbrt is not exported to avoid name conflicts.
 # Users are expected to call it as MultiFloats.rcbrt(x).
 
-@inline rcbrt(x::Any) = inv(cbrt(x))
+@inline rcbrt(x::Any) = inv_r(cbrt(x))
 
 
 const _ONE_THIRD_FULL_F32 = (
@@ -98,7 +98,7 @@ end
 
 
 @inline mfrcbrt(x::NTuple{X,T}, ::Val{1}) where {T,X} =
-    (inv(cbrt(first(x))),)
+    (inv_r(cbrt(first(x))),)
 @inline mfrcbrt(x::NTuple{X,T}, ::Val{Z}) where {T,X,Z} =
     _mfrcbrt_impl(x, (rcbrt(first(x)),), Val{Z}())
 

@@ -212,8 +212,8 @@ end
 
 @inline function unsafe_log2(x::_MF{T,N}) where {T,N}
     _one = one(T)
-    _direct_lo = T(15) / T(16)
-    _direct_hi = T(17) / T(16)
+    _direct_lo = div_r(T(15), T(16))
+    _direct_hi = div_r(T(17), T(16))
     _table = _log2_table(T, Val{N}())
 
     first_limb = first(x._limbs)
@@ -223,8 +223,8 @@ end
     center = _table.centers[index+1]
     value = _table.values[index+1]
 
-    t_direct = (x - _one) / (x + _one)
-    t_table = (m - center) / (m + center)
+    t_direct = div_r(x - _one, x + _one)
+    t_table = div_r(m - center, m + center)
     p_direct = _MF{T,N}(_log2_kernel_wide(mfsqr(t_direct._limbs, Val{N}())))
     p_table = _MF{T,N}(_log2_kernel_narrow(mfsqr(t_table._limbs, Val{N}())))
     return ifelse((_direct_lo < first_limb) & (first_limb < _direct_hi),
@@ -234,8 +234,8 @@ end
 
 @inline function unsafe_log2(x::_MFV{M,T,N}) where {M,T,N}
     _one = one(T)
-    _direct_lo = T(15) / T(16)
-    _direct_hi = T(17) / T(16)
+    _direct_lo = div_r(T(15), T(16))
+    _direct_hi = div_r(T(17), T(16))
     _table = _log2_table(T, Val{N}())
 
     first_limb = first(x._limbs)
@@ -249,8 +249,8 @@ end
                 _table.values[extractelement(index.data, j - 1)+1]._limbs[i],
             Val{M}())), Val{N}()))
 
-    t_direct = (x - _one) / (x + _one)
-    t_table = (m - centers) / (m + centers)
+    t_direct = div_r(x - _one, x + _one)
+    t_table = div_r(m - centers, m + centers)
     p_direct = _MFV{M,T,N}(_log2_kernel_wide(mfsqr(t_direct._limbs, Val{N}())))
     p_table = _MFV{M,T,N}(_log2_kernel_narrow(mfsqr(t_table._limbs, Val{N}())))
     return vifelse((_direct_lo < first_limb) & (first_limb < _direct_hi),

@@ -826,7 +826,7 @@ end
 function Base.prevfloat(x::_MF{T,N}) where {T,N}
     _one = one(T)
     _two = _one + _one
-    _half = inv(_two)
+    _half = inv_r(_two)
 
     has_pos_inf = _has_pos_inf(x)
     has_neg_inf = _has_neg_inf(x)
@@ -863,7 +863,7 @@ end
 function Base.nextfloat(x::_MF{T,N}) where {T,N}
     _one = one(T)
     _two = _one + _one
-    _half = inv(_two)
+    _half = inv_r(_two)
 
     has_pos_inf = _has_pos_inf(x)
     has_neg_inf = _has_neg_inf(x)
@@ -1153,34 +1153,44 @@ end
 
 @inline Base.:^(x::_MF{T,N}, p::Integer) where {T,N} =
     signbit(p) ?
-    _power_by_abs2(inv(x), _neg_unsigned(p)) :
+    _power_by_abs2(inv_r(x), _neg_unsigned(p)) :
     _power_by_abs2(x, _to_unsigned(p))
 @inline Base.:^(x::_MFV{M,T,N}, p::Integer) where {M,T,N} =
     signbit(p) ?
-    _power_by_abs2(inv(x), _neg_unsigned(p)) :
+    _power_by_abs2(inv_r(x), _neg_unsigned(p)) :
     _power_by_abs2(x, _to_unsigned(p))
 
 
 include("round.jl")
 
 
-######################################################### SQUARE ROOT OPERATIONS
+######################################################## REPRODUCIBLE OPERATIONS
 
-# In Julia, Base.sqrt throws a DomainError when given a negative real argument.
-# This is, in my opinion, a very unfortunate design choice. It forces otherwise
-# non-throwing programs to unnecessarily include exception handling code paths.
-# To facilitate the writing of branch-free code, MultiFloats.jl provides
-# unsafe_sqrt and rsqrt functions that return NaN instead of throwing.
+# Floating-point division and square root operations are inconsistent across
+# CPU and GPU microarchitectures. To ensure bit-for-bit identical results,
+# MultiFloats.jl provides reproducible variants of these operations.
 
 
-# MultiFloats.unsafe_sqrt is a qualified public function.
-# Users are expected to call it as MultiFloats.unsafe_sqrt(x).
+# MultiFloats.inv_r is a qualified public function.
+# Users are expected to call it as MultiFloats.inv_r(x).
 
-@inline unsafe_sqrt(x::Any) = sqrt(x)
+@inline inv_r(x::T) where {T} = inv(x)
 
-@inline unsafe_sqrt(x::Union{Float16,Float32,Float64}) = Base.sqrt_llvm(x)
 
-function unsafe_sqrt(x::BigFloat)
+# MultiFloats.div_r is a qualified public function.
+# Users are expected to call it as MultiFloats.div_r(x, y).
+
+@inline div_r(x::T, y::T) where {T} = x / y
+
+
+# MultiFloats.sqrt_r is a qualified public function.
+# Users are expected to call it as MultiFloats.sqrt_r(x).
+
+@inline sqrt_r(x::Any) = sqrt(x)
+
+@inline sqrt_r(x::Union{Float16,Float32,Float64}) = Base.sqrt_llvm(x)
+
+function sqrt_r(x::BigFloat)
     result = BigFloat()
     ccall((:mpfr_sqrt, libmpfr), Cint,
         (Ref{BigFloat}, Ref{BigFloat}, MPFRRoundingMode),
@@ -1189,12 +1199,12 @@ function unsafe_sqrt(x::BigFloat)
 end
 
 
-# MultiFloats.rsqrt is a qualified public function.
-# Users are expected to call it as MultiFloats.rsqrt(x).
+# MultiFloats.rsqrt_r is a qualified public function.
+# Users are expected to call it as MultiFloats.rsqrt_r(x).
 
-@inline rsqrt(x::Any) = inv(unsafe_sqrt(x))
+@inline rsqrt_r(x::Any) = inv_r(sqrt_r(x))
 
-function rsqrt(x::BigFloat)
+function rsqrt_r(x::BigFloat)
     result = BigFloat()
     ccall((:mpfr_rec_sqrt, libmpfr), Cint,
         (Ref{BigFloat}, Ref{BigFloat}, MPFRRoundingMode),
@@ -1279,7 +1289,7 @@ end
     _zero = zero(T)
     _one = one(T)
     _two = _one + _one
-    _half = inv(_two)
+    _half = inv_r(_two)
     if U + U >= Z
         _neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{Z}())
         rx = _resize(x, Val{Z}())
@@ -1312,7 +1322,7 @@ end
     _zero = zero(T)
     _one = one(T)
     _two = _one + _one
-    _half = inv(_two)
+    _half = inv_r(_two)
     if U + U >= Z
         rx = _resize(x, Val{Z}())
         ru = _resize(u, Val{Z}())
@@ -1336,27 +1346,27 @@ end
 
 
 @inline mfinv(x::NTuple{X,T}, ::Val{1}) where {T,X} =
-    (inv(first(x)),)
+    (inv_r(first(x)),)
 @inline mfinv(x::NTuple{X,T}, ::Val{Z}) where {T,X,Z} =
-    _mfinv_impl(x, (inv(first(x)),), Val{Z}())
+    _mfinv_impl(x, (inv_r(first(x)),), Val{Z}())
 
 
 @inline mfdiv(x::NTuple{X,T}, y::NTuple{Y,T}, ::Val{1}) where {T,X,Y} =
-    (first(x) / first(y),)
+    (div_r(first(x), first(y)),)
 @inline mfdiv(x::NTuple{X,T}, y::NTuple{Y,T}, ::Val{Z}) where {T,X,Y,Z} =
-    _mfdiv_impl(x, y, (inv(first(y)),), Val{Z}())
+    _mfdiv_impl(x, y, (inv_r(first(y)),), Val{Z}())
 
 
 @inline mfrsqrt(x::NTuple{X,T}, ::Val{1}) where {T,X} =
-    (rsqrt(first(x)),)
+    (rsqrt_r(first(x)),)
 @inline mfrsqrt(x::NTuple{X,T}, ::Val{Z}) where {T,X,Z} =
-    _mfrsqrt_impl(x, (rsqrt(first(x)),), Val{Z}())
+    _mfrsqrt_impl(x, (rsqrt_r(first(x)),), Val{Z}())
 
 
 @inline mfsqrt(x::NTuple{X,T}, ::Val{1}) where {T,X} =
-    (unsafe_sqrt(first(x)),)
+    (sqrt_r(first(x)),)
 @inline mfsqrt(x::NTuple{X,T}, ::Val{Z}) where {T,X,Z} =
-    _mfsqrt_impl(x, (rsqrt(first(x)),), Val{Z}())
+    _mfsqrt_impl(x, (rsqrt_r(first(x)),), Val{Z}())
 
 
 ################################################## LEVEL 2 ARITHMETIC OPERATIONS
@@ -1374,22 +1384,22 @@ end
     _MFV{M,T,N}(mfdiv(x._limbs, y._limbs, Val{N}()))
 
 
-@inline rsqrt(x::_MF{T,N}) where {T,N} =
+@inline rsqrt_r(x::_MF{T,N}) where {T,N} =
     _MF{T,N}(mfrsqrt(x._limbs, Val{N}()))
-@inline rsqrt(x::_MFV{M,T,N}) where {M,T,N} =
+@inline rsqrt_r(x::_MFV{M,T,N}) where {M,T,N} =
     _MFV{M,T,N}(mfrsqrt(x._limbs, Val{N}()))
 
 
-@inline unsafe_sqrt(x::_MF{T,N}) where {T,N} =
+@inline sqrt_r(x::_MF{T,N}) where {T,N} =
     _MF{T,N}(mfsqrt(x._limbs, Val{N}()))
-@inline unsafe_sqrt(x::_MFV{M,T,N}) where {M,T,N} =
+@inline sqrt_r(x::_MFV{M,T,N}) where {M,T,N} =
     _MFV{M,T,N}(mfsqrt(x._limbs, Val{N}()))
 
 
 @inline Base.sqrt(x::_MF{T,N}) where {T,N} =
-    ifelse(iszero(x), x, unsafe_sqrt(x))
+    ifelse(iszero(x), x, sqrt_r(x))
 @inline Base.sqrt(x::_MFV{M,T,N}) where {M,T,N} =
-    vifelse(iszero(x), x, unsafe_sqrt(x))
+    vifelse(iszero(x), x, sqrt_r(x))
 
 
 ####################################################################### PRINTING

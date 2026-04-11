@@ -151,8 +151,8 @@
     _two = _one + _one
     _four = _two + _two
     _eight = _four + _four
-    _half = inv(_two)
-    _one_eighth = inv(_eight)
+    _half = inv_r(_two)
+    _one_eighth = inv_r(_eight)
 
     n_float = trunc(first(x) + copysign(_half, first(x)))
     neg_n = ntuple(i -> isone(i) ? -n_float : _zero, Val{N}())
