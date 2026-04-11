@@ -1169,9 +1169,11 @@ include("round.jl")
 
 ######################################################## REPRODUCIBLE OPERATIONS
 
-# Floating-point division and square root operations are inconsistent across
-# CPU and GPU microarchitectures. To ensure bit-for-bit identical results,
-# MultiFloats.jl provides reproducible variants of these operations.
+# Floating-point division and square root are implemented inconsistently across
+# CPU and GPU microarchitectures. MultiFloats.jl provides reproducible variants
+# of these operations that produce bit-for-bit identical results across all
+# platforms. These functions have been extensively tested on current-generation
+# Intel, AMD, NVIDIA, and Apple CPUs and GPUs.
 
 
 # MultiFloats.inv_r is a qualified public function.

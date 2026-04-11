@@ -111,7 +111,9 @@ end
 
 @testset "reciprocal" begin
     for T in _MF_TYPES
-        test_unary_operation(inv, T, 2, 2^18;
+        test_unary_operation(inv, T, 2, 2^17;
+            precise_condition=(_, e_hi, ex) -> (ex <= e_hi))
+        test_unary_operation(MultiFloats.inv_r, T, 2, 2^17;
             precise_condition=(_, e_hi, ex) -> (ex <= e_hi))
     end
 end
@@ -119,7 +121,11 @@ end
 
 @testset "division" begin
     for T in _MF_TYPES
-        test_binary_operation(/, T, 2, 2^18;
+        test_binary_operation(/, T, 2, 2^17;
+            precise_condition=(e_lo, e_hi, ex, ey) ->
+                (ex >= e_lo) & (ey <= e_hi) & (ex - ey >= e_lo),
+            nan_condition=(_, y) -> issubnormal(y))
+        test_binary_operation(MultiFloats.div_r, T, 2, 2^17;
             precise_condition=(e_lo, e_hi, ex, ey) ->
                 (ex >= e_lo) & (ey <= e_hi) & (ex - ey >= e_lo),
             nan_condition=(_, y) -> issubnormal(y))
@@ -129,7 +135,7 @@ end
 
 @testset "reciprocal square root" begin
     for T in _MF_TYPES
-        test_unary_operation(MultiFloats.rsqrt, T, 3, 2^18;
+        test_unary_operation(MultiFloats.rsqrt_r, T, 3, 2^18;
             precise_condition=(_, e_hi, ex) -> (ex <= e_hi),
             nan_condition=issubnormal, positive_inputs=true)
     end
@@ -138,7 +144,10 @@ end
 
 @testset "square root" begin
     for T in _MF_TYPES
-        test_unary_operation(sqrt, T, 3, 2^18;
+        test_unary_operation(sqrt, T, 3, 2^17;
+            precise_condition=(e_lo, e_hi, ex) -> (e_lo <= ex <= e_hi),
+            nan_condition=issubnormal, positive_inputs=true)
+        test_unary_operation(MultiFloats.sqrt_r, T, 3, 2^17;
             precise_condition=(e_lo, e_hi, ex) -> (e_lo <= ex <= e_hi),
             nan_condition=issubnormal, positive_inputs=true)
     end

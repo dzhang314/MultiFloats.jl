@@ -153,7 +153,6 @@
     _eight = _four + _four
     _half = inv_r(_two)
     _one_eighth = inv_r(_eight)
-
     # Base.round is not implemented consistently on all Julia GPU backends.
     # Some break ties to even; others break ties away from zero. To prevent
     # CPU-GPU divergence, we add 1/2 and call Base.trunc instead.
