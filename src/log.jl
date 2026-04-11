@@ -1,24 +1,24 @@
-@inline _log2_kernel_coefficients_narrow(::Type{Float32}, ::Val{1}) = (
+@inline _log2_kernel_coefficients_narrow(::Type{Float32}, ::Val{1}) = ( # spellchecker: disable
     (Float32(+0x1.715476p+001),),
     (Float32(+0x1.EC752Ap-001),),
-)
+) # spellchecker: enable
 
-@inline _log2_kernel_coefficients_narrow(::Type{Float32}, ::Val{2}) = (
+@inline _log2_kernel_coefficients_narrow(::Type{Float32}, ::Val{2}) = ( # spellchecker: disable
     (Float32(+0x1.715476p+001), Float32(+0x1.4AE0C0p-025)),
     (Float32(+0x1.EC709Ep-001), Float32(-0x1.E2FDB2p-028)),
     (Float32(+0x1.2776C6p-001),),
     (Float32(+0x1.A6217Cp-002),),
-)
+) # spellchecker: enable
 
-@inline _log2_kernel_coefficients_narrow(::Type{Float32}, ::Val{3}) = (
+@inline _log2_kernel_coefficients_narrow(::Type{Float32}, ::Val{3}) = ( # spellchecker: disable
     (Float32(+0x1.715476p+001), Float32(+0x1.4AE0C0p-025), Float32(-0x1.E8882Ep-051)),
     (Float32(+0x1.EC709Ep-001), Float32(-0x1.E2FE02p-028), Float32(+0x1.73DA8Cp-053)),
     (Float32(+0x1.2776C6p-001), Float32(-0x1.E20C4Ep-026)),
     (Float32(+0x1.A61762p-002), Float32(+0x1.0827C8p-027)),
     (Float32(+0x1.485568p-002),),
-)
+) # spellchecker: enable
 
-@inline _log2_kernel_coefficients_narrow(::Type{Float32}, ::Val{4}) = (
+@inline _log2_kernel_coefficients_narrow(::Type{Float32}, ::Val{4}) = ( # spellchecker: disable
     (Float32(+0x1.715476p+001), Float32(+0x1.4AE0C0p-025), Float32(-0x1.E88830p-051), Float32(+0x1.FFB41Ap-076)),
     (Float32(+0x1.EC709Ep-001), Float32(-0x1.E2FE02p-028), Float32(+0x1.749FC2p-053), Float32(-0x1.55BCAEp-078)),
     (Float32(+0x1.2776C6p-001), Float32(-0x1.E20C80p-026), Float32(-0x1.86D354p-053)),
@@ -26,16 +26,16 @@
     (Float32(+0x1.484B14p-002), Float32(-0x1.41F9DAp-029)),
     (Float32(+0x1.0C9A84p-002), Float32(+0x1.7F3E5Ap-028)),
     (Float32(+0x1.C6A48Ep-003),),
-)
+) # spellchecker: enable
 
-@inline _log2_kernel_coefficients_narrow(::Type{Float64}, ::Val{1}) = (
+@inline _log2_kernel_coefficients_narrow(::Type{Float64}, ::Val{1}) = ( # spellchecker: disable
     (+0x1.71547652B82FEp+0001,),
     (+0x1.EC709DC3A049Ap-0001,),
     (+0x1.2776C5028B217p-0001,),
     (+0x1.A6217C9F8B113p-0002,),
-)
+) # spellchecker: enable
 
-@inline _log2_kernel_coefficients_narrow(::Type{Float64}, ::Val{2}) = (
+@inline _log2_kernel_coefficients_narrow(::Type{Float64}, ::Val{2}) = ( # spellchecker: disable
     (+0x1.71547652B82FEp+0001, +0x1.777D0FFDA0D24p-0055),
     (+0x1.EC709DC3A03FDp-0001, +0x1.D27F055486A5Ap-0055),
     (+0x1.2776C50EF9BFEp-0001, +0x1.E4B2AE3DCBD87p-0055),
@@ -43,9 +43,9 @@
     (+0x1.484B13D7C0C4Dp-0002,),
     (+0x1.0C9A845FCF968p-0002,),
     (+0x1.C6A48D52BA6C7p-0003,),
-)
+) # spellchecker: enable
 
-@inline _log2_kernel_coefficients_narrow(::Type{Float64}, ::Val{3}) = (
+@inline _log2_kernel_coefficients_narrow(::Type{Float64}, ::Val{3}) = ( # spellchecker: disable
     (+0x1.71547652B82FEp+0001, +0x1.777D0FFDA0D24p-0055, -0x1.60BB8A5442AB9p-0109),
     (+0x1.EC709DC3A03FDp-0001, +0x1.D27F05548AF0Cp-0055, -0x1.D64F631B0395Fp-0111),
     (+0x1.2776C50EF9BFEp-0001, +0x1.E4B29CCC535D4p-0055, -0x1.1A2FA19B026E1p-0111),
@@ -57,9 +57,9 @@
     (+0x1.5B9AC9B74823Dp-0003,),
     (+0x1.3703C129714EEp-0003,),
     (+0x1.197AAA771958Bp-0003,),
-)
+) # spellchecker: enable
 
-@inline _log2_kernel_coefficients_narrow(::Type{Float64}, ::Val{4}) = (
+@inline _log2_kernel_coefficients_narrow(::Type{Float64}, ::Val{4}) = ( # spellchecker: disable
     (+0x1.71547652B82FEp+0001, +0x1.777D0FFDA0D24p-0055, -0x1.60BB8A5442AB9p-0109, -0x1.4B52D3BA6D74Dp-0165),
     (+0x1.EC709DC3A03FDp-0001, +0x1.D27F05548AF0Cp-0055, -0x1.D64F631B038F7p-0111, +0x1.CDC8C82E65AE0p-0166),
     (+0x1.2776C50EF9BFEp-0001, +0x1.E4B29CCC535D4p-0055, -0x1.1A2FA1DD0222Ep-0111, +0x1.5755B4C7027FCp-0165),
@@ -74,7 +74,7 @@
     (+0x1.00ECD7E087C6Dp-0003, +0x1.357017D596B58p-0057),
     (+0x1.D8BE05FBB38B0p-0004,),
     (+0x1.B5E5550A951D8p-0004,),
-)
+) # spellchecker: enable
 
 @generated _log2_kernel_narrow(x::NTuple{N,T}) where {N,T} =
     _horner_expr_mf(_log2_kernel_coefficients_narrow(T, Val{N}()))
@@ -82,21 +82,21 @@
     _horner_expr_mfv(_log2_kernel_coefficients_narrow(T, Val{N}()), M)
 
 
-@inline _log2_kernel_coefficients_wide(::Type{Float32}, ::Val{1}) = (
+@inline _log2_kernel_coefficients_wide(::Type{Float32}, ::Val{1}) = ( # spellchecker: disable
     (Float32(+0x1.715476p+001),),
     (Float32(+0x1.EC7096p-001),),
     (Float32(+0x1.27CB2Ep-001),),
-)
+) # spellchecker: enable
 
-@inline _log2_kernel_coefficients_wide(::Type{Float32}, ::Val{2}) = (
+@inline _log2_kernel_coefficients_wide(::Type{Float32}, ::Val{2}) = ( # spellchecker: disable
     (Float32(+0x1.715476p+001), Float32(+0x1.4AE0C0p-025)),
     (Float32(+0x1.EC709Ep-001), Float32(-0x1.E2FE88p-028)),
     (Float32(+0x1.2776C6p-001), Float32(-0x1.DE12AAp-026)),
     (Float32(+0x1.A61738p-002),),
     (Float32(+0x1.48FE3Ap-002),),
-)
+) # spellchecker: enable
 
-@inline _log2_kernel_coefficients_wide(::Type{Float32}, ::Val{3}) = (
+@inline _log2_kernel_coefficients_wide(::Type{Float32}, ::Val{3}) = ( # spellchecker: disable
     (Float32(+0x1.715476p+001), Float32(+0x1.4AE0C0p-025), Float32(-0x1.E8882Ep-051)),
     (Float32(+0x1.EC709Ep-001), Float32(-0x1.E2FE02p-028), Float32(+0x1.749E06p-053)),
     (Float32(+0x1.2776C6p-001), Float32(-0x1.E20C80p-026), Float32(-0x1.1EE414p-053)),
@@ -104,9 +104,9 @@
     (Float32(+0x1.484B14p-002), Float32(-0x1.BFE938p-030)),
     (Float32(+0x1.0C9A42p-002),),
     (Float32(+0x1.C7FF60p-003),),
-)
+) # spellchecker: enable
 
-@inline _log2_kernel_coefficients_wide(::Type{Float32}, ::Val{4}) = (
+@inline _log2_kernel_coefficients_wide(::Type{Float32}, ::Val{4}) = ( # spellchecker: disable
     (Float32(+0x1.715476p+001), Float32(+0x1.4AE0C0p-025), Float32(-0x1.E88830p-051), Float32(+0x1.FFB41Ap-076)),
     (Float32(+0x1.EC709Ep-001), Float32(-0x1.E2FE02p-028), Float32(+0x1.749FC2p-053), Float32(-0x1.55BFAAp-078)),
     (Float32(+0x1.2776C6p-001), Float32(-0x1.E20C80p-026), Float32(-0x1.86D358p-053), Float32(+0x1.A0521Cp-080)),
@@ -116,17 +116,17 @@
     (Float32(+0x1.C68F56p-003), Float32(+0x1.7F1516p-028)),
     (Float32(+0x1.89F2F6p-003), Float32(+0x1.226E66p-028)),
     (Float32(+0x1.5D108Cp-003),),
-)
+) # spellchecker: enable
 
-@inline _log2_kernel_coefficients_wide(::Type{Float64}, ::Val{1}) = (
+@inline _log2_kernel_coefficients_wide(::Type{Float64}, ::Val{1}) = ( # spellchecker: disable
     (+0x1.71547652B82FEp+0001,),
     (+0x1.EC709DC3A02EEp-0001,),
     (+0x1.2776C510F6AA9p-0001,),
     (+0x1.A61738E04AEC5p-0002,),
     (+0x1.48FE397189FCBp-0002,),
-)
+) # spellchecker: enable
 
-@inline _log2_kernel_coefficients_wide(::Type{Float64}, ::Val{2}) = (
+@inline _log2_kernel_coefficients_wide(::Type{Float64}, ::Val{2}) = ( # spellchecker: disable
     (+0x1.71547652B82FEp+0001, +0x1.777D0FFDA0D24p-0055),
     (+0x1.EC709DC3A03FDp-0001, +0x1.D27F055480ABFp-0055),
     (+0x1.2776C50EF9BFEp-0001, +0x1.E4B2A0D0290E2p-0055),
@@ -136,9 +136,9 @@
     (+0x1.C68F56BF8A8ACp-0003,),
     (+0x1.89F2F69137330p-0003,),
     (+0x1.5D108CD7E21EBp-0003,),
-)
+) # spellchecker: enable
 
-@inline _log2_kernel_coefficients_wide(::Type{Float64}, ::Val{3}) = (
+@inline _log2_kernel_coefficients_wide(::Type{Float64}, ::Val{3}) = ( # spellchecker: disable
     (+0x1.71547652B82FEp+0001, +0x1.777D0FFDA0D24p-0055, -0x1.60BB8A5442AB9p-0109),
     (+0x1.EC709DC3A03FDp-0001, +0x1.D27F05548AF0Cp-0055, -0x1.D64F631B0228Bp-0111),
     (+0x1.2776C50EF9BFEp-0001, +0x1.E4B29CCC535D4p-0055, -0x1.1A2FA332EBECDp-0111),
@@ -153,9 +153,9 @@
     (+0x1.00ECD87C6E1D0p-0003,),
     (+0x1.D8BB8C4186C27p-0004,),
     (+0x1.B8B44488476ADp-0004,),
-)
+) # spellchecker: enable
 
-@inline _log2_kernel_coefficients_wide(::Type{Float64}, ::Val{4}) = (
+@inline _log2_kernel_coefficients_wide(::Type{Float64}, ::Val{4}) = ( # spellchecker: disable
     (+0x1.71547652B82FEp+0001, +0x1.777D0FFDA0D24p-0055, -0x1.60BB8A5442AB9p-0109, -0x1.4B52D3BA6D74Ep-0165),
     (+0x1.EC709DC3A03FDp-0001, +0x1.D27F05548AF0Cp-0055, -0x1.D64F631B038F7p-0111, +0x1.CDC8C82F8DEE2p-0166),
     (+0x1.2776C50EF9BFEp-0001, +0x1.E4B29CCC535D4p-0055, -0x1.1A2FA1DD0222Ep-0111, +0x1.5754E8A9EF2D5p-0165),
@@ -174,7 +174,7 @@
     (+0x1.7D3E6BD55BCBAp-0004, +0x1.F2C9826FF7FBAp-0058),
     (+0x1.66200C820B395p-0004,),
     (+0x1.54ADD42A59755p-0004,),
-)
+) # spellchecker: enable
 
 @generated _log2_kernel_wide(x::NTuple{N,T}) where {N,T} =
     _horner_expr_mf(_log2_kernel_coefficients_wide(T, Val{N}()))
@@ -259,13 +259,13 @@ end
 end
 
 
-const _LN_2_FULL_F32 = (
+const _LN_2_FULL_F32 = ( # spellchecker: disable
     Float32(+0x1.62E430p-001), Float32(-0x1.05C610p-029),
     Float32(-0x1.950D88p-054), Float32(+0x1.D9CC02p-079),
     Float32(-0x1.A12A18p-109), Float32(+0x0.003CD0p-126),
-)
+) # spellchecker: enable
 
-const _LN_2_FULL_F64 = (
+const _LN_2_FULL_F64 = ( # spellchecker: disable
     +0x1.62E42FEFA39EFp-0001, +0x1.ABC9E3B39803Fp-0056,
     +0x1.7B57A079A1934p-0111, -0x1.ACE93A4EBE5D1p-0165,
     -0x1.23A2A82EA0C24p-0219, +0x1.D881B7AEB2615p-0274,
@@ -276,7 +276,7 @@ const _LN_2_FULL_F64 = (
     -0x1.234C5E1398A6Bp-0766, +0x1.195EBBF4D7A70p-0821,
     +0x1.8192432AFD0C4p-0875, -0x1.A1BE38BA4BA4Dp-0929,
     -0x1.D7860151CFC06p-0987, +0x0.000032847ED70p-1022,
-)
+) # spellchecker: enable
 
 @inline _ln_2(::Type{_MF{Float32,N}}) where {N} =
     _MF{Float32,N}(ntuple(i -> _LN_2_FULL_F32[i], Val{N}()))
@@ -286,13 +286,13 @@ const _LN_2_FULL_F64 = (
     _MFV{M,T,N}(_ln_2(_MF{T,N}))
 
 
-const _LOG10_2_FULL_F32 = (
+const _LOG10_2_FULL_F32 = ( # spellchecker: disable
     Float32(+0x1.344136p-002), Float32(-0x1.EC10C0p-027),
     Float32(-0x1.0CEE0Ep-054), Float32(-0x1.A994FEp-079),
     Float32(+0x1.BE48BCp-104), Float32(+0x0.04D5A6p-126),
-)
+) # spellchecker: enable
 
-const _LOG10_2_FULL_F64 = (
+const _LOG10_2_FULL_F64 = ( # spellchecker: disable
     +0x1.34413509F79FFp-0002, -0x1.9DC1DA994FD21p-0059,
     +0x1.22F04D5A618A8p-0114, +0x1.E8F9A4C52F379p-0168,
     +0x1.ADF318F2CA1A9p-0223, -0x1.27E6E60542F62p-0277,
@@ -303,7 +303,7 @@ const _LOG10_2_FULL_F64 = (
     +0x1.235FA967AC54Fp-0775, +0x1.80B0833C5941Bp-0829,
     -0x1.1F7A572611FB1p-0883, +0x1.E991F7BDD462Fp-0938,
     -0x1.B83B9AAA00400p-0996, +0x0.000000142B5B1p-1022,
-)
+) # spellchecker: enable
 
 @inline _log10_2(::Type{_MF{Float32,N}}) where {N} =
     _MF{Float32,N}(ntuple(i -> _LOG10_2_FULL_F32[i], Val{N}()))
