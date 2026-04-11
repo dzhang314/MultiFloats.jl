@@ -1213,6 +1213,14 @@ function rsqrt_r(x::BigFloat)
 end
 
 
+# In previous versions of MultiFloats.jl, sqrt_r was called unsafe_sqrt, and
+# rsqrt_r was called rsqrt. These names are deprecated but kept for backward
+# compatibility. The new names sqrt_r and rsqrt_r are preferred in new code.
+
+@deprecate unsafe_sqrt sqrt_r
+@deprecate rsqrt rsqrt_r
+
+
 ###################################################### KARP-MARKSTEIN ALGORITHMS
 
 
