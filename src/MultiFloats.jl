@@ -1222,8 +1222,8 @@ end
 # rsqrt_r was called rsqrt. These names are deprecated but kept for backward
 # compatibility. The new names sqrt_r and rsqrt_r are preferred in new code.
 
-@deprecate unsafe_sqrt sqrt_r
-@deprecate rsqrt rsqrt_r
+@deprecate unsafe_sqrt sqrt_r false
+@deprecate rsqrt rsqrt_r false
 
 
 ###################################################### KARP-MARKSTEIN ALGORITHMS
