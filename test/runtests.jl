@@ -2,6 +2,15 @@ using MultiFloats
 using Test: @test, @testset
 
 
+const _FIXED_INT_TYPES = (
+    Bool, Int8, Int16, Int32, Int64, Int128,
+    UInt8, UInt16, UInt32, UInt64, UInt128,
+)
+
+
+const _FIXED_FLOAT_TYPES = (Float16, Float32, Float64)
+
+
 const _MF_TYPES = (
     Float32x1, Float32x2, Float32x3, Float32x4,
     Float64x1, Float64x2, Float64x3, Float64x4,
@@ -45,78 +54,6 @@ end
     MultiFloatVec{M,T,N}(ntuple(_ -> _bit_rand(MultiFloat{T,N}), Val{M}()))
 
 
-function test_prev_next(x::MultiFloat{T,N}, k::Int) where {T,N}
-    y = x
-    if k > 0
-        for _ = 1:k
-            y = prevfloat(y)
-        end
-        for _ = 1:k
-            y = nextfloat(y)
-        end
-    elseif k < 0
-        for _ = k:-1
-            y = nextfloat(y)
-        end
-        for _ = k:-1
-            y = prevfloat(y)
-        end
-    end
-    @test (y == x) || (y == MultiFloats.canonize(x))
-end
-
-
-@testset "prevfloat/nextfloat round-trip" begin
-    for T in _MF_TYPES
-        for _ = 1:4096
-            test_prev_next(_bit_rand(T), rand(-256:+256))
-        end
-        for k = -4:+4
-            test_prev_next(+floatmin(T), k)
-            test_prev_next(-floatmin(T), k)
-            if k >= -1
-                test_prev_next(+floatmax(T), k)
-            end
-            if k <= +1
-                test_prev_next(-floatmax(T), k)
-            end
-        end
-    end
-end
-
-
-function test_string_round_trip(x::MultiFloat{T,N}) where {T,N}
-    y = MultiFloat{T,N}(string(x))
-    @test (y == x) || (y == MultiFloats.canonize(x))
-end
-
-
-function test_string_round_trip(x::MultiFloatVec{M,T,N}) where {M,T,N}
-    s = string(x)
-    i = only(findall(==('['), s))
-    j = only(findall(==(']'), s))
-    y = MultiFloatVec{M,T,N}(MultiFloat{T,N}.(split(s[i+1:j-1], ", "))...)
-    @test all((y == x) | (y == MultiFloats.canonize(x)))
-end
-
-
-@testset "scalar string conversion round-trip" begin
-    for T in _MF_TYPES
-        for _ = 1:1024
-            test_string_round_trip(_bit_rand(T))
-        end
-        test_string_round_trip(+floatmin(T))
-        test_string_round_trip(-floatmin(T))
-        test_string_round_trip(+floatmax(T))
-        test_string_round_trip(-floatmax(T))
-    end
-end
-
-
-@testset "vector string conversion round-trip" begin
-    for T in _MFV_TYPES
-        for _ = 1:64
-            test_string_round_trip(_bit_rand(T))
-        end
-    end
-end
+include("conversion.jl")
+include("arithmetic.jl")
+include("linalg.jl")
