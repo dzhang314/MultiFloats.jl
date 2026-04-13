@@ -32,19 +32,19 @@ end
 end
 
 
+const SQRT_THRESHOLD_F32 = reinterpret(Float32, 0x0C800000)
+const SQRT_SCALE_UP_F32 = reinterpret(Float32, 0x4D800000)
+const SQRT_SCALE_DOWN_F32 = reinterpret(Float32, 0x38800000)
+
+
 @device_override @inline function sqrt_r(x::Float32)
+    small = (x < SQRT_THRESHOLD_F32)
+    x = ifelse(small, SQRT_SCALE_UP_F32 * x, x)
     s = Base.sqrt_llvm(x)
     h = 0.5f0 * inv_r(s)
     e = fma(-s, s, x)
-    return fma(h, e, s)
-end
-
-
-@device_override @inline function sqrt_r(x::Float64)
-    s = Base.sqrt_llvm(x)
-    h = 0.5 * inv_r(s)
-    e = fma(-s, s, x)
-    return fma(h, e, s)
+    r = fma(h, e, s)
+    return ifelse(iszero(x), x, ifelse(small, SQRT_SCALE_DOWN_F32 * r, r))
 end
 
 
