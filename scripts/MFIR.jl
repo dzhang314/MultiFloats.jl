@@ -285,6 +285,69 @@ function replace_instruction(
 end
 
 
+function remove_instruction(
+    program::MFIRProgram,
+    index::Int,
+    replacements::NTuple{N,UInt16};
+    outputs::AbstractVector{UInt16}=program.output_indices,
+) where {N}
+    old_num_instructions = length(program.instructions)
+    @assert 1 <= index <= old_num_instructions
+    @inbounds removed = program.instructions[index]
+    @assert num_outputs(removed) == N
+    @inbounds removed_base = first(program.result_ranges[index])
+    for replacement in replacements
+        @assert 1 <= replacement < removed_base
+    end
+    old_num_registers = num_registers(program)
+    for output in outputs
+        @assert 1 <= output <= old_num_registers
+    end
+
+    remap = Vector{UInt16}(undef, old_num_registers)
+    @inbounds for i = one(UInt16):removed_base-one(UInt16)
+        remap[i] = i
+    end
+    @inbounds for j = 1:N
+        remap[removed_base+j-1] = replacements[j]
+    end
+
+    instructions = Vector{MFIRInstruction}(undef, old_num_instructions - 1)
+    result_ranges = Vector{UnitRange{UInt16}}(undef, old_num_instructions - 1)
+    base_index = program.num_inputs
+    @inbounds for i = 1:old_num_instructions
+        if i != index
+            old_instruction = program.instructions[i]
+            op = old_instruction.op
+            new_args = map(
+                arg -> (arg == NULL_ARG) ? NULL_ARG : @inbounds(remap[arg]),
+                old_instruction.args)
+            new_instruction = MFIRInstruction(op, new_args)
+            new_index = i - (i > index)
+            instructions[new_index] = new_instruction
+            next_base_index = base_index + num_outputs(op)
+            lo = (base_index + 1) % UInt16
+            hi = next_base_index % UInt16
+            result_ranges[new_index] = lo:hi
+            for (j, out) in enumerate(program.result_ranges[i])
+                remap[out] = (base_index + j) % UInt16
+            end
+            base_index = next_base_index
+        end
+    end
+
+    new_outputs = Vector{UInt16}(undef, length(outputs))
+    @inbounds for (i, output) in enumerate(outputs)
+        new_outputs[i] = remap[output]
+    end
+    return MFIRProgram(
+        program.num_inputs,
+        instructions,
+        result_ranges,
+        new_outputs)
+end
+
+
 ################################################################################
 
 end # module MFIR
