@@ -156,20 +156,23 @@ function MFIRProgram(
     for index in output_indices
         @assert 1 <= index <= hi
     end
-    return MFIRProgram(Int(num_inputs), instructions, result_ranges,
+    return MFIRProgram(
+        Int(num_inputs),
+        instructions,
+        result_ranges,
         convert(Vector{UInt16}, output_indices))
 end
 
 
-@inline function Base.isvalid(p::MFIRProgram)
-    if !(0 <= p.num_inputs <= typemax(UInt16))
+@inline function Base.isvalid(program::MFIRProgram)
+    if !(0 <= program.num_inputs <= typemax(UInt16))
         return false
     end
-    if length(p.instructions) != length(p.result_ranges)
+    if length(program.instructions) != length(program.result_ranges)
         return false
     end
-    num_available = p.num_inputs
-    for (instruction, range) in zip(p.instructions, p.result_ranges)
+    num_available = program.num_inputs
+    for (instruction, range) in zip(program.instructions, program.result_ranges)
         if !isvalid(instruction, num_available)
             return false
         end
@@ -184,7 +187,7 @@ end
     if !(num_available <= typemax(UInt16))
         return false
     end
-    for index in p.output_indices
+    for index in program.output_indices
         if !(1 <= index <= num_available)
             return false
         end
@@ -193,27 +196,33 @@ end
 end
 
 
-@inline num_registers(p::MFIRProgram) =
-    isempty(p.result_ranges) ? p.num_inputs : Int(p.result_ranges[end].stop)
+@inline num_registers(program::MFIRProgram) =
+    isempty(program.result_ranges) ? program.num_inputs :
+    Int(program.result_ranges[end].stop)
 
 
-function definition_map(p::MFIRProgram)
-    result = zeros(Int, num_registers(p))
-    for (i, range) in enumerate(p.result_ranges)
+@inline num_registers(program::MFIRProgram, index::Integer) =
+    iszero(index) ? program.num_inputs :
+    Int(program.result_ranges[index].stop)
+
+
+function definition_map(program::MFIRProgram)
+    result = zeros(Int, num_registers(program))
+    for (i, range) in enumerate(program.result_ranges)
         result[range] .= i
     end
     return result
 end
 
 
-function use_counts(p::MFIRProgram)
-    result = zeros(Int, num_registers(p))
-    for instr in p.instructions
+function use_counts(program::MFIRProgram)
+    result = zeros(Int, num_registers(program))
+    for instr in program.instructions
         for j in 1:arity(instr)
             result[instr.args[j]] += 1
         end
     end
-    for out in p.output_indices
+    for out in program.output_indices
         result[out] += 1
     end
     return result
@@ -226,37 +235,53 @@ end
 export change_outputs, append_instruction, replace_instruction
 
 
-change_outputs(p::MFIRProgram, output_index::Integer) =
-    MFIRProgram(p.num_inputs, p.instructions, p.result_ranges,
-        [UInt16(output_index)])
+change_outputs(
+    program::MFIRProgram,
+    output_index::Integer,
+) = MFIRProgram(
+    program.num_inputs,
+    program.instructions,
+    program.result_ranges,
+    [UInt16(output_index)])
 
 
-change_outputs(p::MFIRProgram, output_indices::AbstractVector{<:Integer}) =
-    MFIRProgram(p.num_inputs, p.instructions, p.result_ranges,
-        convert(Vector{UInt16}, output_indices))
+change_outputs(
+    program::MFIRProgram,
+    output_indices::AbstractVector{<:Integer},
+) = MFIRProgram(
+    program.num_inputs,
+    program.instructions,
+    program.result_ranges,
+    convert(Vector{UInt16}, output_indices))
 
 
-function append_instruction(p::MFIRProgram, instruction::MFIRInstruction)
-    instructions = push!(copy(p.instructions), instruction)
-    n = num_registers(p)
+function append_instruction(program::MFIRProgram, instruction::MFIRInstruction)
+    instructions = push!(copy(program.instructions), instruction)
+    n = num_registers(program)
     lo = (n + 1) % UInt16
     hi = (n + num_outputs(instruction)) % UInt16
-    result_ranges = push!(copy(p.result_ranges), lo:hi)
-    return MFIRProgram(p.num_inputs, instructions, result_ranges,
-        p.output_indices)
+    result_ranges = push!(copy(program.result_ranges), lo:hi)
+    return MFIRProgram(
+        program.num_inputs,
+        instructions,
+        result_ranges,
+        program.output_indices)
 end
 
 
 function replace_instruction(
-    p::MFIRProgram,
+    program::MFIRProgram,
     index::Int,
     instruction::MFIRInstruction,
 )
-    @assert arity(instruction) == arity(p.instructions[index])
-    instructions = copy(p.instructions)
+    @assert arity(instruction) == arity(program.instructions[index])
+    instructions = copy(program.instructions)
     instructions[index] = instruction
-    return MFIRProgram(p.num_inputs, instructions, p.result_ranges,
-        p.output_indices)
+    return MFIRProgram(
+        program.num_inputs,
+        instructions,
+        program.result_ranges,
+        program.output_indices)
 end
 
 
