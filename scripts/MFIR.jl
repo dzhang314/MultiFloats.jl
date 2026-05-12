@@ -266,9 +266,9 @@ end
 
 
 function append_instruction(program::MFIRProgram, instruction::MFIRInstruction)
-    instructions = push!(copy(program.instructions), instruction)
     n = num_registers(program)
     @assert isvalid(instruction, n)
+    instructions = push!(copy(program.instructions), instruction)
     lo = (n + 1) % UInt16
     hi = (n + num_outputs(instruction)) % UInt16
     result_ranges = push!(copy(program.result_ranges), lo:hi)
