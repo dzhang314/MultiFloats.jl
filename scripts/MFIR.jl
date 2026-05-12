@@ -152,6 +152,7 @@ function MFIRProgram(
     hi = UInt16(num_inputs) # range check
     result_ranges = Vector{UnitRange{UInt16}}(undef, length(instructions))
     for (i, instruction) in enumerate(instructions)
+        @assert isvalid(instruction, Int(hi))
         lo = hi + one(UInt16)
         hi = UInt16(hi + num_outputs(instruction)) # range check
         @inbounds result_ranges[i] = lo:hi
@@ -238,29 +239,36 @@ end
 export change_outputs, append_instruction, replace_instruction
 
 
-change_outputs(
-    program::MFIRProgram,
-    output_index::Integer,
-) = MFIRProgram(
-    program.num_inputs,
-    program.instructions,
-    program.result_ranges,
-    [output_index % UInt16])
+function change_outputs(program::MFIRProgram, output_index::Integer)
+    @assert 1 <= output_index <= num_registers(program)
+    return MFIRProgram(
+        program.num_inputs,
+        program.instructions,
+        program.result_ranges,
+        [output_index % UInt16])
+end
 
 
-change_outputs(
+function change_outputs(
     program::MFIRProgram,
     output_indices::AbstractVector{<:Integer},
-) = MFIRProgram(
-    program.num_inputs,
-    program.instructions,
-    program.result_ranges,
-    convert(Vector{UInt16}, output_indices))
+)
+    n = num_registers(program)
+    for output_index in output_indices
+        @assert 1 <= output_index <= n
+    end
+    return MFIRProgram(
+        program.num_inputs,
+        program.instructions,
+        program.result_ranges,
+        convert(Vector{UInt16}, output_indices))
+end
 
 
 function append_instruction(program::MFIRProgram, instruction::MFIRInstruction)
     instructions = push!(copy(program.instructions), instruction)
     n = num_registers(program)
+    @assert isvalid(instruction, n)
     lo = (n + 1) % UInt16
     hi = (n + num_outputs(instruction)) % UInt16
     result_ranges = push!(copy(program.result_ranges), lo:hi)
