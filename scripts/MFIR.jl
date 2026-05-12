@@ -95,6 +95,9 @@ const NULL_ARG = zero(UInt16)
 
 
 @inline function Base.isvalid(instruction::MFIRInstruction, num_available::Int)
+    if signbit(num_available)
+        return false
+    end
     n = arity(instruction.op)
     a = instruction.args
     lo = one(UInt16)
@@ -217,12 +220,12 @@ end
 
 function use_counts(program::MFIRProgram)
     result = zeros(Int, num_registers(program))
-    for instr in program.instructions
+    @inbounds for instr in program.instructions
         for j in 1:arity(instr)
             result[instr.args[j]] += 1
         end
     end
-    for out in program.output_indices
+    @inbounds for out in program.output_indices
         result[out] += 1
     end
     return result
@@ -242,7 +245,7 @@ change_outputs(
     program.num_inputs,
     program.instructions,
     program.result_ranges,
-    [UInt16(output_index)])
+    [output_index % UInt16])
 
 
 change_outputs(
@@ -274,9 +277,12 @@ function replace_instruction(
     index::Int,
     instruction::MFIRInstruction,
 )
-    @assert arity(instruction) == arity(program.instructions[index])
+    @assert 1 <= index <= length(program.instructions)
+    @inbounds old_instruction = program.instructions[index]
+    @assert num_outputs(instruction) == num_outputs(old_instruction)
+    @assert isvalid(instruction, num_registers(program, index - 1))
     instructions = copy(program.instructions)
-    instructions[index] = instruction
+    @inbounds instructions[index] = instruction
     return MFIRProgram(
         program.num_inputs,
         instructions,
