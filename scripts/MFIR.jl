@@ -6,8 +6,9 @@ module MFIR
 export MFIROperation, MFIR_ABS, MFIR_NEG,
     MFIR_ADD, MFIR_TWO_SUM, MFIR_FAST_TWO_SUM,
     MFIR_SUB, MFIR_TWO_DIFF, MFIR_FAST_TWO_DIFF,
-    MFIR_MUL, MFIR_FMA, MFIR_TWO_PROD, MFIR_INV, MFIR_DIV, MFIR_SQRT,
-    cost, arity, num_outputs
+    MFIR_SQR, MFIR_MUL, MFIR_FMA, MFIR_TWO_SQR, MFIR_TWO_PROD,
+    MFIR_INV, MFIR_DIV, MFIR_SQRT,
+    arity, num_outputs
 
 
 @enum MFIROperation::UInt16 begin
@@ -19,8 +20,10 @@ export MFIROperation, MFIR_ABS, MFIR_NEG,
     MFIR_SUB
     MFIR_TWO_DIFF
     MFIR_FAST_TWO_DIFF
+    MFIR_SQR
     MFIR_MUL
     MFIR_FMA
+    MFIR_TWO_SQR
     MFIR_TWO_PROD
     MFIR_INV
     MFIR_DIV
@@ -28,27 +31,9 @@ export MFIROperation, MFIR_ABS, MFIR_NEG,
 end
 
 
-@inline function cost(op::MFIROperation)
-    if (op == MFIR_ABS) | (op == MFIR_NEG)
-        return 0
-    elseif (op == MFIR_ADD) | (op == MFIR_SUB)
-        return 1
-    elseif (op == MFIR_TWO_SUM) | (op == MFIR_TWO_DIFF)
-        return 6
-    elseif (op == MFIR_FAST_TWO_SUM) | (op == MFIR_FAST_TWO_DIFF)
-        return 3
-    elseif (op == MFIR_MUL) | (op == MFIR_FMA)
-        return 2
-    elseif (op == MFIR_TWO_PROD)
-        return 4
-    else # (op == MFIR_INV) | (op == MFIR_DIV) | (op == MFIR_SQRT)
-        return 16
-    end
-end
-
-
 @inline function arity(op::MFIROperation)
     if ((op == MFIR_ABS) | (op == MFIR_NEG) |
+        (op == MFIR_SQR) | (op == MFIR_TWO_SQR) |
         (op == MFIR_INV) | (op == MFIR_SQRT))
         return 1
     elseif (op == MFIR_FMA)
@@ -62,7 +47,7 @@ end
 @inline function num_outputs(op::MFIROperation)
     if ((op == MFIR_TWO_SUM) | (op == MFIR_TWO_DIFF) |
         (op == MFIR_FAST_TWO_SUM) | (op == MFIR_FAST_TWO_DIFF) |
-        (op == MFIR_TWO_PROD))
+        (op == MFIR_TWO_SQR) | (op == MFIR_TWO_PROD))
         return 2
     else
         return 1
