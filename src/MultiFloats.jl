@@ -1360,24 +1360,66 @@ end
 
 @inline mfinv(x::NTuple{X,T}, ::Val{1}) where {T,X} =
     (inv_r(first(x)),)
+
+@inline function mfinv(x::NTuple{2,T}, ::Val{2}) where {T}
+    x_hi, x_lo = x
+    y = inv_r(x_hi)
+    p_hi, p_lo = two_prod(x_hi, y)
+    r = fma(-x_lo, y, (one(T) - p_hi) - p_lo)
+    return fast_two_sum(y, one_prod(r, y))
+end
+
 @inline mfinv(x::NTuple{X,T}, ::Val{Z}) where {T,X,Z} =
     _mfinv_impl(x, (inv_r(first(x)),), Val{Z}())
 
 
 @inline mfdiv(x::NTuple{X,T}, y::NTuple{Y,T}, ::Val{1}) where {T,X,Y} =
     (div_r(first(x), first(y)),)
+
+@inline function mfdiv(x::NTuple{2,T}, y::NTuple{2,T}, ::Val{2}) where {T}
+    x_hi, x_lo = x
+    y_hi, y_lo = y
+    w = inv_r(y_hi)
+    z = one_prod(x_hi, w)
+    p_hi, p_lo = two_prod(y_hi, z)
+    r = ((x_hi - p_hi) - p_lo) + fma(-y_lo, z, x_lo)
+    return fast_two_sum(z, one_prod(r, w))
+end
+
 @inline mfdiv(x::NTuple{X,T}, y::NTuple{Y,T}, ::Val{Z}) where {T,X,Y,Z} =
     _mfdiv_impl(x, y, (inv_r(first(y)),), Val{Z}())
 
 
 @inline mfrsqrt(x::NTuple{X,T}, ::Val{1}) where {T,X} =
     (rsqrt_r(first(x)),)
+
+@inline function mfrsqrt(x::NTuple{2,T}, ::Val{2}) where {T}
+    _one = one(T)
+    _two = _one + _one
+    _half = inv_r(_two)
+    x_hi, x_lo = x
+    y = inv_r(x_hi)
+    p_hi, p_lo = two_prod(x_hi, y)
+    r = fma(-x_lo, y, (_one - p_hi) - p_lo)
+    z = sqrt_r(y)
+    s = fma(x_hi, fma(-z, z, y), r)
+    return fast_two_sum(z, one_prod(s, one_prod(_half, z)))
+end
+
 @inline mfrsqrt(x::NTuple{X,T}, ::Val{Z}) where {T,X,Z} =
     _mfrsqrt_impl(x, (rsqrt_r(first(x)),), Val{Z}())
 
 
 @inline mfsqrt(x::NTuple{X,T}, ::Val{1}) where {T,X} =
     (sqrt_r(first(x)),)
+
+@inline function mfsqrt(x::NTuple{2,T}, ::Val{2}) where {T}
+    x_hi, x_lo = x
+    y = sqrt_r(x_hi)
+    r = fma(-y, y, x_hi) + x_lo
+    return fast_two_sum(y, div_r(r, y + y))
+end
+
 @inline mfsqrt(x::NTuple{X,T}, ::Val{Z}) where {T,X,Z} =
     _mfsqrt_impl(x, (rsqrt_r(first(x)),), Val{Z}())
 
@@ -1404,15 +1446,13 @@ end
 
 
 @inline sqrt_r(x::_MF{T,N}) where {T,N} =
-    _MF{T,N}(mfsqrt(x._limbs, Val{N}()))
+    ifelse(iszero(x), x, _MF{T,N}(mfsqrt(x._limbs, Val{N}())))
 @inline sqrt_r(x::_MFV{M,T,N}) where {M,T,N} =
-    _MFV{M,T,N}(mfsqrt(x._limbs, Val{N}()))
+    vifelse(iszero(x), x, _MFV{M,T,N}(mfsqrt(x._limbs, Val{N}())))
 
 
-@inline Base.sqrt(x::_MF{T,N}) where {T,N} =
-    ifelse(iszero(x), x, sqrt_r(x))
-@inline Base.sqrt(x::_MFV{M,T,N}) where {M,T,N} =
-    vifelse(iszero(x), x, sqrt_r(x))
+@inline Base.sqrt(x::_MF{T,N}) where {T,N} = sqrt_r(x)
+@inline Base.sqrt(x::_MFV{M,T,N}) where {M,T,N} = sqrt_r(x)
 
 
 ####################################################################### PRINTING
