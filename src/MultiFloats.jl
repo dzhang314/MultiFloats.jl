@@ -1867,6 +1867,7 @@ end
 include("cbrt.jl")
 include("exp.jl")
 include("log.jl")
+include("atan.jl")
 
 
 @inline function Base.:^(x::_MF{T,N}, y::_MF{T,N}) where {T,N}
@@ -1889,7 +1890,7 @@ const _BASE_TRANSCENDENTAL_FUNCTIONS = Symbol[
     :expm1, :log1p,
     :sin, :cos, :tan, :sec, :csc, :cot,
     :sind, :cosd, :tand, :secd, :cscd, :cotd,
-    :asin, :acos, :atan, :asec, :acsc, :acot,
+    :asin, :acos, :asec, :acsc, :acot,
     :asind, :acosd, :atand, :asecd, :acscd, :acotd,
     :sinh, :cosh, :tanh, :sech, :csch, :coth,
     :asinh, :acosh, :atanh, :asech, :acsch, :acoth,
