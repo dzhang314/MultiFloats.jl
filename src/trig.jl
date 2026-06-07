@@ -29,11 +29,9 @@ function Base.cospi(x::_MF{T,N}) where {T, N}
     # For large x, we know the first limb is even and can thus be ignored
     x >= maxintfloat(T) && return cospi(_shuffle_down(x))
 
-    # reduce to interval [-0.25, 0.25]. A second pass folds in the lower limbs:
-    # unlike the first limb, a lower limb can individually exceed 0.25 and push
-    # the reduced argument out of range. The second pass also absorbs the
-    # even-only rounding of n near maxintfloat (the parity error lands in rx,
-    # and m then corrects both the value and the branch index).
+    # reduce to interval [-0.25, 0.25].
+    # We do this in 2 passes because a lower limb can individually exceed 0.25 and push
+    # the reduced argument out of range.
     first_limb = first(x._limbs)
     n = round(2*first_limb)
     rx = T(-.5)*n + x
@@ -58,11 +56,9 @@ function Base.sinpi(_x::_MF{T,N}) where {T, N}
     # For large x, we know the first limb is even and can thus be ignored
     x >= maxintfloat(T) && return sinpi(_shuffle_down(_x))
 
-    # reduce to interval [-0.25, 0.25]. A second pass folds in the lower limbs:
-    # unlike the first limb, a lower limb can individually exceed 0.25 and push
-    # the reduced argument out of range. The second pass also absorbs the
-    # even-only rounding of n near maxintfloat (the parity error lands in rx,
-    # and m then corrects both the value and the branch index).
+    # reduce to interval [-0.25, 0.25].
+    # We do this in 2 passes because a lower limb can individually exceed 0.25 and push
+    # the reduced argument out of range.
     first_limb = first(x._limbs)
     n = round(2*first_limb)
     rx = T(-.5)*n + x
@@ -88,11 +84,9 @@ function Base.sincospi(_x::_MF{T,N}) where {T, N}
     # For large x, we know the first limb is even and can thus be ignored
     x >= maxintfloat(T) && return sincospi(_shuffle_down(_x))
     
-    # reduce to interval [-0.25, 0.25]. A second pass folds in the lower limbs:
-    # unlike the first limb, a lower limb can individually exceed 0.25 and push
-    # the reduced argument out of range. The second pass also absorbs the
-    # even-only rounding of n near maxintfloat (the parity error lands in rx,
-    # and m then corrects both the value and the branch index).
+    # reduce to interval [-0.25, 0.25].
+    # We do this in 2 passes because a lower limb can individually exceed 0.25 and push
+    # the reduced argument out of range.
     first_limb = first(x._limbs)
     n = round(2*first_limb)
     rx = T(-.5)*n + x
