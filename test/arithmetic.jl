@@ -170,3 +170,26 @@ end
             nan_condition=issubnormal)
     end
 end
+
+# sinpi/cospi map every finite input to [-1, 1], so (unlike cbrt) there is no
+# upper exponent limit on valid inputs: large arguments are reduced mod 2 and
+# must stay accurate. The result is always finite, so no nan_condition is needed.
+#
+# sinpi(x) ~ pi*x for small x, so its result underflows once x is tiny enough
+# that the low result limbs fall below floatmin; we exclude ex < e_lo there.
+# cospi(x) ~ 1 for small x, so its result never underflows and stays accurate
+# for every finite input -- it needs no precise_condition at all.
+@testset "sinpi" begin
+    for T in _MF_TYPES
+        test_unary_operation(sinpi, T, 2, 2^17;
+            precise_condition=(e_lo, _, ex) -> (e_lo <= ex))
+    end
+end
+
+@testset "cospi" begin
+    for T in _MF_TYPES
+        test_unary_operation(cospi, T, 2, 2^17)
+    end
+end
+
+
