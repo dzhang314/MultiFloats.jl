@@ -326,11 +326,11 @@ end
     body = Expr[]
     push!(body, Expr(:meta, :inline))
     push!(body, Expr(:(=), Expr(:tuple, xs...), :x))
-    for i = 1:2:N-1
+    for i = 1:2:(N-1)
         push!(body, Expr(:(=), Expr(:tuple, xs[i], xs[i+1]),
             Expr(:call, two_sum, xs[i], xs[i+1])))
     end
-    for i = 2:2:N-1
+    for i = 2:2:(N-1)
         push!(body, Expr(:(=), Expr(:tuple, xs[i], xs[i+1]),
             Expr(:call, two_sum, xs[i], xs[i+1])))
     end
@@ -670,20 +670,16 @@ end
     _vall(isfinite.(x._limbs), Val{M}())
 
 
-@inline _has_pos_inf(x::_MF{T,N}) where {T,N} = _any(ntuple(
-    i -> isinf(x._limbs[i]) & !signbit(x._limbs[i]),
-    Val{N}()))
-@inline _has_pos_inf(x::_MFV{M,T,N}) where {M,T,N} = _vany(ntuple(
-        i -> isinf(x._limbs[i]) & !signbit(x._limbs[i]),
-        Val{N}()), Val{M}())
+@inline _has_pos_inf(x::_MF{T,N}) where {T,N} = _any(map(
+    @inline(limb -> isinf(limb) & !signbit(limb)), x._limbs))
+@inline _has_pos_inf(x::_MFV{M,T,N}) where {M,T,N} = _vany(map(
+        @inline(limb -> isinf(limb) & !signbit(limb)), x._limbs), Val{M}())
 
 
-@inline _has_neg_inf(x::_MF{T,N}) where {T,N} = _any(ntuple(
-    i -> isinf(x._limbs[i]) & signbit(x._limbs[i]),
-    Val{N}()))
-@inline _has_neg_inf(x::_MFV{M,T,N}) where {M,T,N} = _vany(ntuple(
-        i -> isinf(x._limbs[i]) & signbit(x._limbs[i]),
-        Val{N}()), Val{M}())
+@inline _has_neg_inf(x::_MF{T,N}) where {T,N} = _any(map(
+    @inline(limb -> isinf(limb) & signbit(limb)), x._limbs))
+@inline _has_neg_inf(x::_MFV{M,T,N}) where {M,T,N} = _vany(map(
+        @inline(limb -> isinf(limb) & signbit(limb)), x._limbs), Val{M}())
 
 
 @inline _has_nan(x::_MF{T,N}) where {T,N} =
@@ -912,14 +908,15 @@ export mfvgather, mfvscatter
 @inline Base.length(::_MFV{M,T,N}) where {M,T,N} = M
 
 
-@inline Base.getindex(x::_MFV{M,T,N}, i::I) where {M,T,N,I} = _MF{T,N}(ntuple(
-    @inline(j -> extractelement(x._limbs[j].data, i - one(I))), Val{N}()))
+@inline Base.getindex(x::_MFV{M,T,N}, i::I) where {M,T,N,I} = _MF{T,N}(map(
+    @inline(limb -> extractelement(limb.data, i - one(I))), x._limbs))
 
 
 @inline vifelse(
     mask::Vec{M,Bool}, x::_MFV{M,T,N}, y::_MFV{M,T,N},
-) where {M,T,N} = _MFV{M,T,N}(ntuple(
-    @inline(i -> vifelse(mask, x._limbs[i], y._limbs[i])), Val{N}()))
+) where {M,T,N} = _MFV{M,T,N}(map(
+    @inline((x_limb, y_limb) -> vifelse(mask, x_limb, y_limb)),
+    x._limbs, y._limbs))
 
 
 @inline function mfvgather(
@@ -1489,7 +1486,7 @@ function hexfloat(x::T) where {T<:Base.IEEEFloat}
         buffer[4] = ifelse(iszero(biased_exponent), UInt8('0'), UInt8('1'))
         buffer[5] = UInt8('.')
         mantissa <<= _hex_shift
-        for i = 0:_num_hex_digits-1
+        for i = 0:(_num_hex_digits-1)
             shift = 4 * (_num_hex_digits - (i + 1))
             nibble = ((mantissa >> shift) % UInt8) & UInt8(0x0F)
             buffer[6+i] = nibble + ifelse(
@@ -1499,7 +1496,7 @@ function hexfloat(x::T) where {T<:Base.IEEEFloat}
         buffer[7+_num_hex_digits] = ifelse(
             signbit(unbiased_exponent), UInt8('-'), UInt8('+'))
         unbiased_exponent = abs(unbiased_exponent)
-        for i = 0:_num_exponent_digits-1
+        for i = 0:(_num_exponent_digits-1)
             unbiased_exponent, digit = divrem(unbiased_exponent, 10)
             buffer[_string_length-i] = (digit % UInt8) + UInt8('0')
         end
@@ -1513,8 +1510,8 @@ function _format_digits(sign_str::String, digit_array::Vector{Int8}, e::Int)
         while length(digit_array) < e + 2
             push!(digit_array, zero(Int8))
         end
-        pre_str = String('0' .+ digit_array[1:e+1])
-        post_str = String('0' .+ digit_array[e+2:end])
+        pre_str = String('0' .+ digit_array[1:(e+1)])
+        post_str = String('0' .+ digit_array[(e+2):end])
         return @sprintf("%s%s.%s", sign_str, pre_str, post_str)
     elseif -5 < e < 0
         prepend!(digit_array, [zero(Int8) for _ = e:-2])
@@ -1838,7 +1835,7 @@ function _horner_expr_mf(
     ps = [Symbol('p', i) for i = 1:N]
     k = length(coefficients[end])
     push!(body, Expr(:(=), ps[k], coefficients[end]))
-    for i = length(coefficients)-1:-1:1
+    for i = (length(coefficients)-1):-1:1
         k_next = length(coefficients[i])
         if k_next > k
             rhs = Expr(:tuple, Expr(:(...), ps[k]),
