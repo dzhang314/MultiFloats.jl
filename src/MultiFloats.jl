@@ -1018,8 +1018,20 @@ _ge_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] >= y._limbs[$n]) : :(
 @inline Base.:-(x::_MFV{M,T,N}) where {M,T,N} = _MFV{M,T,N}((-).(x._limbs))
 
 
-@inline Base.abs(x::_MF{T,N}) where {T,N} = ifelse(signbit(x), -x, x)
-@inline Base.abs(x::_MFV{M,T,N}) where {M,T,N} = vifelse(signbit(x), -x, x)
+@inline function Base.flipsign(x::_MF{T,N}, y::Real) where {T,N}
+    _one = one(T)
+    sign_y = ifelse(signbit(y), -_one, +_one)
+    return _MF{T,N}(map(@inline(limb -> flipsign(limb, sign_y)), x._limbs))
+end
+
+@inline function Base.flipsign(x::_MFV{M,T,N}, y::_MFV{M,T,K}) where {M,T,N,K}
+    sign_y = first(y._limbs)
+    return _MFV{M,T,N}(map(@inline(limb -> flipsign(limb, sign_y)), x._limbs))
+end
+
+
+@inline Base.abs(x::_MF{T,N}) where {T,N} = flipsign(x, x)
+@inline Base.abs(x::_MFV{M,T,N}) where {M,T,N} = flipsign(x, x)
 
 
 # MultiFloats.scale is a qualified public function.
