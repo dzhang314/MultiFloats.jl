@@ -45,6 +45,9 @@ end
     return vifelse((t > x) & !s, u, vifelse((t < x) & s, v, t))
 end
 
+@inline Base.trunc(x::_MF{T,N}) where {T,N} = round(x, RoundToZero)
+@inline Base.trunc(x::_MFV{M,T,N}) where {M,T,N} = round(x, RoundToZero)
+
 
 @inline function Base.round(x::_MF{T,N}, ::RoundingMode{:Down}) where {T,N}
     t = round(x, RoundToZero)
@@ -55,6 +58,9 @@ end
     t = round(x, RoundToZero)
     return vifelse((t != x) & signbit(x), _dec_int(t), t)
 end
+
+@inline Base.floor(x::_MF{T,N}) where {T,N} = round(x, RoundDown)
+@inline Base.floor(x::_MFV{M,T,N}) where {M,T,N} = round(x, RoundDown)
 
 
 @inline function Base.round(x::_MF{T,N}, ::RoundingMode{:Up}) where {T,N}
@@ -67,77 +73,14 @@ end
     return vifelse((t != x) & !signbit(x), _inc_int(t), t)
 end
 
+@inline Base.ceil(x::_MF{T,N}) where {T,N} = round(x, RoundUp)
+@inline Base.ceil(x::_MFV{M,T,N}) where {M,T,N} = round(x, RoundUp)
+
 
 @inline Base.round(x::_MF{T,N}, ::RoundingMode{:FromZero}) where {T,N} =
     ifelse(signbit(x), round(x, RoundDown), round(x, RoundUp))
 @inline Base.round(x::_MFV{M,T,N}, ::RoundingMode{:FromZero}) where {M,T,N} =
     vifelse(signbit(x), round(x, RoundDown), round(x, RoundUp))
-
-
-@inline function Base.round(
-    x::_MF{T,N}, ::RoundingMode{:NearestTiesAway},
-) where {T,N}
-    _one = one(T)
-    _two = _one + _one
-    _half = inv_r(_two)
-    s = signbit(x)
-    t = trunc(x)
-    mid = _MF{T,N}(_fast_sweep_up(_fast_sweep_down(
-        t._limbs, ifelse(s, -_half, +_half))))
-    away = ifelse(s, _dec_int(t), _inc_int(t))
-    far = ((x > mid) & !s) | ((x < mid) & s)
-    tie = (x == mid) & (mid != t)
-    return ifelse(far | tie, away, t)
-end
-
-@inline function Base.round(
-    x::_MFV{M,T,N}, ::RoundingMode{:NearestTiesAway},
-) where {M,T,N}
-    _one = one(Vec{M,T})
-    _two = _one + _one
-    _half = inv_r(_two)
-    s = signbit(x)
-    t = trunc(x)
-    mid = _MFV{M,T,N}(_fast_sweep_up(_fast_sweep_down(
-        t._limbs, vifelse(s, -_half, +_half))))
-    away = vifelse(s, _dec_int(t), _inc_int(t))
-    far = ((x > mid) & !s) | ((x < mid) & s)
-    tie = (x == mid) & (mid != t)
-    return vifelse(far | tie, away, t)
-end
-
-
-@inline function Base.round(
-    x::_MF{T,N}, ::RoundingMode{:NearestTiesUp},
-) where {T,N}
-    _one = one(T)
-    _two = _one + _one
-    _half = inv_r(_two)
-    s = signbit(x)
-    t = trunc(x)
-    mid = _MF{T,N}(_fast_sweep_up(_fast_sweep_down(
-        t._limbs, ifelse(s, -_half, +_half))))
-    away = ifelse(s, _dec_int(t), _inc_int(t))
-    far = ((x > mid) & !s) | ((x < mid) & s)
-    tie = (x == mid) & (mid != t)
-    return ifelse(far | (tie & !s), away, t)
-end
-
-@inline function Base.round(
-    x::_MFV{M,T,N}, ::RoundingMode{:NearestTiesUp},
-) where {M,T,N}
-    _one = one(Vec{M,T})
-    _two = _one + _one
-    _half = inv_r(_two)
-    s = signbit(x)
-    t = trunc(x)
-    mid = _MFV{M,T,N}(_fast_sweep_up(_fast_sweep_down(
-        t._limbs, vifelse(s, -_half, +_half))))
-    away = vifelse(s, _dec_int(t), _inc_int(t))
-    far = ((x > mid) & !s) | ((x < mid) & s)
-    tie = (x == mid) & (mid != t)
-    return vifelse(far | (tie & !s), away, t)
-end
 
 
 @inline function _isodd_float(x::T) where {T}
@@ -154,34 +97,110 @@ end
     xor(_isodd_mf(Base.front(x)), _isodd_float(x[N]))
 
 
-@inline function Base.round(
-    x::_MF{T,N}, ::RoundingMode{:Nearest},
+@inline function _rounding_midpoint(
+    s::Bool,
+    t::_MF{T,N},
+    away::_MF{T,N},
 ) where {T,N}
     _one = one(T)
     _two = _one + _one
     _half = inv_r(_two)
+    odd = _isodd_mf(t._limbs)
+    midpoint = _MF{T,N}(_fast_sweep_up(_fast_sweep_down(
+        ifelse(odd, t, away)._limbs,
+        ifelse(xor(odd, s), +_half, -_half))))
+    return (midpoint, odd)
+end
+
+@inline function _rounding_midpoint(
+    s::Vec{M,Bool},
+    t::_MFV{M,T,N},
+    away::_MFV{M,T,N},
+) where {M,T,N}
+    _one = one(Vec{M,T})
+    _two = _one + _one
+    _half = inv_r(_two)
+    odd = _isodd_mf(t._limbs)
+    midpoint = _MFV{M,T,N}(_fast_sweep_up(_fast_sweep_down(
+        vifelse(odd, t, away)._limbs,
+        vifelse(xor(odd, s), +_half, -_half))))
+    return (midpoint, odd)
+end
+
+
+@inline function Base.round(
+    x::_MF{T,N}, ::RoundingMode{:NearestTiesAway},
+) where {T,N}
     s = signbit(x)
     t = trunc(x)
-    mid = _MF{T,N}(_fast_sweep_up(_fast_sweep_down(
-        t._limbs, ifelse(s, -_half, +_half))))
     away = ifelse(s, _dec_int(t), _inc_int(t))
+    mid, _ = _rounding_midpoint(t, away, s)
     far = ((x > mid) & !s) | ((x < mid) & s)
     tie = (x == mid) & (mid != t)
-    return ifelse(far | (tie & _isodd_mf(t._limbs)), away, t)
+    return ifelse(far | tie, away, t)
+end
+
+@inline function Base.round(
+    x::_MFV{M,T,N}, ::RoundingMode{:NearestTiesAway},
+) where {M,T,N}
+    s = signbit(x)
+    t = round(x, RoundToZero)
+    away = vifelse(s, _dec_int(t), _inc_int(t))
+    mid, _ = _rounding_midpoint(t, away, s)
+    far = ((x > mid) & !s) | ((x < mid) & s)
+    tie = (x == mid) & (mid != t)
+    return vifelse(far | tie, away, t)
+end
+
+
+@inline function Base.round(
+    x::_MF{T,N}, ::RoundingMode{:NearestTiesUp},
+) where {T,N}
+    s = signbit(x)
+    t = trunc(x)
+    away = ifelse(s, _dec_int(t), _inc_int(t))
+    mid, _ = _rounding_midpoint(t, away, s)
+    far = ((x > mid) & !s) | ((x < mid) & s)
+    tie = (x == mid) & (mid != t)
+    return ifelse(far | (tie & !s), away, t)
+end
+
+@inline function Base.round(
+    x::_MFV{M,T,N}, ::RoundingMode{:NearestTiesUp},
+) where {M,T,N}
+    s = signbit(x)
+    t = round(x, RoundToZero)
+    away = vifelse(s, _dec_int(t), _inc_int(t))
+    mid, _ = _rounding_midpoint(t, away, s)
+    far = ((x > mid) & !s) | ((x < mid) & s)
+    tie = (x == mid) & (mid != t)
+    return vifelse(far | (tie & !s), away, t)
+end
+
+
+@inline function Base.round(
+    x::_MF{T,N}, ::RoundingMode{:Nearest},
+) where {T,N}
+    s = signbit(x)
+    t = trunc(x)
+    away = ifelse(s, _dec_int(t), _inc_int(t))
+    mid, odd = _rounding_midpoint(t, away, s)
+    far = ((x > mid) & !s) | ((x < mid) & s)
+    tie = (x == mid) & (mid != t)
+    return ifelse(far | (tie & odd), away, t)
 end
 
 @inline function Base.round(
     x::_MFV{M,T,N}, ::RoundingMode{:Nearest},
 ) where {M,T,N}
-    _one = one(Vec{M,T})
-    _two = _one + _one
-    _half = inv_r(_two)
     s = signbit(x)
-    t = trunc(x)
-    mid = _MFV{M,T,N}(_fast_sweep_up(_fast_sweep_down(
-        t._limbs, vifelse(s, -_half, +_half))))
+    t = round(x, RoundToZero)
     away = vifelse(s, _dec_int(t), _inc_int(t))
+    mid, odd = _rounding_midpoint(t, away, s)
     far = ((x > mid) & !s) | ((x < mid) & s)
     tie = (x == mid) & (mid != t)
-    return vifelse(far | (tie & _isodd_mf(t._limbs)), away, t)
+    return vifelse(far | (tie & odd), away, t)
 end
+
+@inline Base.round(x::_MF{T,N}) where {T,N} = round(x, RoundNearest)
+@inline Base.round(x::_MFV{M,T,N}) where {M,T,N} = round(x, RoundNearest)
