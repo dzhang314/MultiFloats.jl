@@ -1,6 +1,7 @@
 module MultiFloats
 
-using Base.MPFR: CdoubleMax, MPFRRoundingMode, MPFRRoundNearest
+using Base.MPFR: CdoubleMax, MPFRRoundingMode,
+    MPFRRoundDown, MPFRRoundNearest, MPFRRoundUp
 using MPFR_jll: libmpfr
 using SIMD: FastContiguousArray, Vec, vgather, vscatter
 using SIMD.Intrinsics: extractelement
@@ -406,7 +407,7 @@ end
 
 
 function _split!(x::BigFloat, ::Type{T}, ::Val{N}) where {T,N}
-    value = T(x)
+    value = T(x, RoundNearest)
     if iszero(value) | !isfinite(value)
         return ntuple(_ -> value, Val{N}())
     else
@@ -414,7 +415,7 @@ function _split!(x::BigFloat, ::Type{T}, ::Val{N}) where {T,N}
         result = ntuple(i -> isone(i) ? value : _zero, Val{N}())
         mpfr_sub!(x, value, RoundNearest)
         for i = 2:N
-            limb = T(x)
+            limb = T(x, RoundNearest)
             result = Base.setindex(result, limb, i)
             mpfr_sub!(x, limb, RoundNearest)
         end
@@ -424,7 +425,7 @@ end
 
 
 function _split(x::BigFloat, ::Type{T}, ::Val{N}) where {T,N}
-    value = T(x)
+    value = T(x, RoundNearest)
     if iszero(value) | !isfinite(value)
         return ntuple(_ -> value, Val{N}())
     else
@@ -433,7 +434,7 @@ function _split(x::BigFloat, ::Type{T}, ::Val{N}) where {T,N}
         temp = BigFloat(; precision=precision(x))
         mpfr_sub!(temp, x, value, RoundNearest)
         for i = 2:N
-            limb = T(temp)
+            limb = T(temp, RoundNearest)
             result = Base.setindex(result, limb, i)
             mpfr_sub!(temp, limb, RoundNearest)
         end
@@ -448,21 +449,66 @@ _MF{T,N}(x::BigFloat) where {T,N} = _MF{T,N}(_split(x, T, Val{N}()))
 #################################################### CONVERSION FROM OTHER TYPES
 
 
+@inline function mpfr_div_z!(x::BigFloat, y::BigInt, rounding::RoundingMode)
+    ccall((:mpfr_div_z, libmpfr), Cint,
+        (Ref{BigFloat}, Ref{BigFloat}, Ref{BigInt}, MPFRRoundingMode),
+        x, x, y, convert(MPFRRoundingMode, rounding))
+    return x
+end
+
+
+function _big_interval(x::Union{AbstractString,Number}, p::Integer)
+    lo = BigFloat(x, MPFRRoundDown; precision=p)
+    hi = BigFloat(x, MPFRRoundUp; precision=p)
+    return (lo, hi)
+end
+
+# This method works around a bug in Julia 1.10 and earlier
+# causing incorrect directed rounding for rational numbers.
+function _big_interval(x::Rational, p::Integer)
+    lo = BigFloat(numerator(x), RoundDown; precision=p)
+    hi = BigFloat(numerator(x), RoundUp; precision=p)
+    d = BigInt(denominator(x))
+    mpfr_div_z!(lo, d, RoundDown)
+    mpfr_div_z!(hi, d, RoundUp)
+    return (lo, hi)
+end
+
+
+function _from_big_interval(
+    x::Union{AbstractString,Number},
+    ::Type{T},
+    ::Val{N}
+) where {T,N}
+    # This choice of p gives >99.9% one-shot success on random inputs.
+    p = precision(_MF{T,N}) + 4 * N + 8
+    while true
+        lo, hi = _split!.(_big_interval(x, p), T, Val{N}())
+        if isequal(lo, hi)
+            return _MF{T,N}(lo)
+        end
+        p *= 2
+    end
+end
+
+
 @inline _full_precision(::Type{T}) where {T} =
     exponent(floatmax(T)) - exponent(floatmin(T)) + precision(T)
 
 
 # Construct MultiFloat scalar from any other type by passing through BigFloat.
 function _from_big(x::Any, ::Type{T}, ::Val{N}) where {T,N}
-    p = 2 * _full_precision(T) + 1
-    big_x = applicable(BigFloat, x, MPFRRoundNearest) ?
-            BigFloat(x, MPFRRoundNearest; precision=p) :
-            BigFloat(x; precision=p)
-    return _MF{T,N}(_split!(big_x, T, Val{N}()))
+    if hasmethod(BigFloat, Tuple{typeof(x),MPFRRoundingMode}, (:precision,))
+        return _from_big_interval(x, T, Val{N}())
+    else
+        p = 2 * _full_precision(T) + 1
+        return _MF{T,N}(_split!(BigFloat(x; precision=p), T, Val{N}()))
+    end
 end
 
-_MF{T,N}(x::AbstractString) where {T,N} = _from_big(x, T, Val{N}())
-_MF{T,N}(x::Rational) where {T,N} = _from_big(x, T, Val{N}())
+
+_MF{T,N}(x::AbstractString) where {T,N} = _from_big_interval(x, T, Val{N}())
+_MF{T,N}(x::Rational) where {T,N} = _from_big_interval(x, T, Val{N}())
 _MF{T,N}(x::Number) where {T,N} = _from_big(x, T, Val{N}())
 
 
