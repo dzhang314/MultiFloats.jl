@@ -1305,14 +1305,14 @@ end
         rx = _resize(x, Val{Z}())
         ru = _resize(u, Val{Z}())
         residual = mfadd(mfmul(rx, ru, Val{Z}()), _neg_one, Val{Z}())
-        correction = mfmul(residual, ru, Val{Z}())
+        correction = mfmul(ru, residual, Val{Z}())
         return mfadd(ru, (-).(correction), Val{Z}())
     else
         _neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
         rx = _resize(x, Val{U + U}())
         ru = _resize(u, Val{U + U}())
         residual = mfadd(mfmul(rx, ru, Val{U + U}()), _neg_one, Val{U + U}())
-        correction = mfmul(residual, ru, Val{U + U}())
+        correction = mfmul(ru, residual, Val{U + U}())
         next_u = mfadd(ru, (-).(correction), Val{U + U}())
         return _mfinv_impl(x, next_u, Val{Z}())
     end
@@ -1326,23 +1326,22 @@ end
     ::Val{Z},
 ) where {T,X,Y,U,Z}
     @assert 0 < U < Z
-    _zero = zero(T)
-    _one = one(T)
     if U + U >= Z
         rx = _resize(x, Val{Z}())
         ry = _resize(y, Val{Z}())
         ru = _resize(u, Val{Z}())
-        quotient = mfmul(rx, ru, Val{Z}())
-        residual = mfadd(mfmul(quotient, ry, Val{Z}()), (-).(rx), Val{Z}())
-        correction = mfmul(residual, ru, Val{Z}())
-        return mfadd(quotient, (-).(correction), Val{Z}())
+        product = mfmul(ry, ru, Val{Z}())
+        residual = _resize(mfadd(rx, (-).(product), Val{Z}()), Val{Z - U}())
+        correction = mfdiv(residual, _resize(y, Val{Z - U}()), Val{Z - U}())
+        return mfadd(ru, _resize(correction, Val{Z}()), Val{Z}())
     else
-        _neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
+        rx = _resize(x, Val{U + U}())
         ry = _resize(y, Val{U + U}())
         ru = _resize(u, Val{U + U}())
-        residual = mfadd(mfmul(ry, ru, Val{U + U}()), _neg_one, Val{U + U}())
-        correction = mfmul(residual, ru, Val{U + U}())
-        next_u = mfadd(ru, (-).(correction), Val{U + U}())
+        product = mfmul(ry, ru, Val{U + U}())
+        residual = _resize(mfadd(rx, (-).(product), Val{U + U}()), Val{U}())
+        correction = mfdiv(residual, _resize(y, Val{U}()), Val{U}())
+        next_u = mfadd(ru, _resize(correction, Val{U + U}()), Val{U + U}())
         return _mfdiv_impl(x, y, next_u, Val{Z}())
     end
 end
@@ -1433,13 +1432,13 @@ end
     y_hi, y_lo = y
     w = inv_r(y_hi)
     z = one_prod(x_hi, w)
-    p_hi, p_lo = two_prod(y_hi, z)
-    r = ((x_hi - p_hi) - p_lo) + fma(-y_lo, z, x_lo)
+    r = fma(-y_hi, z, x_hi) + fma(-y_lo, z, x_lo)
     return fast_two_sum(z, one_prod(r, w))
 end
 
 @inline mfdiv(x::NTuple{X,T}, y::NTuple{Y,T}, ::Val{Z}) where {T,X,Y,Z} =
-    _mfdiv_impl(x, y, (inv_r(first(y)),), Val{Z}())
+    _mfdiv_impl(x, y,
+        mfdiv(_resize(x, Val{2}()), _resize(y, Val{2}()), Val{2}()), Val{Z}())
 
 
 @inline mfrsqrt(x::NTuple{X,T}, ::Val{1}) where {T,X} =
