@@ -35,7 +35,7 @@ function chebyshev_values(x::T, ::Val{N}) where {T,N}
     end
     if N >= 2
         two_x = _twice(x)
-        for k = 3:N+1
+        for k = 3:(N+1)
             result = Base.setindex(result,
                 muladd(two_x, result[k-1], -result[k-2]), k)
         end
@@ -55,7 +55,7 @@ function chebyshev_derivatives(x::T, ::Val{N}) where {T,N}
         two_x = _twice(x)
         t_prev = _one
         t_curr = x
-        for k = 3:N+1
+        for k = 3:(N+1)
             result = Base.setindex(result,
                 muladd(two_x, result[k-1], -result[k-2]) +
                 _twice(t_curr), k)
@@ -77,7 +77,7 @@ function chebyshev_second_derivatives(x::T, ::Val{N}) where {T,N}
         t_curr = x
         d_prev = _zero
         d_curr = _one
-        for k = 3:N+1
+        for k = 3:(N+1)
             result = Base.setindex(result,
                 muladd(two_x, result[k-1], -result[k-2]) +
                 _twice(_twice(d_curr)), k)
@@ -105,14 +105,14 @@ function chebyshev_to_monomial_matrix(a::T, b::T, n::Int) where {T}
     B = Matrix{T}(undef, n + 1, n + 1)
     @inbounds begin
         B[1, 1] = _one
-        B[2:n+1, 1] .= _zero
+        B[2:(n+1), 1] .= _zero
         if n >= 1
             B[1, 2] = shift
             B[2, 2] = scale
-            B[3:n+1, 2] .= _zero
-            for j = 3:n+1
+            B[3:(n+1), 2] .= _zero
+            for j = 3:(n+1)
                 B[1, j] = muladd(twice_shift, B[1, j-1], -B[1, j-2])
-                for i = 2:n+1
+                for i = 2:(n+1)
                     B[i, j] = muladd(twice_scale, B[i-1, j-1],
                         muladd(twice_shift, B[i, j-1], -B[i, j-2]))
                 end
@@ -239,7 +239,7 @@ function minimax_polynomial(
         for i = 1:L
             fi = f(nodes[i])
             u = muladd(nodes[i], scale, shift)
-            A[i, 1:N+1] .= chebyshev_values(u, Val{N}())
+            A[i, 1:(N+1)] .= chebyshev_values(u, Val{N}())
             if objective == :absolute
                 A[i, N+2] = ifelse(isodd(i), +_one, -_one)
             else # objective == :relative
@@ -250,7 +250,7 @@ function minimax_polynomial(
 
         # Set up constraint equations (rows L+1:N+2).
         for (i, (d, c)) in enumerate(fixed_coefficients)
-            A[L+i, 1:N+1] .= view(B, d + 1, 1:N+1)
+            A[L+i, 1:(N+1)] .= view(B, d + 1, 1:(N+1))
             A[L+i, N+2] = _zero
             v[L+i] = c
         end
@@ -333,7 +333,10 @@ function minimax_polynomial(
             prev_deviation = max_deviation
             nodes, next_nodes = next_nodes, nodes
         else
-            coefficients = _to_ntuple(B * view(v, 1:N+1), Val{N + 1}())
+            coefficients = _to_ntuple(B * view(v, 1:(N+1)), Val{N + 1}())
+            for (d, c) in fixed_coefficients
+                coefficients = Base.setindex(coefficients, c, d + 1)
+            end
             return (coefficients, _to_ntuple(nodes, Val{L}()), E_max)
         end
 
@@ -391,8 +394,8 @@ function minimax_rational(
         for i = 1:L
             fi = f(nodes[i])
             u = muladd(nodes[i], scale, shift)
-            A[i, 1:M+1] .= chebyshev_values(u, Val{M}())
-            A[i, M+2:M+N+1] .= -fi .* chebyshev_values(u, Val{N}())[2:N+1]
+            A[i, 1:(M+1)] .= chebyshev_values(u, Val{M}())
+            A[i, (M+2):(M+N+1)] .= -fi .* chebyshev_values(u, Val{N}())[2:(N+1)]
             qi_prev = dot(cq_prev, chebyshev_values(u, Val{N}()))
             if objective == :absolute
                 A[i, M+N+2] = ifelse(isodd(i), +qi_prev, -qi_prev)
@@ -404,15 +407,15 @@ function minimax_rational(
 
         # Set up numerator constraint equations (rows L+1:L+Kp).
         for (i, (d, c)) in enumerate(fixed_numerator_coefficients)
-            A[L+i, 1:M+1] .= view(Bp, d + 1, 1:M+1)
-            A[L+i, M+2:M+N+2] .= _zero
+            A[L+i, 1:(M+1)] .= view(Bp, d + 1, 1:(M+1))
+            A[L+i, (M+2):(M+N+2)] .= _zero
             v[L+i] = c
         end
 
         # Set up denominator constraint equations (rows L+Kp+1:M+N+2).
         for (i, (d, c)) in enumerate(fixed_denominator_coefficients)
-            A[L+Kp+i, 1:M+1] .= _zero
-            A[L+Kp+i, M+2:M+N+1] .= view(Bq, d + 1, 2:N+1)
+            A[L+Kp+i, 1:(M+1)] .= _zero
+            A[L+Kp+i, (M+2):(M+N+1)] .= view(Bq, d + 1, 2:(N+1))
             A[L+Kp+i, M+N+2] = _zero
             v[L+Kp+i] = c - Bq[d+1, 1]
         end
@@ -420,7 +423,7 @@ function minimax_rational(
         # Solve linear system using column-pivoted QR.
         ldiv!(qr!(A, ColumnNorm()), v)
         cp = _to_ntuple(v, Val{M + 1}())
-        cq = _to_ntuple(view(v, M+1:M+N+1), Val{N + 1}())
+        cq = _to_ntuple(view(v, (M+1):(M+N+1)), Val{N + 1}())
         cq = Base.setindex(cq, _one, 1)
         E_nominal = v[M+N+2]
 
@@ -519,9 +522,17 @@ function minimax_rational(
             cq_prev = cq
             nodes, next_nodes = next_nodes, nodes
         else
-            coefficients_p = _to_ntuple(Bp * view(v, 1:M+1), Val{M + 1}())
+            coefficients_p = _to_ntuple(
+                Bp * view(v, 1:(M+1)), Val{M + 1}())
+            for (d, c) in fixed_numerator_coefficients
+                coefficients_p = Base.setindex(coefficients_p, c, d + 1)
+            end
             v[M+1] = _one
-            coefficients_q = _to_ntuple(Bq * view(v, M+1:M+N+1), Val{N + 1}())
+            coefficients_q = _to_ntuple(
+                Bq * view(v, (M+1):(M+N+1)), Val{N + 1}())
+            for (d, c) in fixed_denominator_coefficients
+                coefficients_q = Base.setindex(coefficients_q, c, d + 1)
+            end
             return (coefficients_p, coefficients_q,
                 _to_ntuple(nodes, Val{L}()), E_max)
         end
