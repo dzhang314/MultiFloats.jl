@@ -1,7 +1,7 @@
 module MultiFloatsoneAPIExt
 
 using oneAPI: @device_override, method_table
-import MultiFloats: inv_r, div_r, sqrt_r
+import MultiFloats: _MF, inv_r, div_r, sqrt_r, mfsqrt
 
 
 @device_override @inline function inv_r(x::Float32)
@@ -45,6 +45,11 @@ const SQRT_SCALE_DOWN_F32 = reinterpret(Float32, 0x38800000)
     e = fma(-s, s, x)
     r = fma(h, e, s)
     return ifelse(iszero(x), x, ifelse(small, SQRT_SCALE_DOWN_F32 * r, r))
+end
+
+
+@device_override @inline function sqrt_r(x::_MF{T,N}) where {T,N}
+    return iszero(x) ? x : _MF{T,N}(mfsqrt(x._limbs, Val{N}()))
 end
 
 
