@@ -1174,6 +1174,14 @@ include("mfsqr.jl")
     _MFV{M,T,N}(mfsqr(x._limbs, Val{N}()))
 
 
+# The default implementation of `Base.muladd` lacks `@inline`.
+# Explicitly adding it here measurably improves performance.
+@inline Base.muladd(
+    x::_MF{T,N}, y::_MF{T,N}, z::_MF{T,N}) where {T,N} = x * y + z
+@inline Base.muladd(
+    x::_MFV{M,T,N}, y::_MFV{M,T,N}, z::_MFV{M,T,N}) where {M,T,N} = x * y + z
+
+
 @inline function _power_by_abs2(x::Any, p::Union{Unsigned,BigInt})
     if iszero(p)
         return one(x)
