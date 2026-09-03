@@ -1030,29 +1030,72 @@ _ge_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] >= y._limbs[$n]) : :(
 
 
 @generated Base.:(==)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-    _eq_expr(N)
+    Expr(:block, Expr(:meta, :inline), Expr(:return, _eq_expr(N)))
 @generated Base.:(==)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-    _eq_expr(N)
+    Expr(:block, Expr(:meta, :inline), Expr(:return, _eq_expr(N)))
 @generated Base.:(!=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-    _ne_expr(N)
+    Expr(:block, Expr(:meta, :inline), Expr(:return, _ne_expr(N)))
 @generated Base.:(!=)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-    _ne_expr(N)
+    Expr(:block, Expr(:meta, :inline), Expr(:return, _ne_expr(N)))
 @generated Base.:(<)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-    _lt_expr(1, N)
+    Expr(:block, Expr(:meta, :inline), Expr(:return, _lt_expr(1, N)))
 @generated Base.:(<)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-    _lt_expr(1, N)
+    Expr(:block, Expr(:meta, :inline), Expr(:return, _lt_expr(1, N)))
 @generated Base.:(>)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-    _gt_expr(1, N)
+    Expr(:block, Expr(:meta, :inline), Expr(:return, _gt_expr(1, N)))
 @generated Base.:(>)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-    _gt_expr(1, N)
+    Expr(:block, Expr(:meta, :inline), Expr(:return, _gt_expr(1, N)))
 @generated Base.:(<=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-    _le_expr(1, N)
+    Expr(:block, Expr(:meta, :inline), Expr(:return, _le_expr(1, N)))
 @generated Base.:(<=)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-    _le_expr(1, N)
+    Expr(:block, Expr(:meta, :inline), Expr(:return, _le_expr(1, N)))
 @generated Base.:(>=)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
-    _ge_expr(1, N)
+    Expr(:block, Expr(:meta, :inline), Expr(:return, _ge_expr(1, N)))
 @generated Base.:(>=)(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
-    _ge_expr(1, N)
+    Expr(:block, Expr(:meta, :inline), Expr(:return, _ge_expr(1, N)))
+
+
+@inline Base.isless(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
+    (x < y) | (((signbit(x) & !signbit(y)) | isnan(y)) & !isnan(x))
+@inline Base.isless(x::_MFV{M,T,N}, y::_MFV{M,T,N}) where {M,T,N} =
+    (x < y) | (((signbit(x) & !signbit(y)) | isnan(y)) & !isnan(x))
+
+
+@inline Base.Order.lt(
+    ::Base.Order.ForwardOrdering,
+    x::_MF{T,N},
+    y::_MF{T,N},
+) where {T,N} = isless(x, y)
+
+@inline Base.Order.lt(
+    o::Base.Order.ReverseOrdering,
+    x::_MF{T,N},
+    y::_MF{T,N},
+) where {T,N} = Base.Order.lt(o.fwd, y, x)
+
+@inline Base.Order.lt(
+    o::Base.Order.Lt,
+    x::_MF{T,N},
+    y::_MF{T,N},
+) where {T,N} = o.lt(x, y)
+
+@inline Base.Order.lt(
+    o::Base.Order.Lt,
+    x::Tuple{_MF{T,N},Vararg},
+    y::Tuple{_MF{T,N},Vararg},
+) where {T,N} = o.lt(x, y)
+
+@inline Base.Order.lt(
+    o::Base.Order.By,
+    x::_MF{T,N},
+    y::_MF{T,N},
+) where {T,N} = Base.Order.lt(o.order, o.by(x), o.by(y))
+
+@inline Base.Order.lt(
+    o::Base.Order.By,
+    x::Tuple{_MF{T,N},Vararg},
+    y::Tuple{_MF{T,N},Vararg},
+) where {T,N} = Base.Order.lt(o.order, o.by(x), o.by(y))
 
 
 ################################################## LEVEL 0 ARITHMETIC OPERATIONS
