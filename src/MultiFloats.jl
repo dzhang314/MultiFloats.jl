@@ -1114,16 +1114,64 @@ _ge_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] >= y._limbs[$n]) : :(
 @inline Base.:-(x::_MFV{M,T,N}) where {M,T,N} = _MFV{M,T,N}((-).(x._limbs))
 
 
+@inline _sign_mask(::Type{T}, y::Real) where {T<:Base.IEEEFloat} =
+    ifelse(signbit(y), Base.sign_mask(T), zero(Base.uinttype(T)))
+
+@inline _sign_mask(::Type{T}, ::Vec{M,Bool}) where {M,T<:Base.IEEEFloat} =
+    zero(Vec{M,Base.uinttype(T)})
+
+@inline _sign_mask(::Type{T}, y::Vec{M,T}) where {M,T<:Base.IEEEFloat} =
+    reinterpret(Vec{M,Base.uinttype(T)}, y) & Base.sign_mask(T)
+
+@inline function _sign_mask(
+    ::Type{T1},
+    y::Vec{M,T2},
+) where {M,T1<:Base.IEEEFloat,T2<:Real}
+    U = Base.uinttype(T1)
+    return vifelse(signbit(y), Vec{M,U}(Base.sign_mask(T1)), zero(Vec{M,U}))
+end
+
+
+@inline _vec_xor(x::Vec{M,T}, sign_y::Vec{M,U}) where {M,T,U<:Unsigned} =
+    reinterpret(Vec{M,T}, xor(reinterpret(Vec{M,U}, x), sign_y))
+
+
 @inline function Base.flipsign(x::_MF{T,N}, y::Real) where {T,N}
     _one = one(T)
     sign_y = ifelse(signbit(y), -_one, +_one)
     return _MF{T,N}(map(@inline(limb -> flipsign(limb, sign_y)), x._limbs))
 end
 
-@inline function Base.flipsign(x::_MFV{M,T,N}, y::_MFV{M,T,K}) where {M,T,N,K}
-    sign_y = first(y._limbs)
-    return _MFV{M,T,N}(map(@inline(limb -> flipsign(limb, sign_y)), x._limbs))
+@inline function Base.flipsign(
+    x::_MFV{M,T,N},
+    y::Real,
+) where {M,T<:Base.IEEEFloat,N}
+    sign_y = Vec{M,Base.uinttype(T)}(_sign_mask(T, y))
+    return _MFV{M,T,N}(map(@inline(limb -> _vec_xor(limb, sign_y)), x._limbs))
 end
+
+@inline function Base.flipsign(
+    x::_MFV{M,T1,N},
+    y::Vec{M,T2},
+) where {M,T1<:Base.IEEEFloat,N,T2<:Real}
+    sign_y = _sign_mask(T1, y)
+    return _MFV{M,T1,N}(map(@inline(limb -> _vec_xor(limb, sign_y)), x._limbs))
+end
+
+@inline Base.flipsign(
+    x::_MF{T1,N},
+    y::Vec{M,T2},
+) where {M,T1<:Base.IEEEFloat,N,T2<:Real} = flipsign(_MFV{M,T1,N}(x), y)
+
+@inline Base.flipsign(
+    x::_MF{T1,N1},
+    y::_MFV{M,T2,N2},
+) where {M,T1<:Base.IEEEFloat,N1,T2<:Real,N2} = flipsign(x, first(y._limbs))
+
+@inline Base.flipsign(
+    x::_MFV{M,T1,N1},
+    y::_MFV{M,T2,N2},
+) where {M,T1<:Base.IEEEFloat,N1,T2<:Real,N2} = flipsign(x, first(y._limbs))
 
 
 @inline Base.abs(x::_MF{T,N}) where {T,N} = flipsign(x, x)
