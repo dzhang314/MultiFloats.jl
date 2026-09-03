@@ -191,7 +191,7 @@
             values = ntuple(
                 i -> _MF{T,N}(log2(BigFloat(1 + (2 * i - 1) // 64))),
                 Val{32}())
-            return :((centers=$centers, values=$values))
+            return :((centers=($centers), values=($values)))
         end
     end
 end
@@ -243,10 +243,10 @@ end
     e = unsafe_exponent(first_limb)
     m = unsafe_ldexp(x, -e)
     centers = _MFV{M,T,N}(ntuple(i -> Vec{M,T}(ntuple(j ->
-                _table.centers[extractelement(index.data, j - 1)+1]._limbs[i],
+                _table.centers[extractelement(index.data, j-1)+1]._limbs[i],
             Val{M}())), Val{N}()))
     values = _MFV{M,T,N}(ntuple(i -> Vec{M,T}(ntuple(j ->
-                _table.values[extractelement(index.data, j - 1)+1]._limbs[i],
+                _table.values[extractelement(index.data, j-1)+1]._limbs[i],
             Val{M}())), Val{N}()))
 
     t_direct = div_r(x - _one, x + _one)
