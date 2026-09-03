@@ -799,7 +799,8 @@ end
 end
 
 @inline function unsafe_ldexp(
-    x::Vec{M,T}, k::I,
+    x::Vec{M,T},
+    k::I,
 ) where {M,T<:Base.IEEEFloat,I<:Integer}
     U = Base.uinttype(T)
     bits = reinterpret(Vec{M,U}, x)
@@ -808,7 +809,8 @@ end
 end
 
 @inline function unsafe_ldexp(
-    x::Vec{M,T}, k::Vec{M,I},
+    x::Vec{M,T},
+    k::Vec{M,I},
 ) where {M,T<:Base.IEEEFloat,I<:Integer}
     U = Base.uinttype(T)
     bits = reinterpret(Vec{M,U}, x)
@@ -959,14 +961,17 @@ export mfvgather, mfvscatter
 
 
 @inline vifelse(
-    mask::Vec{M,Bool}, x::_MFV{M,T,N}, y::_MFV{M,T,N},
+    mask::Vec{M,Bool},
+    x::_MFV{M,T,N},
+    y::_MFV{M,T,N},
 ) where {M,T,N} = _MFV{M,T,N}(map(
     @inline((x_limb, y_limb) -> vifelse(mask, x_limb, y_limb)),
     x._limbs, y._limbs))
 
 
 @inline function mfvgather(
-    pointer::Ptr{_MF{T,N}}, index::Vec{M,I},
+    pointer::Ptr{_MF{T,N}},
+    index::Vec{M,I},
 ) where {M,T,N,I<:Integer}
     base = reinterpret(Ptr{T}, pointer) + N * sizeof(T) * index
     return _MFV{M,T,N}(ntuple(
@@ -975,7 +980,9 @@ end
 
 
 @inline function mfvscatter(
-    x::_MFV{M,T,N}, pointer::Ptr{_MF{T,N}}, index::Vec{M,I},
+    x::_MFV{M,T,N},
+    pointer::Ptr{_MF{T,N}},
+    index::Vec{M,I},
 ) where {M,T,N,I<:Integer}
     base = reinterpret(Ptr{T}, pointer) + N * sizeof(T) * index
     for i = 1:N
@@ -1176,10 +1183,18 @@ include("mfsqr.jl")
 
 # The default implementation of `Base.muladd` lacks `@inline`.
 # Explicitly adding it here measurably improves performance.
+
 @inline Base.muladd(
-    x::_MF{T,N}, y::_MF{T,N}, z::_MF{T,N}) where {T,N} = x * y + z
+    x::_MF{T,N},
+    y::_MF{T,N},
+    z::_MF{T,N},
+) where {T,N} = x * y + z
+
 @inline Base.muladd(
-    x::_MFV{M,T,N}, y::_MFV{M,T,N}, z::_MFV{M,T,N}) where {M,T,N} = x * y + z
+    x::_MFV{M,T,N},
+    y::_MFV{M,T,N},
+    z::_MFV{M,T,N},
+) where {M,T,N} = x * y + z
 
 
 @inline function _power_by_abs2(x::Any, p::Union{Unsigned,BigInt})
@@ -1915,12 +1930,10 @@ function _horner_expr_mf(
 end
 
 
-function _horner_expr_mfv(
+_horner_expr_mfv(
     coefficients::Tuple{Vararg{Tuple{Vararg{T}}}},
     M::Int,
-) where {T}
-    return _horner_expr_mf(map(c -> Vec{M,T}.(c), coefficients))
-end
+) where {T} = _horner_expr_mf(map(c -> Vec{M,T}.(c), coefficients))
 
 
 include("cbrt.jl")

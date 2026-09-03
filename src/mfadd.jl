@@ -1,10 +1,5 @@
-@inline function mfadd(
-    x::NTuple{1,T},
-    y::NTuple{1,T},
-    ::Val{1},
-) where {T}
-    return (x[1] + y[1],)
-end
+@inline mfadd(x::NTuple{1,T}, y::NTuple{1,T}, ::Val{1}) where {T} =
+    (x[1] + y[1],)
 
 
 @inline function mfadd(

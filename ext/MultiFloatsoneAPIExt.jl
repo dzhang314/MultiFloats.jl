@@ -46,7 +46,12 @@ const DIV_SCALE_F32 = reinterpret(Float32, 0x5F800000)
 
 
 @noinline function _div_slow_path(
-    x::Float32, y::Float32, q::Float32, x_tiny::Bool, q_tiny::Bool)
+    x::Float32,
+    y::Float32,
+    q::Float32,
+    x_tiny::Bool,
+    q_tiny::Bool,
+)
     if q_tiny && _quotient_is_subnormal(x, y)
         return _div_subnormal(x, y)
     elseif x_tiny && (abs(y) < DIV_SCALE_F32)
@@ -101,9 +106,8 @@ const SQRT_SCALE_DOWN_F32 = reinterpret(Float32, 0x38800000)
 end
 
 
-@device_override @inline function sqrt_r(x::_MF{T,N}) where {T,N}
-    return iszero(x) ? x : _MF{T,N}(mfsqrt(x._limbs, Val{N}()))
-end
+@device_override @inline sqrt_r(x::_MF{T,N}) where {T,N} =
+    iszero(x) ? x : _MF{T,N}(mfsqrt(x._limbs, Val{N}()))
 
 
 end # module MultiFloatsoneAPIExt

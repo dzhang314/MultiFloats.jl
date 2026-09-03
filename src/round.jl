@@ -26,7 +26,8 @@ end
 
 
 @inline function Base.round(
-    x::_MF{T,N}, ::RoundingMode{:ToZero},
+    x::_MF{T,N},
+    ::RoundingMode{:ToZero},
 ) where {T,N}
     s = signbit(x)
     t = _MF{T,N}(_clear_signed_zeros(trunc.(x._limbs)))
@@ -36,7 +37,8 @@ end
 end
 
 @inline function Base.round(
-    x::_MFV{M,T,N}, ::RoundingMode{:ToZero},
+    x::_MFV{M,T,N},
+    ::RoundingMode{:ToZero},
 ) where {M,T,N}
     s = signbit(x)
     t = _MFV{M,T,N}(_clear_signed_zeros(trunc.(x._limbs)))
@@ -129,7 +131,8 @@ end
 
 
 @inline function Base.round(
-    x::_MF{T,N}, ::RoundingMode{:NearestTiesAway},
+    x::_MF{T,N},
+    ::RoundingMode{:NearestTiesAway},
 ) where {T,N}
     s = signbit(x)
     t = trunc(x)
@@ -141,7 +144,8 @@ end
 end
 
 @inline function Base.round(
-    x::_MFV{M,T,N}, ::RoundingMode{:NearestTiesAway},
+    x::_MFV{M,T,N},
+    ::RoundingMode{:NearestTiesAway},
 ) where {M,T,N}
     s = signbit(x)
     t = round(x, RoundToZero)
@@ -154,7 +158,8 @@ end
 
 
 @inline function Base.round(
-    x::_MF{T,N}, ::RoundingMode{:NearestTiesUp},
+    x::_MF{T,N},
+    ::RoundingMode{:NearestTiesUp},
 ) where {T,N}
     s = signbit(x)
     t = trunc(x)
@@ -166,7 +171,8 @@ end
 end
 
 @inline function Base.round(
-    x::_MFV{M,T,N}, ::RoundingMode{:NearestTiesUp},
+    x::_MFV{M,T,N},
+    ::RoundingMode{:NearestTiesUp},
 ) where {M,T,N}
     s = signbit(x)
     t = round(x, RoundToZero)
@@ -179,7 +185,8 @@ end
 
 
 @inline function Base.round(
-    x::_MF{T,N}, ::RoundingMode{:Nearest},
+    x::_MF{T,N},
+    ::RoundingMode{:Nearest},
 ) where {T,N}
     s = signbit(x)
     t = trunc(x)
@@ -191,7 +198,8 @@ end
 end
 
 @inline function Base.round(
-    x::_MFV{M,T,N}, ::RoundingMode{:Nearest},
+    x::_MFV{M,T,N},
+    ::RoundingMode{:Nearest},
 ) where {M,T,N}
     s = signbit(x)
     t = round(x, RoundToZero)

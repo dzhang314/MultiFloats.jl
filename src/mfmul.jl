@@ -1,10 +1,5 @@
-@inline function mfmul(
-    x::NTuple{1,T},
-    y::NTuple{1,T},
-    ::Val{1},
-) where {T}
-    return (one_prod(x[1], y[1]),)
-end
+@inline mfmul(x::NTuple{1,T}, y::NTuple{1,T}, ::Val{1}) where {T} =
+    (one_prod(x[1], y[1]),)
 
 
 @inline function mfmul(
