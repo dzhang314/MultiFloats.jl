@@ -1283,24 +1283,8 @@ include("mfsqr.jl")
     _MFV{M,T,N}(mfsqr(x._limbs, Val{N}()))
 
 
-# The default implementation of `Base.muladd` lacks `@inline`.
-# Explicitly adding it here measurably improves performance.
-
-@inline Base.muladd(
-    x::_MF{T,N},
-    y::_MF{T,N},
-    z::_MF{T,N},
-) where {T,N} = x * y + z
-
-@inline Base.muladd(
-    x::_MFV{M,T,N},
-    y::_MFV{M,T,N},
-    z::_MFV{M,T,N},
-) where {M,T,N} = x * y + z
-
-
 include("Reproducible.jl")
-import .Reproducible: inv_r, div_r, sqrt_r, rsqrt_r
+import .Reproducible: muladd_r, inv_r, div_r, sqrt_r, rsqrt_r
 
 # In previous versions of MultiFloats.jl, sqrt_r was called unsafe_sqrt, and
 # rsqrt_r was called rsqrt. These names are deprecated but kept for backward
@@ -1308,6 +1292,22 @@ import .Reproducible: inv_r, div_r, sqrt_r, rsqrt_r
 
 @deprecate unsafe_sqrt sqrt_r false
 @deprecate rsqrt rsqrt_r false
+
+
+# The default implementation of `Base.muladd` lacks `@inline`.
+# Explicitly adding it here measurably improves performance.
+
+@inline Base.muladd(
+    x::Union{_MF,_MFV},
+    y::Union{_MF,_MFV},
+    z::Union{_MF,_MFV},
+) = x * y + z
+
+@inline muladd_r(
+    x::Union{_MF,_MFV},
+    y::Union{_MF,_MFV},
+    z::Union{_MF,_MFV},
+) = x * y + z
 
 
 @inline function _power_by_abs2(x::Any, p::Union{Unsigned,BigInt})

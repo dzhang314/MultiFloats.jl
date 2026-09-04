@@ -9,19 +9,25 @@ using MPFR_jll: libmpfr
 # platforms. These functions have been extensively tested on current-generation
 # Intel, AMD, NVIDIA, and Apple CPUs and GPUs.
 
-export inv_r, div_r, sqrt_r, rsqrt_r
+export muladd_r, inv_r, div_r, sqrt_r, rsqrt_r
+
+# MultiFloats.muladd_r is a qualified public function.
+# Users are expected to call it as MultiFloats.muladd_r(x, y, z)
+# or by using MultiFloats.Reproducible.
+
+@inline muladd_r(x::Any, y::Any, z::Any) = fma(x, y, z)
 
 # MultiFloats.inv_r is a qualified public function.
 # Users are expected to call it as MultiFloats.inv_r(x)
 # or by using MultiFloats.Reproducible.
 
-@inline inv_r(x::T) where {T} = inv(x)
+@inline inv_r(x::Any) = inv(x)
 
 # MultiFloats.div_r is a qualified public function.
 # Users are expected to call it as MultiFloats.div_r(x, y)
 # or by using MultiFloats.Reproducible.
 
-@inline div_r(x::T, y::T) where {T} = x / y
+@inline div_r(x::Any, y::Any) = x / y
 
 # MultiFloats.sqrt_r is a qualified public function.
 # Users are expected to call it as MultiFloats.sqrt_r(x)
