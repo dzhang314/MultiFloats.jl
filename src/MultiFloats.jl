@@ -6,7 +6,7 @@ using MPFR_jll: libmpfr
 using SIMD: FastContiguousArray, Vec, vgather, vscatter
 using SIMD.Intrinsics: extractelement
 
-import SIMD: vifelse
+import SIMD: vifelse, shufflevector
 
 
 ############################################################### TYPE DEFINITIONS
@@ -966,6 +966,18 @@ export mfvgather, mfvscatter
     y::_MFV{M,T,N},
 ) where {M,T,N} = _MFV{M,T,N}(map(
     @inline((x_limb, y_limb) -> vifelse(mask, x_limb, y_limb)),
+    x._limbs, y._limbs))
+
+
+@inline shufflevector(x::_MFV{M,T,N}, i::Val{I}) where {M,T,N,I} =
+    _MFV{length(I),T,N}(map(@inline(limb -> shufflevector(limb, i)), x._limbs))
+
+@inline shufflevector(
+    x::_MFV{M,T,N},
+    y::_MFV{M,T,N},
+    i::Val{I},
+) where {M,T,N,I} = _MFV{length(I),T,N}(map(
+    @inline((x_limb, y_limb) -> shufflevector(x_limb, y_limb, i)),
     x._limbs, y._limbs))
 
 
