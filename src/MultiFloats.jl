@@ -1,7 +1,6 @@
 module MultiFloats
 
-using Base.MPFR: CdoubleMax, MPFRRoundingMode,
-    MPFRRoundDown, MPFRRoundNearest, MPFRRoundUp
+using Base.MPFR: CdoubleMax, MPFRRoundingMode, MPFRRoundDown, MPFRRoundUp
 using MPFR_jll: libmpfr
 using SIMD: FastContiguousArray, Vec, vgather, vscatter
 using SIMD.Intrinsics: extractelement
@@ -1300,6 +1299,17 @@ include("mfsqr.jl")
 ) where {M,T,N} = x * y + z
 
 
+include("Reproducible.jl")
+import .Reproducible: inv_r, div_r, sqrt_r, rsqrt_r
+
+# In previous versions of MultiFloats.jl, sqrt_r was called unsafe_sqrt, and
+# rsqrt_r was called rsqrt. These names are deprecated but kept for backward
+# compatibility. The new names sqrt_r and rsqrt_r are preferred in new code.
+
+@deprecate unsafe_sqrt sqrt_r false
+@deprecate rsqrt rsqrt_r false
+
+
 @inline function _power_by_abs2(x::Any, p::Union{Unsigned,BigInt})
     if iszero(p)
         return one(x)
@@ -1346,65 +1356,6 @@ end
 
 
 include("round.jl")
-
-
-######################################################## REPRODUCIBLE OPERATIONS
-
-# Floating-point division and square root are implemented inconsistently across
-# CPU and GPU microarchitectures. MultiFloats.jl provides reproducible variants
-# of these operations that produce bit-for-bit identical results across all
-# platforms. These functions have been extensively tested on current-generation
-# Intel, AMD, NVIDIA, and Apple CPUs and GPUs.
-
-
-# MultiFloats.inv_r is a qualified public function.
-# Users are expected to call it as MultiFloats.inv_r(x).
-
-@inline inv_r(x::T) where {T} = inv(x)
-
-
-# MultiFloats.div_r is a qualified public function.
-# Users are expected to call it as MultiFloats.div_r(x, y).
-
-@inline div_r(x::T, y::T) where {T} = x / y
-
-
-# MultiFloats.sqrt_r is a qualified public function.
-# Users are expected to call it as MultiFloats.sqrt_r(x).
-
-@inline sqrt_r(x::Any) = sqrt(x)
-
-@inline sqrt_r(x::Union{Float16,Float32,Float64}) = Base.sqrt_llvm(x)
-
-function sqrt_r(x::BigFloat)
-    result = BigFloat()
-    ccall((:mpfr_sqrt, libmpfr), Cint,
-        (Ref{BigFloat}, Ref{BigFloat}, MPFRRoundingMode),
-        result, x, MPFRRoundNearest)
-    return result
-end
-
-
-# MultiFloats.rsqrt_r is a qualified public function.
-# Users are expected to call it as MultiFloats.rsqrt_r(x).
-
-@inline rsqrt_r(x::Any) = inv_r(sqrt_r(x))
-
-function rsqrt_r(x::BigFloat)
-    result = BigFloat()
-    ccall((:mpfr_rec_sqrt, libmpfr), Cint,
-        (Ref{BigFloat}, Ref{BigFloat}, MPFRRoundingMode),
-        result, x, MPFRRoundNearest)
-    return result
-end
-
-
-# In previous versions of MultiFloats.jl, sqrt_r was called unsafe_sqrt, and
-# rsqrt_r was called rsqrt. These names are deprecated but kept for backward
-# compatibility. The new names sqrt_r and rsqrt_r are preferred in new code.
-
-@deprecate unsafe_sqrt sqrt_r false
-@deprecate rsqrt rsqrt_r false
 
 
 ###################################################### KARP-MARKSTEIN ALGORITHMS

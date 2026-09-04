@@ -1,8 +1,8 @@
 module MultiFloatsoneAPIExt
 
 using oneAPI: @device_override, method_table
-import MultiFloats: _MF, Float64x3, Float64x4,
-    _mfinv_impl, inv_r, div_r, sqrt_r, mfsqrt
+import MultiFloats: _MF, Float64x3, Float64x4, _mfinv_impl, mfsqrt
+import MultiFloats.Reproducible: inv_r, div_r, sqrt_r
 
 
 @inline function _quotient_is_subnormal(x::Float32, y::Float32)

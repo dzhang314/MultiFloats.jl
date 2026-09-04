@@ -36,6 +36,7 @@
         "Remez",
         "renorm",
         "rsqrt",
+        "shufflevector",
         "sprintf",
         "testset",
         "tofloat",

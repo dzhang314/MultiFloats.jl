@@ -1,7 +1,7 @@
 module MultiFloatsAMDGPUExt
 
 using AMDGPU
-import MultiFloats: sqrt_r
+import MultiFloats.Reproducible: sqrt_r
 
 
 AMDGPU.Device.@device_override @inline sqrt_r(x::Float32) =
