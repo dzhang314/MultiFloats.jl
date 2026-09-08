@@ -1284,7 +1284,7 @@ include("mfsqr.jl")
 
 
 include("Reproducible.jl")
-import .Reproducible: muladd_r, inv_r, div_r, sqrt_r, rsqrt_r
+import .Reproducible: muladd_r, _muladd_r_impl, inv_r, div_r, sqrt_r, rsqrt_r
 
 # In previous versions of MultiFloats.jl, sqrt_r was called unsafe_sqrt, and
 # rsqrt_r was called rsqrt. These names are deprecated but kept for backward
@@ -1303,11 +1303,19 @@ import .Reproducible: muladd_r, inv_r, div_r, sqrt_r, rsqrt_r
     z::Union{_MF,_MFV},
 ) = x * y + z
 
-@inline muladd_r(
-    x::Union{_MF,_MFV},
-    y::Union{_MF,_MFV},
-    z::Union{_MF,_MFV},
-) = x * y + z
+@inline _muladd_r_impl(
+    ::Type{T},
+    x::Any,
+    y::Any,
+    z::Any,
+) where {T<:Union{_MF,_MFV}} = T(x) * T(y) + T(z)
+
+@inline _muladd_r_impl(
+    ::Type{_MFV{M,T,N}},
+    x::Real,
+    y::Real,
+    z::_MFV,
+) where {M,T,N} = _MF{T,N}(x) * _MF{T,N}(y) + _MFV{M,T,N}(z)
 
 
 @inline function _power_by_abs2(x::Any, p::Union{Unsigned,BigInt})

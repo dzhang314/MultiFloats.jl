@@ -15,7 +15,10 @@ export muladd_r, inv_r, div_r, sqrt_r, rsqrt_r
 # Users are expected to call it as MultiFloats.muladd_r(x, y, z)
 # or by using MultiFloats.Reproducible.
 
-@inline muladd_r(x::Any, y::Any, z::Any) = fma(x, y, z)
+@inline _muladd_r_impl(::Type, x::Any, y::Any, z::Any) = fma(x, y, z)
+
+@inline muladd_r(x::Any, y::Any, z::Any) =
+    _muladd_r_impl(promote_type(typeof(x), typeof(y), typeof(z)), x, y, z)
 
 # MultiFloats.inv_r is a qualified public function.
 # Users are expected to call it as MultiFloats.inv_r(x)
