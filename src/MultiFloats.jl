@@ -705,8 +705,8 @@ end
     i -> (isone(i) ? isone(x._limbs[i]) : iszero(x._limbs[i])),
     Val{N}()))
 @inline Base.isone(x::_MFV{M,T,N}) where {M,T,N} = _vall(ntuple(
-        i -> (isone(i) ? isone(x._limbs[i]) : iszero(x._limbs[i])),
-        Val{N}()), Val{M}())
+    i -> (isone(i) ? isone(x._limbs[i]) : iszero(x._limbs[i])),
+    Val{N}()), Val{M}())
 
 
 @inline Base.isfinite(x::_MF{T,N}) where {T,N} =
@@ -718,13 +718,13 @@ end
 @inline _has_pos_inf(x::_MF{T,N}) where {T,N} = _any(map(
     @inline(limb -> isinf(limb) & !signbit(limb)), x._limbs))
 @inline _has_pos_inf(x::_MFV{M,T,N}) where {M,T,N} = _vany(map(
-        @inline(limb -> isinf(limb) & !signbit(limb)), x._limbs), Val{M}())
+    @inline(limb -> isinf(limb) & !signbit(limb)), x._limbs), Val{M}())
 
 
 @inline _has_neg_inf(x::_MF{T,N}) where {T,N} = _any(map(
     @inline(limb -> isinf(limb) & signbit(limb)), x._limbs))
 @inline _has_neg_inf(x::_MFV{M,T,N}) where {M,T,N} = _vany(map(
-        @inline(limb -> isinf(limb) & signbit(limb)), x._limbs), Val{M}())
+    @inline(limb -> isinf(limb) & signbit(limb)), x._limbs), Val{M}())
 
 
 @inline _has_nan(x::_MF{T,N}) where {T,N} =
@@ -1028,16 +1028,16 @@ _ne_expr(n::Int) = (n == 1) ? :(x._limbs[1] != y._limbs[1]) : :(
     $(_ne_expr(n - 1)) | (x._limbs[$n] != y._limbs[$n]))
 _lt_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] < y._limbs[$n]) : :(
     (x._limbs[$i] < y._limbs[$i]) |
-    ((x._limbs[$i] == y._limbs[$i]) & $(_lt_expr(i + 1, n))))
+        ((x._limbs[$i] == y._limbs[$i]) & $(_lt_expr(i + 1, n))))
 _gt_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] > y._limbs[$n]) : :(
     (x._limbs[$i] > y._limbs[$i]) |
-    ((x._limbs[$i] == y._limbs[$i]) & $(_gt_expr(i + 1, n))))
+        ((x._limbs[$i] == y._limbs[$i]) & $(_gt_expr(i + 1, n))))
 _le_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] <= y._limbs[$n]) : :(
     (x._limbs[$i] < y._limbs[$i]) |
-    ((x._limbs[$i] == y._limbs[$i]) & $(_le_expr(i + 1, n))))
+        ((x._limbs[$i] == y._limbs[$i]) & $(_le_expr(i + 1, n))))
 _ge_expr(i::Int, n::Int) = (i == n) ? :(x._limbs[$n] >= y._limbs[$n]) : :(
     (x._limbs[$i] > y._limbs[$i]) |
-    ((x._limbs[$i] == y._limbs[$i]) & $(_ge_expr(i + 1, n))))
+        ((x._limbs[$i] == y._limbs[$i]) & $(_ge_expr(i + 1, n))))
 
 
 @generated Base.:(==)(x::_MF{T,N}, y::_MF{T,N}) where {T,N} =
@@ -1366,15 +1366,11 @@ end
 include("round.jl")
 
 
-###################################################### KARP-MARKSTEIN ALGORITHMS
+#################################################### NEWTON ITERATION ALGORITHMS
 
 
 @inline _resize(x::NTuple{N,T}, ::Val{M}) where {N,T,M} =
     ntuple(i -> ((i <= N) ? x[i] : zero(T)), Val{M}())
-
-
-# TODO: Develop half-to-full-width multiplication algorithms.
-# TODO: Develop residual multiplication algorithms with built-in subtraction.
 
 
 @inline function _mfinv_impl(
@@ -1382,23 +1378,17 @@ include("round.jl")
     u::NTuple{U,T},
     ::Val{Z},
 ) where {T,X,U,Z}
-    @assert 0 < U < Z
-    _zero = zero(T)
-    _one = one(T)
-    if U + U >= Z
-        _neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{Z}())
+    @assert 2 <= U <= Z
+    if U == Z
+        return u
+    elseif U + U >= Z
         rx = _resize(x, Val{Z}())
         ru = _resize(u, Val{Z}())
-        residual = mfadd(mfmul(rx, ru, Val{Z}()), _neg_one, Val{Z}())
-        correction = mfmul(ru, residual, Val{Z}())
-        return mfadd(ru, (-).(correction), Val{Z}())
+        residual = _resize(Base.tail(mfmul(rx, ru, Val{Z}())), Val{Z - U}())
+        correction = mfmul(_resize(u, Val{Z - U}()), residual, Val{Z - U}())
+        return mfadd(ru, _resize((-).(correction), Val{Z}()), Val{Z}())
     else
-        _neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
-        rx = _resize(x, Val{U + U}())
-        ru = _resize(u, Val{U + U}())
-        residual = mfadd(mfmul(rx, ru, Val{U + U}()), _neg_one, Val{U + U}())
-        correction = mfmul(ru, residual, Val{U + U}())
-        next_u = mfadd(ru, (-).(correction), Val{U + U}())
+        next_u = _mfinv_impl(x, u, Val{(Z + 1) >> 1}())
         return _mfinv_impl(x, next_u, Val{Z}())
     end
 end
@@ -1410,8 +1400,10 @@ end
     u::NTuple{U,T},
     ::Val{Z},
 ) where {T,X,Y,U,Z}
-    @assert 0 < U < Z
-    if U + U >= Z
+    @assert 0 < U <= Z
+    if U == Z
+        return u
+    elseif U + U >= Z
         rx = _resize(x, Val{Z}())
         ry = _resize(y, Val{Z}())
         ru = _resize(u, Val{Z}())
@@ -1420,13 +1412,7 @@ end
         correction = mfdiv(residual, _resize(y, Val{Z - U}()), Val{Z - U}())
         return mfadd(ru, _resize(correction, Val{Z}()), Val{Z}())
     else
-        rx = _resize(x, Val{U + U}())
-        ry = _resize(y, Val{U + U}())
-        ru = _resize(u, Val{U + U}())
-        product = mfmul(ry, ru, Val{U + U}())
-        residual = _resize(mfadd(rx, (-).(product), Val{U + U}()), Val{U}())
-        correction = mfdiv(residual, _resize(y, Val{U}()), Val{U}())
-        next_u = mfadd(ru, _resize(correction, Val{U + U}()), Val{U + U}())
+        next_u = _mfdiv_impl(x, y, u, Val{(Z + 1) >> 1}())
         return _mfdiv_impl(x, y, next_u, Val{Z}())
     end
 end
@@ -1437,27 +1423,22 @@ end
     u::NTuple{U,T},
     ::Val{Z},
 ) where {T,X,U,Z}
-    @assert 0 < U < Z
-    _zero = zero(T)
+    @assert 2 <= U <= Z
     _one = one(T)
     _two = _one + _one
     _half = inv_r(_two)
-    if U + U >= Z
-        _neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{Z}())
+    if U == Z
+        return u
+    elseif U + U >= Z
         rx = _resize(x, Val{Z}())
         ru = _resize(u, Val{Z}())
-        root = mfmul(rx, ru, Val{Z}())
-        residual = mfadd(mfmul(root, ru, Val{Z}()), _neg_one, Val{Z}())
-        correction = mfmul(scale(_half, ru), residual, Val{Z}())
-        return mfadd(ru, (-).(correction), Val{Z}())
+        u2 = mfsqr(ru, Val{Z}())
+        half_u = scale(_half, _resize(u, Val{Z - U}()))
+        residual = _resize(Base.tail(mfmul(rx, u2, Val{Z}())), Val{Z - U}())
+        correction = mfmul(half_u, residual, Val{Z - U}())
+        return mfadd(ru, _resize((-).(correction), Val{Z}()), Val{Z}())
     else
-        _neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
-        rx = _resize(x, Val{U + U}())
-        ru = _resize(u, Val{U + U}())
-        root = mfmul(rx, ru, Val{U + U}())
-        residual = mfadd(mfmul(root, ru, Val{U + U}()), _neg_one, Val{U + U}())
-        correction = mfmul(scale(_half, ru), residual, Val{U + U}())
-        next_u = mfadd(ru, (-).(correction), Val{U + U}())
+        next_u = _mfrsqrt_impl(x, u, Val{(Z + 1) >> 1}())
         return _mfrsqrt_impl(x, next_u, Val{Z}())
     end
 end
@@ -1468,37 +1449,35 @@ end
     u::NTuple{U,T},
     ::Val{Z},
 ) where {T,X,U,Z}
-    @assert 0 < U < Z
-    _zero = zero(T)
+    @assert 0 < U <= Z
+    # Here u approximates sqrt(x); divide the small residual by 2u.
     _one = one(T)
     _two = _one + _one
-    _half = inv_r(_two)
-    if U + U >= Z
-        _neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{Z}())
+    if U == Z
+        return u
+    elseif U + U >= Z
         rx = _resize(x, Val{Z}())
         ru = _resize(u, Val{Z}())
-        root = mfmul(rx, ru, Val{Z}())
-        residual = mfadd(mfmul(root, ru, Val{Z}()), _neg_one, Val{Z}())
-        correction = mfmul(scale(_half, root), residual, Val{Z}())
-        return mfadd(root, (-).(correction), Val{Z}())
+        u2 = mfsqr(ru, Val{Z}())
+        two_u = scale(_two, _resize(u, Val{Z - U}()))
+        residual = _resize(mfadd(rx, (-).(u2), Val{Z}()), Val{Z - U}())
+        correction = mfdiv(residual, two_u, Val{Z - U}())
+        return mfadd(ru, _resize(correction, Val{Z}()), Val{Z}())
     else
-        _neg_one = ntuple(i -> (isone(i) ? -_one : _zero), Val{U + U}())
-        rx = _resize(x, Val{U + U}())
-        ru = _resize(u, Val{U + U}())
-        root = mfmul(rx, ru, Val{U + U}())
-        residual = mfadd(mfmul(root, ru, Val{U + U}()), _neg_one, Val{U + U}())
-        correction = mfmul(scale(_half, ru), residual, Val{U + U}())
-        next_u = mfadd(ru, (-).(correction), Val{U + U}())
+        next_u = _mfsqrt_impl(x, u, Val{(Z + 1) >> 1}())
         return _mfsqrt_impl(x, next_u, Val{Z}())
     end
 end
 
 
+######################################################### NEWTON SEED ALGORITHMS
+
+
 @inline mfinv(x::NTuple{X,T}, ::Val{1}) where {T,X} =
     (inv_r(first(x)),)
 
-@inline function mfinv(x::NTuple{2,T}, ::Val{2}) where {T}
-    x_hi, x_lo = x
+@inline function mfinv(x::NTuple{X,T}, ::Val{2}) where {X,T}
+    x_hi, x_lo = _resize(x, Val{2}())
     y = inv_r(x_hi)
     p_hi, p_lo = two_prod(x_hi, y)
     r = fma(-x_lo, y, (one(T) - p_hi) - p_lo)
@@ -1506,15 +1485,15 @@ end
 end
 
 @inline mfinv(x::NTuple{X,T}, ::Val{Z}) where {T,X,Z} =
-    _mfinv_impl(x, (inv_r(first(x)),), Val{Z}())
+    _mfinv_impl(x, mfinv(x, Val{2}()), Val{Z}())
 
 
 @inline mfdiv(x::NTuple{X,T}, y::NTuple{Y,T}, ::Val{1}) where {T,X,Y} =
     (div_r(first(x), first(y)),)
 
-@inline function mfdiv(x::NTuple{2,T}, y::NTuple{2,T}, ::Val{2}) where {T}
-    x_hi, x_lo = x
-    y_hi, y_lo = y
+@inline function mfdiv(x::NTuple{X,T}, y::NTuple{Y,T}, ::Val{2}) where {X,Y,T}
+    x_hi, x_lo = _resize(x, Val{2}())
+    y_hi, y_lo = _resize(y, Val{2}())
     w = inv_r(y_hi)
     z = one_prod(x_hi, w)
     r = fma(-y_hi, z, x_hi) + fma(-y_lo, z, x_lo)
@@ -1522,18 +1501,17 @@ end
 end
 
 @inline mfdiv(x::NTuple{X,T}, y::NTuple{Y,T}, ::Val{Z}) where {T,X,Y,Z} =
-    _mfdiv_impl(x, y,
-        mfdiv(_resize(x, Val{2}()), _resize(y, Val{2}()), Val{2}()), Val{Z}())
+    _mfdiv_impl(x, y, mfdiv(x, y, Val{2}()), Val{Z}())
 
 
 @inline mfrsqrt(x::NTuple{X,T}, ::Val{1}) where {T,X} =
     (rsqrt_r(first(x)),)
 
-@inline function mfrsqrt(x::NTuple{2,T}, ::Val{2}) where {T}
+@inline function mfrsqrt(x::NTuple{X,T}, ::Val{2}) where {X,T}
     _one = one(T)
     _two = _one + _one
     _half = inv_r(_two)
-    x_hi, x_lo = x
+    x_hi, x_lo = _resize(x, Val{2}())
     y = inv_r(x_hi)
     p_hi, p_lo = two_prod(x_hi, y)
     r = fma(-x_lo, y, (_one - p_hi) - p_lo)
@@ -1543,21 +1521,21 @@ end
 end
 
 @inline mfrsqrt(x::NTuple{X,T}, ::Val{Z}) where {T,X,Z} =
-    _mfrsqrt_impl(x, (rsqrt_r(first(x)),), Val{Z}())
+    _mfrsqrt_impl(x, mfrsqrt(x, Val{2}()), Val{Z}())
 
 
 @inline mfsqrt(x::NTuple{X,T}, ::Val{1}) where {T,X} =
     (sqrt_r(first(x)),)
 
-@inline function mfsqrt(x::NTuple{2,T}, ::Val{2}) where {T}
-    x_hi, x_lo = x
+@inline function mfsqrt(x::NTuple{X,T}, ::Val{2}) where {X,T}
+    x_hi, x_lo = _resize(x, Val{2}())
     y = sqrt_r(x_hi)
     r = fma(-y, y, x_hi) + x_lo
     return fast_two_sum(y, div_r(r, y + y))
 end
 
 @inline mfsqrt(x::NTuple{X,T}, ::Val{Z}) where {T,X,Z} =
-    _mfsqrt_impl(x, (rsqrt_r(first(x)),), Val{Z}())
+    _mfsqrt_impl(x, mfsqrt(x, Val{2}()), Val{Z}())
 
 
 ################################################## LEVEL 2 ARITHMETIC OPERATIONS
@@ -2039,9 +2017,9 @@ const _BASE_TRANSCENDENTAL_TUPLE_FUNCTIONS = Symbol[
 for name in _BASE_TRANSCENDENTAL_FUNCTIONS
     eval(:(Base.$name(::MultiFloat{T,N}) where {T,N} = error($(
         "$name(::MultiFloat) is not yet implemented. For a workaround,\n" *
-        "call MultiFloats.use_bigfloat_transcendentals() after importing\n" *
-        "MultiFloats. This will use the BigFloat implementation of $name,\n" *
-        "which will not be as fast as a pure-MultiFloat implementation.\n"
+            "call MultiFloats.use_bigfloat_transcendentals() after importing\n" *
+            "MultiFloats. This will use the BigFloat implementation of $name,\n" *
+            "which will not be as fast as a pure-MultiFloat implementation.\n"
     ))))
 end
 
@@ -2049,9 +2027,9 @@ end
 for name in _BASE_TRANSCENDENTAL_TUPLE_FUNCTIONS
     eval(:(Base.$name(::MultiFloat{T,N}) where {T,N} = error($(
         "$name(::MultiFloat) is not yet implemented. For a workaround,\n" *
-        "call MultiFloats.use_bigfloat_transcendentals() after importing\n" *
-        "MultiFloats. This will use the BigFloat implementation of $name,\n" *
-        "which will not be as fast as a pure-MultiFloat implementation.\n"
+            "call MultiFloats.use_bigfloat_transcendentals() after importing\n" *
+            "MultiFloats. This will use the BigFloat implementation of $name,\n" *
+            "which will not be as fast as a pure-MultiFloat implementation.\n"
     ))))
 end
 
