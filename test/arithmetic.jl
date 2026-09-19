@@ -170,3 +170,20 @@ end
             nan_condition=issubnormal)
     end
 end
+
+
+@testset "sinpi" begin
+    for T in _MF_TYPES
+        test_unary_operation(sinpi, T, 2, 2^17;
+            precise_condition=(e_lo, _, ex) -> (e_lo <= ex))
+    end
+end
+
+
+@testset "cospi" begin
+    for T in _MF_TYPES
+        test_unary_operation(cospi, T, 2, 2^17)
+    end
+end
+
+
