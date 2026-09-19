@@ -6,7 +6,6 @@ function common_bits(x::BigFloat, y::BigFloat)
     return max(exponent(x), exponent(y)) - exponent(d)
 end
 
-
 function test_unary_operation(
     f::F,
     ::Type{MultiFloat{T,N}},
@@ -51,7 +50,6 @@ function test_unary_operation(
     end
 end
 
-
 function test_binary_operation(
     f::F,
     ::Type{MultiFloat{T,N}},
@@ -93,7 +91,6 @@ function test_binary_operation(
     end
 end
 
-
 @testset "addition and subtraction" begin
     for T in _MF_TYPES
         test_binary_operation(+, T, 0, 2^18)
@@ -101,13 +98,11 @@ end
     end
 end
 
-
 @testset "multiplication" begin
     for T in _MF_TYPES
         test_binary_operation(*, T, 1, 2^19)
     end
 end
-
 
 @testset "reciprocal" begin
     for T in _MF_TYPES
@@ -117,7 +112,6 @@ end
             precise_condition=(_, e_hi, ex) -> (ex <= e_hi))
     end
 end
-
 
 @testset "division" begin
     for T in _MF_TYPES
@@ -132,7 +126,6 @@ end
     end
 end
 
-
 @testset "reciprocal square root" begin
     for T in _MF_TYPES
         test_unary_operation(MultiFloats.rsqrt_r, T, 3, 2^18;
@@ -140,7 +133,6 @@ end
             nan_condition=issubnormal, positive_inputs=true)
     end
 end
-
 
 @testset "square root" begin
     for T in _MF_TYPES
@@ -153,7 +145,6 @@ end
     end
 end
 
-
 @testset "reciprocal cube root" begin
     for T in _MF_TYPES
         test_unary_operation(MultiFloats.rcbrt, T, 5, 2^17;
@@ -162,11 +153,58 @@ end
     end
 end
 
-
 @testset "cube root" begin
     for T in _MF_TYPES
         test_unary_operation(cbrt, T, 6, 2^17;
             precise_condition=(e_lo, e_hi, ex) -> (e_lo <= ex <= e_hi),
             nan_condition=issubnormal)
+    end
+end
+
+@testset "atan (one argument)" begin
+    for T in _MF_TYPES
+        test_unary_operation(atan, T, 4, 2^16)
+    end
+end
+
+@testset "atan (two argument)" begin
+    for T in _MF_TYPES
+        # atan(y, x) computes y/x internally, so only assert accuracy where that
+        # ratio is representable (same condition as the division testset; the
+        # first argument y is the numerator, the second x the denominator).
+        test_binary_operation(atan, T, 4, 2^16;
+            precise_condition=(e_lo, e_hi, ey, ex) ->
+                (ey >= e_lo) & (ex <= e_hi) & (ey - ex >= e_lo))
+    end
+    # quadrant, axis, and signed-zero origin cases against BigFloat.
+    for T in _MF_TYPES
+        S = T.parameters[1]
+        p = precision(T)
+        setprecision(BigFloat, 2 * MultiFloats._full_precision(S) + 1) do
+            # Note: -0.0 second argument is omitted because Float32xN (N>=2)
+            # does not preserve negative zero through construction.
+            for (yv, xv) in ((3, 4), (3, -4), (-3, -4), (-3, 4),
+                             (1, 0), (-1, 0), (0, 1), (0, -1), (0.0, 0.0))
+                z = BigFloat(atan(T(yv), T(xv)))
+                ref = atan(BigFloat(yv), BigFloat(xv))
+                @test abs(z - ref) <= ldexp(abs(ref), 4 - p) + eps(BigFloat)
+            end
+            # Overflow-avoidance and sign/quadrant coverage at extreme magnitudes,
+            # where y/x would overflow (so the smaller/larger swap is required)
+            # and the result is an exact-angle limit. Cases whose true result is a
+            # subnormal tiny ratio are omitted (they hit the division precision
+            # limit, not atan's).
+            hi = floatmax(T)
+            tiny = floatmin(T)
+            for (y, x) in ((hi, one(T)), (hi, -one(T)),     # -> +pi/2
+                           (-hi, one(T)), (-hi, -one(T)),   # -> -pi/2
+                           (one(T), -hi), (-one(T), -hi),   # -> +-pi
+                           (hi, tiny), (-hi, tiny),         # -> +-pi/2 (huge ratio)
+                           (hi, -tiny), (-hi, -tiny))       # -> +-pi/2 (huge ratio)
+                z = BigFloat(atan(y, x))
+                ref = atan(BigFloat(y), BigFloat(x))
+                @test abs(z - ref) <= ldexp(abs(ref), 4 - p) + eps(BigFloat)
+            end
+        end
     end
 end
